@@ -1,0 +1,46 @@
+version: "3.8"
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workinflow-mom-app
+    restart: unless-stopped
+    ports:
+      - "3100:3000"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - AUTH_SECRET=${AUTH_SECRET}
+      - NEXTAUTH_URL=${NEXTAUTH_URL}
+      - NODE_ENV=production
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - workinflow
+
+  db:
+    image: postgres:16-alpine
+    container_name: workinflow-mom-db-prod
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-workinflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-Wf2026MomProd!Secure}
+      POSTGRES_DB: ${POSTGRES_DB:-workinflow_mom}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-workinflow}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - workinflow
+
+volumes:
+  pgdata:
+
+networks:
+  workinflow:
+    driver: bridge
