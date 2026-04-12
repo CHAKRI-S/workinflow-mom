@@ -1,0 +1,88 @@
+import { NextRequest, NextResponse } from "next/server";
+import { auth } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { requirePermission, ROLES } from "@/lib/permissions";
+import bcrypt from "bcryptjs";
+import { Role } from "@/generated/prisma/client";
+
+type Params = { params: Promise<{ id: string }> };
+
+// GET /api/admin/users/[id]
+export async function GET(_req: NextRequest, { params }: Params) {
+  const session = await auth();
+  requirePermission(session, ROLES.ADMIN_ONLY);
+  const { id } = await params;
+
+  const user = await prisma.user.findFirst({
+    where: { id, tenantId: session!.user.tenantId },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      updatedAt: true,
+    },
+  });
+
+  if (!user) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json(user);
+}
+
+// PATCH /api/admin/users/[id]
+export async function PATCH(req: NextRequest, { params }: Params) {
+  const session = await auth();
+  requirePermission(session, ROLES.ADMIN_ONLY);
+  const { id } = await params;
+
+  const body = await req.json();
+  const { name, email, password, role, isActive } = body;
+
+  // Validate role if provided
+  if (role) {
+    const validRoles = Object.values(Role);
+    if (!validRoles.includes(role)) {
+      return NextResponse.json({ error: "Invalid role" }, { status: 400 });
+    }
+  }
+
+  // Check email uniqueness if email is being changed
+  if (email) {
+    const existing = await prisma.user.findFirst({
+      where: { email, id: { not: id } },
+    });
+    if (existing) {
+      return NextResponse.json(
+        { error: "Email already exists" },
+        { status: 409 }
+      );
+    }
+  }
+
+  // Build update data
+  const updateData: Record<string, unknown> = {};
+  if (name !== undefined) updateData.name = name;
+  if (email !== undefined) updateData.email = email;
+  if (role !== undefined) updateData.role = role;
+  if (isActive !== undefined) updateData.isActive = isActive;
+
+  // Hash password if provided
+  if (password) {
+    updateData.hashedPassword = await bcrypt.hash(password, 12);
+  }
+
+  const result = await prisma.user.updateMany({
+    where: { id, tenantId: session!.user.tenantId },
+    data: updateData,
+  });
+
+  if (result.count === 0) {
+    return NextResponse.json({ error: "Not found" }, { status: 404 });
+  }
+
+  return NextResponse.json({ success: true });
+}
