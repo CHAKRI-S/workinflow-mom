@@ -24,6 +24,10 @@ import {
   Upload,
   Trash2,
   Image,
+  Monitor,
+  Copy,
+  Check,
+  ExternalLink,
 } from "lucide-react";
 
 interface Tenant {
@@ -96,11 +100,15 @@ export function SettingsClient({
   const [error, setError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(tenant?.logo ?? null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [copied, setCopied] = useState(false);
 
   const locale =
     typeof window !== "undefined"
       ? window.location.pathname.match(/^\/(th|en)/)?.[1] || "th"
       : "th";
+
+  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
+  const factoryUrl = `${baseUrl}/${locale}/factory?token=workinflow-factory-2026`;
 
   const { register, handleSubmit } = useForm<CompanyFormData>({
     defaultValues: {
@@ -418,6 +426,59 @@ export function SettingsClient({
           </div>
           <p className="text-xs text-muted-foreground mt-3">
             {t("settings.docPattern")}
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Factory Dashboard Link */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Monitor className="h-4 w-4" />
+            {locale === "th" ? "หน้าจอโรงงาน" : "Factory Dashboard"}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-sm text-muted-foreground">
+            {locale === "th"
+              ? "ลิงก์สำหรับแสดงสถานะการผลิตบนจอ TV ในโรงงาน — ไม่ต้อง login, auto-refresh ทุก 30 วินาที"
+              : "Link for displaying production status on factory TV — no login required, auto-refreshes every 30 seconds"}
+          </p>
+          <div className="flex items-center gap-2">
+            <Input
+              value={factoryUrl}
+              readOnly
+              className="font-mono text-xs"
+              onClick={(e) => (e.target as HTMLInputElement).select()}
+            />
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(factoryUrl);
+                setCopied(true);
+                setTimeout(() => setCopied(false), 2000);
+              }}
+            >
+              {copied ? (
+                <Check className="h-4 w-4 text-green-600" />
+              ) : (
+                <Copy className="h-4 w-4" />
+              )}
+            </Button>
+            <a href={factoryUrl} target="_blank" rel="noopener noreferrer">
+              <Button type="button" variant="outline" size="sm">
+                <ExternalLink className="h-4 w-4" />
+              </Button>
+            </a>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Token: <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">workinflow-factory-2026</code>
+            {" — "}
+            {locale === "th"
+              ? "เปลี่ยนได้ที่ ENV: FACTORY_BOARD_TOKEN"
+              : "Change via ENV: FACTORY_BOARD_TOKEN"}
           </p>
         </CardContent>
       </Card>
