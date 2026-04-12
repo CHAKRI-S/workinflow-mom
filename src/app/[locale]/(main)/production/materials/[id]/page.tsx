@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { setRequestLocale } from "next-intl/server";
 import { redirect, notFound } from "next/navigation";
 import { MaterialDetailClient } from "./material-detail-client";
@@ -15,7 +16,7 @@ export default async function MaterialDetailPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
-  requirePermission(session, ROLES.PRODUCTION);
+  if (!hasPermission(session, ROLES.PRODUCTION)) return <AccessDenied />;
 
   const material = await prisma.material.findFirst({
     where: { id, tenantId: session.user.tenantId, isActive: true },

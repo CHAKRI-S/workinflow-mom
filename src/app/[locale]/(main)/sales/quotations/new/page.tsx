@@ -1,6 +1,8 @@
 import { setRequestLocale } from "next-intl/server";
 import { auth } from "@/lib/auth";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { redirect } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { QuotationForm } from "../quotation-form";
 
 export default async function NewQuotationPage({
@@ -12,7 +14,8 @@ export default async function NewQuotationPage({
   setRequestLocale(locale);
 
   const session = await auth();
-  requirePermission(session, ROLES.SALES_TEAM);
+  if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.SALES_TEAM)) return <AccessDenied />;
 
   return (
     <div className="mx-auto max-w-5xl">

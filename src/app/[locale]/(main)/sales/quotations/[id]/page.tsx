@@ -1,8 +1,9 @@
 import { setRequestLocale } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
-import { notFound } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
+import { notFound, redirect } from "next/navigation";
 import { QuotationDetailClient } from "./quotation-detail-client";
 
 export default async function QuotationDetailPage({
@@ -14,10 +15,11 @@ export default async function QuotationDetailPage({
   setRequestLocale(locale);
 
   const session = await auth();
-  requirePermission(session, ROLES.SALES_TEAM);
+  if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.SALES_TEAM)) return <AccessDenied />;
 
   const quotation = await prisma.quotation.findFirst({
-    where: { id, tenantId: session!.user.tenantId },
+    where: { id, tenantId: session.user.tenantId },
     include: {
       customer: {
         select: {

@@ -1,6 +1,8 @@
 import { setRequestLocale } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { redirect, notFound } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { prisma } from "@/lib/prisma";
 import { OrderDetailClient } from "./order-detail-client";
 
@@ -14,6 +16,7 @@ export default async function SalesOrderDetailPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.SALES_TEAM)) return <AccessDenied />;
 
   const order = await prisma.salesOrder.findFirst({
     where: { id, tenantId: session.user.tenantId },

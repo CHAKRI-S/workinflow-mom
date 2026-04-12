@@ -1,6 +1,7 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { notFound } from "next/navigation";
@@ -16,7 +17,7 @@ export default async function MachineDetailPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
-  requirePermission(session, ROLES.PRODUCTION);
+  if (!hasPermission(session, ROLES.PRODUCTION)) return <AccessDenied />;
 
   const machine = await prisma.cncMachine.findFirst({
     where: { id, tenantId: session.user.tenantId, isActive: true },

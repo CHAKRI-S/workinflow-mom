@@ -1,6 +1,8 @@
 import { setRequestLocale } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { PlanScheduler } from "./plan-scheduler";
 
 export default async function PlansPage({
@@ -13,6 +15,7 @@ export default async function PlansPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.PLANNING)) return <AccessDenied />;
 
   return <PlanScheduler />;
 }

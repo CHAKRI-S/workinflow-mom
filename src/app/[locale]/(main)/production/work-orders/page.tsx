@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
+import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import { WorkOrderListClient } from "./work-order-list-client";
 
@@ -12,10 +14,11 @@ export default async function WorkOrdersPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const session = await auth();
-  requirePermission(session, ROLES.PRODUCTION);
+  if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.PRODUCTION)) return <AccessDenied />;
 
   const workOrders = await prisma.workOrder.findMany({
-    where: { tenantId: session!.user.tenantId },
+    where: { tenantId: session.user.tenantId },
     orderBy: { createdAt: "desc" },
     include: {
       product: { select: { id: true, code: true, name: true } },

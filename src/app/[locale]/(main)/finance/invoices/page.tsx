@@ -2,6 +2,8 @@ import { setRequestLocale } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { InvoiceListClient } from "./invoice-list-client";
 
 export default async function InvoicesPage({
@@ -14,6 +16,7 @@ export default async function InvoicesPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.FINANCE)) return <AccessDenied />;
 
   const invoices = await prisma.invoice.findMany({
     where: { tenantId: session.user.tenantId },

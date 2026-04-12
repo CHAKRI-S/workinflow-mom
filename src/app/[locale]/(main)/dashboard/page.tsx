@@ -1,5 +1,9 @@
 import { useTranslations } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
+import { auth } from "@/lib/auth";
+import { redirect } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { KpiCard } from "@/components/shared/kpi-card";
 import {
   FileText,
@@ -17,6 +21,10 @@ export default async function DashboardPage({
 }) {
   const { locale } = await params;
   setRequestLocale(locale);
+
+  const session = await auth();
+  if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.ALL)) return <AccessDenied />;
 
   return <DashboardContent />;
 }

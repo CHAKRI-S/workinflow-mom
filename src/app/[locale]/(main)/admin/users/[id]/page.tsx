@@ -1,8 +1,9 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { setRequestLocale } from "next-intl/server";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { UserDetailClient } from "./user-detail-client";
 
 export default async function UserDetailPage({
@@ -14,10 +15,11 @@ export default async function UserDetailPage({
   setRequestLocale(locale);
 
   const session = await auth();
-  requirePermission(session, ROLES.ADMIN_ONLY);
+  if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.ADMIN_ONLY)) return <AccessDenied />;
 
   const user = await prisma.user.findFirst({
-    where: { id, tenantId: session!.user.tenantId },
+    where: { id, tenantId: session.user.tenantId },
     select: {
       id: true,
       name: true,

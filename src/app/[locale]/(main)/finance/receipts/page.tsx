@@ -2,6 +2,8 @@ import { setRequestLocale } from "next-intl/server";
 import { prisma } from "@/lib/prisma";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { ReceiptListClient } from "./receipt-list-client";
 
 export default async function ReceiptsPage({
@@ -14,6 +16,7 @@ export default async function ReceiptsPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.FINANCE)) return <AccessDenied />;
 
   const receipts = await prisma.receipt.findMany({
     where: { tenantId: session.user.tenantId },

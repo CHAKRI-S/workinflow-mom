@@ -21,6 +21,8 @@
     "total": "Total",
     "quantity": "Quantity",
     "noData": "No data",
+    "accessDenied": "Access Denied",
+    "accessDeniedDesc": "You don't have permission to access this page. Please contact your administrator.",
     "rowsPerPage": "Rows per page",
     "page": "Page",
     "of": "of",

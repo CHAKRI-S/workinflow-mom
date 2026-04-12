@@ -9,6 +9,7 @@ export function checkPermission(
   return allowedRoles.includes(session.user.role);
 }
 
+/** Throws if unauthorized — use in API routes */
 export function requirePermission(
   session: Session | null,
   allowedRoles: Role[]
@@ -16,6 +17,14 @@ export function requirePermission(
   if (!checkPermission(session, allowedRoles)) {
     throw new Error("Unauthorized");
   }
+}
+
+/** Returns true/false — use in pages to show AccessDenied component */
+export function hasPermission(
+  session: Session | null,
+  allowedRoles: Role[]
+): boolean {
+  return checkPermission(session, allowedRoles);
 }
 
 // Role groups for common use

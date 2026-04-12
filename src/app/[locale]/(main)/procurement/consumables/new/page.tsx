@@ -1,5 +1,6 @@
 import { auth } from "@/lib/auth";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { setRequestLocale } from "next-intl/server";
 import { redirect } from "next/navigation";
 import { ConsumableFormClient } from "./consumable-form-client";
@@ -14,7 +15,7 @@ export default async function NewConsumablePage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
-  requirePermission(session, ROLES.PLANNING);
+  if (!hasPermission(session, ROLES.PLANNING)) return <AccessDenied />;
 
   return <ConsumableFormClient />;
 }

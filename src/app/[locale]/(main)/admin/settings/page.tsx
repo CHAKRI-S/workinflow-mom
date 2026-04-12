@@ -2,7 +2,8 @@ import { setRequestLocale } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
 import { SettingsClient } from "./settings-client";
 
 export default async function SettingsPage({
@@ -15,7 +16,7 @@ export default async function SettingsPage({
 
   const session = await auth();
   if (!session?.user) redirect(`/${locale}/login`);
-  requirePermission(session, ROLES.ADMIN_ONLY);
+  if (!hasPermission(session, ROLES.ADMIN_ONLY)) return <AccessDenied />;
 
   const tenantId = session.user.tenantId;
 

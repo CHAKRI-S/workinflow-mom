@@ -1,6 +1,8 @@
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { requirePermission, ROLES } from "@/lib/permissions";
+import { hasPermission, ROLES } from "@/lib/permissions";
+import { AccessDenied } from "@/components/shared/access-denied";
+import { redirect } from "next/navigation";
 import { setRequestLocale } from "next-intl/server";
 import { ReportsClient } from "./reports-client";
 
@@ -12,8 +14,9 @@ export default async function ReportsPage({
   const { locale } = await params;
   setRequestLocale(locale);
   const session = await auth();
-  requirePermission(session, ROLES.MANAGEMENT);
-  const tenantId = session!.user.tenantId;
+  if (!session?.user) redirect(`/${locale}/login`);
+  if (!hasPermission(session, ROLES.MANAGEMENT)) return <AccessDenied />;
+  const tenantId = session.user.tenantId;
 
   // Date ranges
   const now = new Date();
