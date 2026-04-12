@@ -8,10 +8,15 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Coolify Deploy
-        run: |
-          curl -f -X POST \
-            "${{ secrets.COOLIFY_URL }}/api/v1/deploy?uuid=${{ secrets.COOLIFY_APP_UUID }}&force=true" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            -H "Content-Type: application/json"
-          echo "Deploy triggered!"
+      - name: Trigger Coolify Deploy via SSH
+        uses: appleboy/ssh-action@v1
+        with:
+          host: 145.79.12.13
+          username: root
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
+            curl -f -s -X POST \
+              "http://localhost:8000/api/v1/deploy?uuid=${{ secrets.COOLIFY_APP_UUID }}&force=true" \
+              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+              -H "Content-Type: application/json"
+            echo "Deploy triggered!"
