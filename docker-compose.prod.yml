@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   app:
     build:
@@ -17,8 +15,20 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.workinflow-mom.rule=Host(`mom.workinflow.cloud`)"
+      - "traefik.http.routers.workinflow-mom.entrypoints=https"
+      - "traefik.http.routers.workinflow-mom.tls=true"
+      - "traefik.http.routers.workinflow-mom.tls.certresolver=letsencrypt"
+      - "traefik.http.services.workinflow-mom.loadbalancer.server.port=3000"
+      - "traefik.http.routers.workinflow-mom-http.rule=Host(`mom.workinflow.cloud`)"
+      - "traefik.http.routers.workinflow-mom-http.entrypoints=http"
+      - "traefik.http.routers.workinflow-mom-http.middlewares=redirect-to-https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
     networks:
       - workinflow
+      - coolify
 
   db:
     image: postgres:16-alpine
@@ -44,3 +54,5 @@ volumes:
 networks:
   workinflow:
     driver: bridge
+  coolify:
+    external: true
