@@ -8,15 +8,22 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Coolify Deploy via SSH
-        uses: appleboy/ssh-action@v1
-        with:
-          host: 145.79.12.13
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            curl -f -s -X POST \
-              "http://localhost:8000/api/v1/deploy?uuid=${{ secrets.COOLIFY_APP_UUID }}&force=true" \
-              -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-              -H "Content-Type: application/json"
-            echo "Deploy triggered!"
+      - name: Trigger Coolify Deploy
+        env:
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_APP_UUID: ${{ secrets.COOLIFY_APP_UUID }}
+        run: |
+          # Try direct API call (if port 8000 is accessible)
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" --max-time 10 \
+            "http://145.79.12.13:8000/api/v1/deploy?uuid=${COOLIFY_APP_UUID}&force=true" \
+            -X POST \
+            -H "Authorization: Bearer ${COOLIFY_TOKEN}" \
+            -H "Content-Type: application/json" 2>/dev/null || echo "000")
+
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "201" ]; then
+            echo "Deploy triggered via direct API!"
+          else
+            echo "Direct API not reachable (HTTP $HTTP_CODE). Deploy manually via Coolify UI or SSH."
+            echo "Run: ssh root@145.79.12.13 \"curl -s -X POST http://localhost:8000/api/v1/deploy?uuid=${COOLIFY_APP_UUID}\&force=true -H 'Authorization: Bearer <token>' -H 'Content-Type: application/json'\""
+            echo "::warning::Could not reach Coolify API from GitHub. Trigger deploy manually or open port 8000."
+          fi
