@@ -20,7 +20,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client (outputs to src/generated/prisma)
+# Generate Prisma client
 RUN npx prisma generate
 
 # Build Next.js (standalone output)
@@ -41,18 +41,19 @@ COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
 
-# Copy Prisma for migrations at runtime
+# Copy ALL node_modules for prisma migrate + seed at runtime
+COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/package.json ./
 
-# Copy prisma CLI + pg adapter for migrate
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
+# Entrypoint: migrate → seed → start
+COPY entrypoint.sh ./
+RUN chmod +x entrypoint.sh
 
 EXPOSE 3000
 ENV PORT=3000
 ENV HOSTNAME="0.0.0.0"
 
-CMD ["node", "server.js"]
+CMD ["./entrypoint.sh"]
