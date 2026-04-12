@@ -25,6 +25,9 @@ export default async function ProductDetailPage({
         include: { material: true },
         orderBy: { sortOrder: "asc" },
       },
+      images: {
+        orderBy: { sortOrder: "asc" },
+      },
     },
   });
 

@@ -132,7 +132,8 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
 
             <div className="space-y-1.5">
               <Label>{t("customer.name")} *</Label>
-              <Input {...register("name")} />
+              <Input {...register("name")} placeholder="บริษัท ○○○ จำกัด / ร้าน ○○○ / ชื่อบุคคล" />
+              <p className="text-xs text-muted-foreground">ชื่อบริษัท, ร้านค้า หรือชื่อลูกค้า</p>
               {errors.name && (
                 <p className="text-xs text-destructive">{errors.name.message}</p>
               )}

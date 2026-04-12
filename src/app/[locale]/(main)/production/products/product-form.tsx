@@ -25,8 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useState } from "react";
-import { ArrowLeft, Save, Loader2, Plus, Trash2 } from "lucide-react";
+import { useState, useRef, useCallback } from "react";
+import { ArrowLeft, Save, Loader2, Plus, Trash2, ImagePlus } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 
 interface MaterialOption {
@@ -58,18 +58,85 @@ interface ExistingBomLine {
   material: { id: string; code: string; name: string; unit: string };
 }
 
+interface ProductImageItem {
+  id: string;
+  url: string;
+  caption: string | null;
+  sortOrder: number;
+}
+
+interface PendingImage {
+  file: File;
+  caption: string;
+  previewUrl: string;
+}
+
 interface ProductFormProps {
   defaultValues?: Partial<ProductCreateInput> & { id?: string };
   isEdit?: boolean;
   materials?: MaterialOption[];
   existingBomLines?: ExistingBomLine[];
+  existingImages?: ProductImageItem[];
 }
 
-export function ProductForm({ defaultValues, isEdit, materials = [], existingBomLines = [] }: ProductFormProps) {
+export function ProductForm({ defaultValues, isEdit, materials = [], existingBomLines = [], existingImages = [] }: ProductFormProps) {
   const t = useTranslations();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Image state
+  const [savedImages, setSavedImages] = useState<ProductImageItem[]>(existingImages);
+  const [pendingImages, setPendingImages] = useState<PendingImage[]>([]);
+  const [imageCaption, setImageCaption] = useState("");
+  const formFileInputRef = useRef<HTMLInputElement>(null);
+
+  const addPendingImage = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const previewUrl = URL.createObjectURL(file);
+      setPendingImages((prev) => [...prev, { file, caption: imageCaption, previewUrl }]);
+      setImageCaption("");
+    }
+    e.target.value = "";
+  }, [imageCaption]);
+
+  const removePendingImage = (idx: number) => {
+    setPendingImages((prev) => {
+      URL.revokeObjectURL(prev[idx].previewUrl);
+      return prev.filter((_, i) => i !== idx);
+    });
+  };
+
+  const deleteSavedImage = async (imageId: string) => {
+    if (!defaultValues?.id) return;
+    try {
+      const res = await fetch(`/api/production/products/${defaultValues.id}/images/${imageId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      setSavedImages((prev) => prev.filter((img) => img.id !== imageId));
+    } catch {
+      setError("Failed to delete image");
+    }
+  };
+
+  const uploadPendingImages = async (productId: string) => {
+    for (const pending of pendingImages) {
+      const formData = new FormData();
+      formData.append("file", pending.file);
+      formData.append("folder", "products");
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) continue;
+      const { url } = await uploadRes.json();
+
+      await fetch(`/api/production/products/${productId}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, caption: pending.caption || undefined }),
+      });
+    }
+  };
 
   // BOM state
   const [bomLines, setBomLines] = useState<BomFormLine[]>(
@@ -159,6 +226,11 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ lines: [] }),
         });
+      }
+
+      // Upload pending images
+      if (productId && pendingImages.length > 0) {
+        await uploadPendingImages(productId);
       }
 
       router.push(`/production/products/${productId}`);
@@ -404,6 +476,110 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
           ) : (
             <p className="text-sm text-muted-foreground py-4 text-center">
               {t("product.noBom")}
+            </p>
+          )}
+        </Card>
+
+        {/* Images */}
+        <Card className="p-5 space-y-4">
+          <div className="flex items-center justify-between">
+            <h2 className="font-semibold">{t("product.images")}</h2>
+          </div>
+
+          {/* Existing saved images (edit mode) */}
+          {savedImages.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {savedImages.map((img) => (
+                <div
+                  key={img.id}
+                  className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 group relative"
+                >
+                  <img
+                    src={img.url}
+                    alt={img.caption || ""}
+                    className="w-full h-32 object-cover"
+                  />
+                  <div className="p-2 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground truncate">
+                      {img.caption || ""}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => deleteSavedImage(img.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Pending images (not yet uploaded) */}
+          {pendingImages.length > 0 && (
+            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              {pendingImages.map((img, idx) => (
+                <div
+                  key={idx}
+                  className="rounded-xl overflow-hidden border border-dashed border-blue-300 dark:border-blue-700 group relative"
+                >
+                  <img
+                    src={img.previewUrl}
+                    alt={img.caption || ""}
+                    className="w-full h-32 object-cover opacity-80"
+                  />
+                  <div className="p-2 flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground truncate">
+                      {img.caption || img.file.name}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-xs"
+                      onClick={() => removePendingImage(idx)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Add image controls */}
+          <div className="flex items-end gap-3">
+            <div className="flex-1 space-y-1.5">
+              <Label>{t("product.caption")}</Label>
+              <Input
+                value={imageCaption}
+                onChange={(e) => setImageCaption(e.target.value)}
+                placeholder={t("product.caption")}
+              />
+            </div>
+            <input
+              ref={formFileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={addPendingImage}
+              className="hidden"
+            />
+            <Button
+              type="button"
+              onClick={() => formFileInputRef.current?.click()}
+              variant="outline"
+              size="sm"
+            >
+              <ImagePlus className="h-4 w-4 mr-1" />
+              {t("product.addImage")}
+            </Button>
+          </div>
+
+          {savedImages.length === 0 && pendingImages.length === 0 && (
+            <p className="text-sm text-muted-foreground py-4 text-center">
+              {t("product.noImages")}
             </p>
           )}
         </Card>

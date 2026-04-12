@@ -32,8 +32,10 @@ import {
   Trash2,
   Save,
   Loader2,
+  ImagePlus,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useRef, useCallback } from "react";
 
 interface BomLine {
   id: string;
@@ -45,6 +47,14 @@ interface BomLine {
   notes: string | null;
   sortOrder: number;
   material: { id: string; code: string; name: string; unit: string };
+}
+
+interface ProductImage {
+  id: string;
+  productId: string;
+  url: string;
+  caption: string | null;
+  sortOrder: number;
 }
 
 interface Product {
@@ -63,6 +73,7 @@ interface Product {
   leadTimeDays: number;
   cycleTimeMinutes: string | number | null;
   bomLines: BomLine[];
+  images: ProductImage[];
 }
 
 interface Material {
@@ -105,6 +116,14 @@ export function ProductDetailClient({
   const [saving, setSaving] = useState(false);
   const [bomDirty, setBomDirty] = useState(false);
 
+  // Image state
+  const [images, setImages] = useState<ProductImage[]>(product.images || []);
+  const [uploading, setUploading] = useState(false);
+  const [caption, setCaption] = useState("");
+  const [showAddImage, setShowAddImage] = useState(false);
+  const [viewImage, setViewImage] = useState<ProductImage | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const addBomLine = () => {
     setBomLines((prev) => [
       ...prev,
@@ -140,6 +159,54 @@ export function ProductDetailClient({
       alert("Failed to save BOM");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleImageUpload = useCallback(async (file: File) => {
+    setUploading(true);
+    try {
+      // Upload file
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "products");
+      const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
+      if (!uploadRes.ok) throw new Error("Upload failed");
+      const { url } = await uploadRes.json();
+
+      // Create image record
+      const imgRes = await fetch(`/api/production/products/${product.id}/images`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url, caption: caption || undefined }),
+      });
+      if (!imgRes.ok) throw new Error("Failed to save image");
+      const newImage = await imgRes.json();
+      setImages((prev) => [...prev, newImage]);
+      setCaption("");
+      setShowAddImage(false);
+    } catch {
+      alert("Failed to upload image");
+    } finally {
+      setUploading(false);
+    }
+  }, [product.id, caption]);
+
+  const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) handleImageUpload(file);
+    // Reset input so same file can be selected again
+    e.target.value = "";
+  }, [handleImageUpload]);
+
+  const deleteImage = async (imageId: string) => {
+    try {
+      const res = await fetch(`/api/production/products/${product.id}/images/${imageId}`, {
+        method: "DELETE",
+      });
+      if (!res.ok) throw new Error("Delete failed");
+      setImages((prev) => prev.filter((img) => img.id !== imageId));
+    } catch {
+      alert("Failed to delete image");
     }
   };
 
@@ -219,6 +286,121 @@ export function ProductDetailClient({
           </div>
         </div>
       </Card>
+
+      {/* Images */}
+      <Card className="p-4 space-y-4">
+        <div className="flex items-center justify-between">
+          <h2 className="font-semibold text-lg">{t("product.images")}</h2>
+          <Button
+            onClick={() => setShowAddImage(!showAddImage)}
+            variant="outline"
+            size="sm"
+          >
+            <ImagePlus className="h-4 w-4 mr-1" />
+            {t("product.addImage")}
+          </Button>
+        </div>
+
+        {/* Add image form */}
+        {showAddImage && (
+          <div className="flex items-end gap-3 p-3 bg-muted/50 rounded-xl">
+            <div className="flex-1 space-y-1.5">
+              <Label>{t("product.caption")}</Label>
+              <Input
+                value={caption}
+                onChange={(e) => setCaption(e.target.value)}
+                placeholder={t("product.caption")}
+              />
+            </div>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={handleFileSelect}
+              className="hidden"
+            />
+            <Button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading}
+              size="sm"
+            >
+              {uploading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Plus className="h-4 w-4 mr-1" />
+              )}
+              {uploading ? t("common.loading") : t("product.addImage")}
+            </Button>
+          </div>
+        )}
+
+        {images.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+            {images.map((img) => (
+              <div
+                key={img.id}
+                className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 group relative"
+              >
+                <button
+                  type="button"
+                  className="w-full cursor-pointer"
+                  onClick={() => setViewImage(img)}
+                >
+                  <img
+                    src={img.url}
+                    alt={img.caption || ""}
+                    className="w-full h-40 object-cover"
+                  />
+                </button>
+                <div className="p-2 flex items-center justify-between">
+                  <span className="text-xs text-muted-foreground truncate">
+                    {img.caption || ""}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => deleteImage(img.id)}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-8 text-muted-foreground text-sm">
+            {t("product.noImages")}
+          </div>
+        )}
+      </Card>
+
+      {/* Full-size image overlay */}
+      {viewImage && (
+        <div
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4"
+          onClick={() => setViewImage(null)}
+        >
+          <button
+            type="button"
+            className="absolute top-4 right-4 text-white hover:text-gray-300"
+            onClick={() => setViewImage(null)}
+          >
+            <X className="h-8 w-8" />
+          </button>
+          <img
+            src={viewImage.url}
+            alt={viewImage.caption || ""}
+            className="max-w-full max-h-[90vh] object-contain rounded-xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+          {viewImage.caption && (
+            <p className="absolute bottom-8 text-white text-sm bg-black/50 px-4 py-2 rounded-lg">
+              {viewImage.caption}
+            </p>
+          )}
+        </div>
+      )}
 
       {/* BOM Editor */}
       <Card className="p-4 space-y-4">

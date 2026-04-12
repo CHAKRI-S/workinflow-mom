@@ -26,6 +26,9 @@ export default async function EditProductPage({
           include: { material: { select: { id: true, code: true, name: true, unit: true } } },
           orderBy: { sortOrder: "asc" },
         },
+        images: {
+          orderBy: { sortOrder: "asc" },
+        },
       },
     }),
     prisma.material.findMany({
@@ -61,6 +64,7 @@ export default async function EditProductPage({
         cycleTimeMinutes: serialized.cycleTimeMinutes ? Number(serialized.cycleTimeMinutes) : undefined,
       }}
       existingBomLines={serialized.bomLines}
+      existingImages={serialized.images}
     />
   );
 }

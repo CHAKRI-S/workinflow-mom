@@ -21,6 +21,9 @@ import {
   Boxes,
   Wrench,
   Database,
+  Upload,
+  Trash2,
+  Image,
 } from "lucide-react";
 
 interface Tenant {
@@ -31,6 +34,7 @@ interface Tenant {
   address: string | null;
   phone: string | null;
   email: string | null;
+  logo: string | null;
   vatRate: string | number;
   isActive: boolean;
 }
@@ -90,6 +94,8 @@ export function SettingsClient({
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [logoUrl, setLogoUrl] = useState<string | null>(tenant?.logo ?? null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const locale =
     typeof window !== "undefined"
@@ -134,6 +140,71 @@ export function SettingsClient({
     }
   };
 
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingLogo(true);
+    setError(null);
+    try {
+      // 1. Upload file
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "logos");
+      const uploadRes = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json();
+        throw new Error(err.error || "Upload failed");
+      }
+      const { url } = await uploadRes.json();
+
+      // 2. Save logo URL to tenant settings
+      const patchRes = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logo: url }),
+      });
+      if (!patchRes.ok) {
+        const err = await patchRes.json();
+        throw new Error(err.error || "Failed to save logo");
+      }
+
+      setLogoUrl(url);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setUploadingLogo(false);
+      // Reset the input so the same file can be re-selected
+      e.target.value = "";
+    }
+  };
+
+  const handleLogoRemove = async () => {
+    setUploadingLogo(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ logo: null }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to remove logo");
+      }
+      setLogoUrl(null);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setUploadingLogo(false);
+    }
+  };
+
   // Group sequences by prefix, show latest year
   const currentYear = new Date().getFullYear();
   const seqByPrefix: Record<string, DocSequence> = {};
@@ -170,6 +241,67 @@ export function SettingsClient({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
+            {/* Logo Upload Section */}
+            <div className="space-y-2">
+              <Label>{t("settings.logo")}</Label>
+              <div className="flex items-start gap-4">
+                {logoUrl ? (
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-2 bg-white dark:bg-gray-900">
+                    <img
+                      src={logoUrl}
+                      alt="Company logo"
+                      className="max-w-[200px] max-h-[100px] object-contain rounded-lg"
+                    />
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
+                    <Image className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+                  </div>
+                )}
+                <div className="flex flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingLogo}
+                    onClick={() =>
+                      document.getElementById("logo-upload")?.click()
+                    }
+                  >
+                    {uploadingLogo ? (
+                      <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                    ) : (
+                      <Upload className="h-4 w-4 mr-1" />
+                    )}
+                    {t("settings.uploadLogo")}
+                  </Button>
+                  {logoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      disabled={uploadingLogo}
+                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-900/20"
+                      onClick={handleLogoRemove}
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      {t("settings.removeLogo")}
+                    </Button>
+                  )}
+                  <input
+                    id="logo-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleLogoUpload}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    {t("settings.logoHint")}
+                  </p>
+                </div>
+              </div>
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <Label>{t("settings.companyName")} *</Label>

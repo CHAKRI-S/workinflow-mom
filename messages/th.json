@@ -328,7 +328,12 @@
     "hoursShort": "ชม.",
     "materialSize": "ขนาดวัสดุ",
     "materialType": "ประเภทวัสดุ",
-    "piecesPerStock": "ได้/ท่อน"
+    "piecesPerStock": "ได้/ท่อน",
+    "images": "รูปภาพ",
+    "addImage": "เพิ่มรูป",
+    "caption": "คำอธิบาย",
+    "viewImage": "ดูรูปเต็ม",
+    "noImages": "ยังไม่มีรูปภาพ"
   },
   "plan": {
     "title": "แผนการผลิต",
@@ -388,7 +393,11 @@
     "version": "เวอร์ชัน",
     "tenantStatus": "สถานะ Tenant",
     "active": "เปิดใช้งาน",
-    "inactive": "ปิดใช้งาน"
+    "inactive": "ปิดใช้งาน",
+    "logo": "โลโก้บริษัท",
+    "uploadLogo": "อัพโหลดโลโก้",
+    "removeLogo": "ลบโลโก้",
+    "logoHint": "ใช้แสดงในใบเสนอราคา, ใบแจ้งหนี้"
   },
   "machine": {
     "title": "เครื่อง CNC",
@@ -609,6 +618,19 @@
       "SAFETY": "อุปกรณ์ความปลอดภัย",
       "OTHER": "อื่นๆ"
     }
+  },
+  "factory": {
+    "title": "สถานะการผลิต",
+    "live": "LIVE",
+    "lastUpdated": "อัพเดทล่าสุด",
+    "autoRefresh": "รีเฟรชอัตโนมัติ",
+    "seconds": "วินาที",
+    "materialList": "วัสดุที่ใช้",
+    "productInfo": "ข้อมูลสินค้า",
+    "drawingNotes": "หมายเหตุแบบ",
+    "noWork": "ไม่มีงาน",
+    "clickForDetails": "คลิกเพื่อดูรายละเอียด",
+    "updating": "กำลังอัพเดท..."
   },
   "report": {
     "title": "รายงาน",

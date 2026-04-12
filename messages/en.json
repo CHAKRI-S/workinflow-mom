@@ -328,7 +328,12 @@
     "hoursShort": "hrs",
     "materialSize": "Material Size",
     "materialType": "Material Type",
-    "piecesPerStock": "Pcs/Stock"
+    "piecesPerStock": "Pcs/Stock",
+    "images": "Images",
+    "addImage": "Add Image",
+    "caption": "Caption",
+    "viewImage": "View Full",
+    "noImages": "No images yet"
   },
   "plan": {
     "title": "Production Plans",
@@ -388,7 +393,11 @@
     "version": "Version",
     "tenantStatus": "Tenant Status",
     "active": "Active",
-    "inactive": "Inactive"
+    "inactive": "Inactive",
+    "logo": "Company Logo",
+    "uploadLogo": "Upload Logo",
+    "removeLogo": "Remove Logo",
+    "logoHint": "Used on quotations, invoices"
   },
   "machine": {
     "title": "CNC Machines",
@@ -609,6 +618,19 @@
       "SAFETY": "Safety Equipment",
       "OTHER": "Other"
     }
+  },
+  "factory": {
+    "title": "Production Status",
+    "live": "LIVE",
+    "lastUpdated": "Last Updated",
+    "autoRefresh": "Auto Refresh",
+    "seconds": "seconds",
+    "materialList": "Materials Used",
+    "productInfo": "Product Info",
+    "drawingNotes": "Drawing Notes",
+    "noWork": "No Work",
+    "clickForDetails": "Click for details",
+    "updating": "Updating..."
   },
   "report": {
     "title": "Reports",
