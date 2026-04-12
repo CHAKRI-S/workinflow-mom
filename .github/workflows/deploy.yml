@@ -4,58 +4,14 @@ on:
   push:
     branches: [main]
 
-env:
-  APP_DIR: /opt/workinflow-mom
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Sync files to VPS
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: 145.79.12.13
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          source: "."
-          target: /opt/workinflow-mom
-          overwrite: true
-
-      - name: Build and Deploy
-        uses: appleboy/ssh-action@v1
-        with:
-          host: 145.79.12.13
-          username: root
-          key: ${{ secrets.SSH_PRIVATE_KEY }}
-          script: |
-            set -e
-            cd /opt/workinflow-mom
-
-            # Write .env
-            cat > .env << 'EOF'
-            DATABASE_URL=postgresql://workinflow:Wf2026MomProd!Secure@db:5432/workinflow_mom?schema=public
-            AUTH_SECRET=${{ secrets.AUTH_SECRET }}
-            NEXTAUTH_URL=https://mom.workinflow.cloud
-            POSTGRES_USER=workinflow
-            POSTGRES_PASSWORD=Wf2026MomProd!Secure
-            POSTGRES_DB=workinflow_mom
-            EOF
-
-            # Build and deploy
-            docker compose -f docker-compose.prod.yml build --no-cache
-            docker compose -f docker-compose.prod.yml up -d
-
-            # Wait for DB healthy
-            echo "Waiting for database..."
-            sleep 15
-
-            # Run migrations
-            docker compose -f docker-compose.prod.yml exec -T app npx prisma migrate deploy || true
-
-            # Seed if first deploy
-            docker compose -f docker-compose.prod.yml exec -T app npx prisma db seed 2>/dev/null || true
-
-            echo "Deploy complete!"
+      - name: Trigger Coolify Deploy
+        run: |
+          curl -f -X POST \
+            "${{ secrets.COOLIFY_URL }}/api/v1/deploy?uuid=${{ secrets.COOLIFY_APP_UUID }}&force=true" \
+            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
+            -H "Content-Type: application/json"
+          echo "Deploy triggered!"
