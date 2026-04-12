@@ -20,7 +20,7 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Generate Prisma client
+# Generate Prisma client (outputs to src/generated/prisma)
 RUN npx prisma generate
 
 # Build Next.js (standalone output)
@@ -44,16 +44,12 @@ COPY --from=builder /app/.next/static ./.next/static
 # Copy Prisma for migrations at runtime
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./
-COPY --from=builder /app/node_modules/.prisma ./node_modules/.prisma
-COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
-COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/package.json ./
 
-# Copy seed dependencies
-COPY --from=builder /app/node_modules/bcryptjs ./node_modules/bcryptjs
-COPY --from=builder /app/node_modules/tsx ./node_modules/tsx
-COPY --from=builder /app/node_modules/pg ./node_modules/pg
+# Copy prisma CLI + pg adapter for migrate
+COPY --from=builder /app/node_modules/@prisma ./node_modules/@prisma
+COPY --from=builder /app/node_modules/prisma ./node_modules/prisma
 
 EXPOSE 3000
 ENV PORT=3000
