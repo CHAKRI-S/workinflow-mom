@@ -61,8 +61,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const updateData: Record<string, unknown> = { status: newStatus };
     if (newStatus === QuotationStatus.REVISED) {
       updateData.revision = existing.revision + 1;
-      // Reset to allow editing
-      updateData.status = QuotationStatus.REVISED;
     }
 
     const updated = await prisma.quotation.update({

@@ -73,9 +73,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!invoice) {
+    if (!invoice || !invoice.salesOrder || !invoice.salesOrder.customer) {
       return NextResponse.json(
-        { error: "Invoice not found" },
+        { error: "Invoice, sales order, or customer not found" },
         { status: 404 }
       );
     }
@@ -112,7 +112,7 @@ export async function POST(req: NextRequest) {
       (sum: number, l: { lineTotal: number }) => sum + l.lineTotal,
       0
     );
-    const vatAmount = Math.round(subtotal * vatRate) / 100;
+    const vatAmount = Math.round((subtotal * vatRate) / 100);
     const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
 
     const creditNote = await prisma.$transaction(async (tx) => {

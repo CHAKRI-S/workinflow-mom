@@ -54,6 +54,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Sales order line not found" }, { status: 404 });
     }
 
+    if (!soLine.product) {
+      return NextResponse.json({ error: "Product not found for this sales order line" }, { status: 404 });
+    }
+
     // Verify SO status is schedulable
     const schedulableStatuses = [
       "CONFIRMED",

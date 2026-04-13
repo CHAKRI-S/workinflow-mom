@@ -74,9 +74,9 @@ export async function POST(req: NextRequest) {
       },
     });
 
-    if (!invoice) {
+    if (!invoice || !invoice.salesOrder || !invoice.salesOrder.customer) {
       return NextResponse.json(
-        { error: "Invoice not found" },
+        { error: "Invoice, sales order, or customer not found" },
         { status: 404 }
       );
     }

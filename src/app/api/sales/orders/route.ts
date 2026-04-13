@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
       const price = Number(line.unitPrice);
       const discPct = Number(line.discountPercent);
       const lineSubtotal = qty * price;
-      const lineDiscount = Math.round(lineSubtotal * discPct) / 100;
+      const lineDiscount = Math.round((lineSubtotal * discPct) / 100);
       const lineTotal = Math.round((lineSubtotal - lineDiscount) * 100) / 100;
 
       return {
@@ -94,13 +94,13 @@ export async function POST(req: NextRequest) {
     );
 
     const discountPercent = 0;
-    const discountAmount = Math.round(subtotal * discountPercent) / 100;
+    const discountAmount = Math.round((subtotal * discountPercent) / 100);
     const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-    const vatAmount = Math.round(afterDiscount * vatRate) / 100;
+    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
     const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
 
     const depositPercent = Number(data.depositPercent);
-    const depositAmount = Math.round(totalAmount * depositPercent) / 100;
+    const depositAmount = Math.round((totalAmount * depositPercent) / 100);
 
     // Create within transaction
     const order = await prisma.$transaction(async (tx) => {

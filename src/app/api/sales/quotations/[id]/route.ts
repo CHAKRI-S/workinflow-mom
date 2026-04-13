@@ -111,9 +111,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       const subtotal = linesWithTotals.reduce((sum, l) => sum + l.lineTotal, 0);
       const discountPercent = data.discountPercent ?? 0;
-      const discountAmount = Math.round(subtotal * discountPercent) / 100;
+      const discountAmount = Math.round((subtotal * discountPercent) / 100);
       const afterDiscount = subtotal - discountAmount;
-      const vatAmount = Math.round(afterDiscount * vatRate) / 100;
+      const vatAmount = Math.round((afterDiscount * vatRate) / 100);
       const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
 
       calculatedFields = {

@@ -68,11 +68,11 @@ export async function POST(req: NextRequest, { params }: Params) {
     );
 
     const discountPercent = Number(quotation.discountPercent);
-    const discountAmount = Math.round(subtotal * discountPercent) / 100;
+    const discountAmount = Math.round((subtotal * discountPercent) / 100);
     const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-    const vatAmount = Math.round(afterDiscount * vatRate) / 100;
+    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
     const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
-    const depositAmount = Math.round(totalAmount * depositPercent) / 100;
+    const depositAmount = Math.round((totalAmount * depositPercent) / 100);
 
     const order = await prisma.$transaction(async (tx) => {
       const orderNumber = await generateDocNumber(tenantId, DOC_PREFIX.SALES_ORDER);
@@ -111,8 +111,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       });
 
       // Mark quotation as converted (optional: update quotation status)
-      await tx.quotation.update({
-        where: { id: quotationId },
+      await tx.quotation.updateMany({
+        where: { id: quotationId, tenantId },
         data: { status: "APPROVED" }, // keep as APPROVED
       });
 

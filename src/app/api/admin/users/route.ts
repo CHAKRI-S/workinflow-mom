@@ -7,23 +7,34 @@ import { Role } from "@/generated/prisma/client";
 
 // GET /api/admin/users — list all users for tenant
 export async function GET() {
-  const session = await auth();
-  requirePermission(session, ROLES.ADMIN_ONLY);
+  try {
+    const session = await auth();
+    requirePermission(session, ROLES.ADMIN_ONLY);
 
-  const users = await prisma.user.findMany({
-    where: { tenantId: session!.user.tenantId },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      role: true,
-      isActive: true,
-      createdAt: true,
-    },
-    orderBy: { createdAt: "desc" },
-  });
+    const users = await prisma.user.findMany({
+      where: { tenantId: session!.user.tenantId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        isActive: true,
+        createdAt: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
 
-  return NextResponse.json(users);
+    return NextResponse.json(users);
+  } catch (err) {
+    if (err instanceof Error && err.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    console.error("GET /api/admin/users error:", err);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
 }
 
 // POST /api/admin/users — create new user

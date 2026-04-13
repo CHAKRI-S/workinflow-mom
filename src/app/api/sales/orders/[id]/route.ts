@@ -100,7 +100,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
     const vatRate = customer.isVatRegistered ? 7 : 0;
 
-    const order = await prisma.$transaction(async (tx) => {
+    const updated = await prisma.$transaction(async (tx) => {
       // If lines are provided, recalculate
       if (data.lines && data.lines.length > 0) {
         // Delete old lines
@@ -113,7 +113,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           const price = Number(line.unitPrice);
           const discPct = Number(line.discountPercent);
           const lineSubtotal = qty * price;
-          const lineDiscount = Math.round(lineSubtotal * discPct) / 100;
+          const lineDiscount = Math.round((lineSubtotal * discPct) / 100);
           const lineTotal = Math.round((lineSubtotal - lineDiscount) * 100) / 100;
 
           return {
@@ -141,15 +141,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
 
         const discountPercent = 0;
-        const discountAmount = Math.round(subtotal * discountPercent) / 100;
+        const discountAmount = Math.round((subtotal * discountPercent) / 100);
         const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-        const vatAmount = Math.round(afterDiscount * vatRate) / 100;
+        const vatAmount = Math.round((afterDiscount * vatRate) / 100);
         const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
 
         const depositPercent = data.depositPercent !== undefined
           ? Number(data.depositPercent)
           : Number(existing.depositPercent);
-        const depositAmount = Math.round(totalAmount * depositPercent) / 100;
+        const depositAmount = Math.round((totalAmount * depositPercent) / 100);
 
         const updated = await tx.salesOrder.update({
           where: { id },
@@ -200,7 +200,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (data.depositPercent !== undefined) {
         const dp = Number(data.depositPercent);
         updateData.depositPercent = dp;
-        updateData.depositAmount = Math.round(Number(existing.totalAmount) * dp) / 100;
+        updateData.depositAmount = Math.round((Number(existing.totalAmount) * dp) / 100);
       }
 
       updateData.vatRate = vatRate;
@@ -222,7 +222,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       return updated;
     });
 
-    return NextResponse.json(JSON.parse(JSON.stringify(order)));
+    return NextResponse.json(JSON.parse(JSON.stringify(updated)));
   } catch (err) {
     if (err instanceof Error && err.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });

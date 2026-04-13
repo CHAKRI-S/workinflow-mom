@@ -69,9 +69,9 @@ export async function POST(req: NextRequest) {
     // Calculate totals
     const subtotal = linesWithTotals.reduce((sum, l) => sum + l.lineTotal, 0);
     const discountPercent = data.discountPercent;
-    const discountAmount = Math.round(subtotal * discountPercent) / 100;
+    const discountAmount = Math.round((subtotal * discountPercent) / 100);
     const afterDiscount = subtotal - discountAmount;
-    const vatAmount = Math.round(afterDiscount * vatRate) / 100;
+    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
     const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
 
     // Create quotation in a transaction
