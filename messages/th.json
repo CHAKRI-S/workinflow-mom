@@ -391,7 +391,7 @@
     "docPattern": "รูปแบบ: PREFIX-YYYY-XXXXX (เช่น SO-2026-00001)",
     "system": "ระบบ",
     "version": "เวอร์ชัน",
-    "tenantStatus": "สถานะ Tenant",
+    "tenantStatus": "สถานะบริษัท",
     "active": "เปิดใช้งาน",
     "inactive": "ปิดใช้งาน",
     "logo": "โลโก้บริษัท",

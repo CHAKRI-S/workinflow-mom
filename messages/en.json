@@ -391,7 +391,7 @@
     "docPattern": "Pattern: PREFIX-YYYY-XXXXX (e.g. SO-2026-00001)",
     "system": "System",
     "version": "Version",
-    "tenantStatus": "Tenant Status",
+    "tenantStatus": "Company Status",
     "active": "Active",
     "inactive": "Inactive",
     "logo": "Company Logo",
