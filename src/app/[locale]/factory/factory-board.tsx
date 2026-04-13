@@ -74,6 +74,24 @@ interface WorkOrder {
   notes: string | null;
 }
 
+interface PendingSO {
+  id: string;
+  orderNumber: string;
+  status: string;
+  orderDate: string;
+  requestedDate: string;
+  totalAmount: string | number;
+  customer: { id: string; code: string; name: string };
+  lines: Array<{
+    id: string;
+    productId: string;
+    product: { id: string; code: string; name: string };
+    quantity: string | number;
+    color: string | null;
+    surfaceFinish: string | null;
+  }>;
+}
+
 // ─── Constants ──────────────────────────────────────
 
 const REFRESH_INTERVAL = 30;
@@ -147,25 +165,25 @@ function parseLocale(): string {
 function getStatusBg(status: string): string {
   switch (status) {
     case "PENDING":
-      return "bg-gray-700/80 border-gray-600";
+      return "bg-gray-200/80 border-gray-300 dark:bg-gray-700/80 dark:border-gray-600";
     case "RELEASED":
-      return "bg-blue-900/60 border-blue-700";
+      return "bg-blue-100/60 border-blue-300 dark:bg-blue-900/60 dark:border-blue-700";
     case "IN_PROGRESS":
-      return "bg-blue-800/70 border-blue-500 shadow-blue-500/20 shadow-lg";
+      return "bg-blue-100/70 border-blue-400 shadow-blue-500/10 shadow-lg dark:bg-blue-800/70 dark:border-blue-500 dark:shadow-blue-500/20";
     case "QC_MACHINING":
     case "QC_FINAL":
-      return "bg-cyan-900/60 border-cyan-600";
+      return "bg-cyan-100/60 border-cyan-400 dark:bg-cyan-900/60 dark:border-cyan-600";
     case "SENT_TO_PAINTING":
     case "PAINTING_DONE":
-      return "bg-purple-900/60 border-purple-600";
+      return "bg-purple-100/60 border-purple-400 dark:bg-purple-900/60 dark:border-purple-600";
     case "ENGRAVING":
-      return "bg-indigo-900/60 border-indigo-600";
+      return "bg-indigo-100/60 border-indigo-400 dark:bg-indigo-900/60 dark:border-indigo-600";
     case "COMPLETED":
-      return "bg-green-900/60 border-green-600";
+      return "bg-green-100/60 border-green-400 dark:bg-green-900/60 dark:border-green-600";
     case "ON_HOLD":
-      return "bg-orange-900/60 border-orange-500";
+      return "bg-orange-100/60 border-orange-400 dark:bg-orange-900/60 dark:border-orange-500";
     default:
-      return "bg-gray-700/80 border-gray-600";
+      return "bg-gray-200/80 border-gray-300 dark:bg-gray-700/80 dark:border-gray-600";
   }
 }
 
@@ -245,11 +263,15 @@ export function FactoryBoard() {
   // Data
   const [machines, setMachines] = useState<Machine[]>([]);
   const [workOrders, setWorkOrders] = useState<WorkOrder[]>([]);
+  const [pendingSOs, setPendingSOs] = useState<PendingSO[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [countdown, setCountdown] = useState(REFRESH_INTERVAL);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [clock, setClock] = useState(new Date());
+
+  // Theme
+  const [darkMode, setDarkMode] = useState(true);
 
   // Detail overlay
   const [selectedWO, setSelectedWO] = useState<WorkOrder | null>(null);
@@ -264,6 +286,26 @@ export function FactoryBoard() {
       tokenRef.current = params.get("token") || "";
     }
   }, []);
+
+  // Theme: read from localStorage on mount
+  useEffect(() => {
+    const saved = localStorage.getItem("factory-theme");
+    if (saved === "light") {
+      setDarkMode(false);
+      document.documentElement.classList.remove("dark");
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newDark = !darkMode;
+    setDarkMode(newDark);
+    if (newDark) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+    localStorage.setItem("factory-theme", newDark ? "dark" : "light");
+  };
 
   // Clock
   useEffect(() => {
@@ -282,6 +324,7 @@ export function FactoryBoard() {
       const data = await res.json();
       setMachines(data.machines);
       setWorkOrders(data.workOrders);
+      setPendingSOs(data.pendingSOs || []);
       setLastUpdated(new Date());
     } catch {
       console.error("Failed to fetch factory board data");
@@ -367,10 +410,10 @@ export function FactoryBoard() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-950 flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto" />
-          <p className="text-gray-400 text-lg">{t("common.loading")}</p>
+          <p className="text-gray-500 dark:text-gray-400 text-lg">{t("common.loading")}</p>
         </div>
       </div>
     );
@@ -379,31 +422,31 @@ export function FactoryBoard() {
   // ─── Render ───────────────────────────────────────
 
   return (
-    <div className="min-h-screen bg-gray-950 flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 flex flex-col">
       {/* ── Header Bar ──────────────────────────────── */}
-      <header className="bg-gray-900/80 backdrop-blur-sm border-b border-gray-800 px-6 py-3 flex items-center justify-between shrink-0">
+      <header className="bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 px-6 py-3 flex items-center justify-between shrink-0">
         {/* Left: Logo + Title */}
         <div className="flex items-center gap-4">
           <div className="flex items-center gap-2">
             <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center text-white font-bold text-sm">
               W
             </div>
-            <span className="text-gray-300 font-semibold text-lg hidden sm:inline">
+            <span className="text-gray-600 dark:text-gray-300 font-semibold text-lg hidden sm:inline">
               WorkinFlow MOM
             </span>
           </div>
-          <div className="h-6 w-px bg-gray-700" />
-          <h1 className="text-white text-xl font-semibold">
+          <div className="h-6 w-px bg-gray-300 dark:bg-gray-700" />
+          <h1 className="text-gray-900 dark:text-white text-xl font-semibold">
             {t("factory.title")}
           </h1>
         </div>
 
-        {/* Right: Live badge + Clock + Refresh */}
+        {/* Right: Live badge + Theme + Clock + Refresh */}
         <div className="flex items-center gap-6">
           {/* Refresh status */}
-          <div className="flex items-center gap-2 text-gray-400 text-sm">
+          <div className="flex items-center gap-2 text-gray-500 dark:text-gray-400 text-sm">
             {refreshing ? (
-              <span className="text-blue-400 animate-pulse">
+              <span className="text-blue-500 dark:text-blue-400 animate-pulse">
                 {t("factory.updating")}
               </span>
             ) : (
@@ -411,7 +454,7 @@ export function FactoryBoard() {
                 <span className="hidden lg:inline">
                   {t("factory.autoRefresh")}:
                 </span>
-                <span className="font-mono text-gray-300 tabular-nums w-6 text-right">
+                <span className="font-mono text-gray-600 dark:text-gray-300 tabular-nums w-6 text-right">
                   {countdown}
                 </span>
                 <span className="hidden lg:inline">{t("factory.seconds")}</span>
@@ -420,19 +463,40 @@ export function FactoryBoard() {
           </div>
 
           {/* LIVE badge */}
-          <div className="flex items-center gap-2 bg-gray-800 rounded-full px-3 py-1.5">
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-gray-800 rounded-full px-3 py-1.5">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green-500" />
             </span>
-            <span className="text-green-400 font-semibold text-sm">
+            <span className="text-green-600 dark:text-green-400 font-semibold text-sm">
               {t("factory.live")}
             </span>
           </div>
 
+          {/* Theme toggle */}
+          <button
+            onClick={toggleTheme}
+            className="flex items-center gap-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-full px-3 py-1.5 text-sm transition-colors"
+            title={darkMode ? t("factory.lightMode") : t("factory.darkMode")}
+          >
+            {darkMode ? (
+              <svg className="w-4 h-4 text-yellow-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="12" r="5" />
+                <path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+              </svg>
+            )}
+            <span className="text-gray-600 dark:text-gray-300 hidden sm:inline">
+              {darkMode ? t("factory.lightMode") : t("factory.darkMode")}
+            </span>
+          </button>
+
           {/* Clock */}
           <div className="text-right hidden md:block">
-            <div className="font-mono text-xl text-white tabular-nums tracking-wider">
+            <div className="font-mono text-xl text-gray-900 dark:text-white tabular-nums tracking-wider">
               {formatClock(clock)}
             </div>
             <div className="text-xs text-gray-500">
@@ -443,12 +507,12 @@ export function FactoryBoard() {
       </header>
 
       {/* ── Week header ─────────────────────────────── */}
-      <div className="px-4 py-2 bg-gray-900/40 border-b border-gray-800/50 flex items-center justify-between shrink-0">
-        <span className="text-gray-400 text-sm font-medium">
+      <div className="px-4 py-2 bg-gray-100/40 dark:bg-gray-900/40 border-b border-gray-200/50 dark:border-gray-800/50 flex items-center justify-between shrink-0">
+        <span className="text-gray-500 dark:text-gray-400 text-sm font-medium">
           {formatMonthYear(days[0], locale)}
         </span>
         {lastUpdated && (
-          <span className="text-gray-600 text-xs">
+          <span className="text-gray-400 dark:text-gray-600 text-xs">
             {t("factory.lastUpdated")}: {formatClock(lastUpdated)}
           </span>
         )}
@@ -460,7 +524,7 @@ export function FactoryBoard() {
           <thead>
             <tr>
               {/* Machine column */}
-              <th className="sticky left-0 z-20 bg-gray-900 border-b border-r border-gray-800 px-3 py-2 text-left text-sm font-semibold text-gray-400 uppercase w-36 min-w-[9rem]">
+              <th className="sticky left-0 z-20 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 px-3 py-2 text-left text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase w-36 min-w-[9rem]">
                 {t("workOrder.machine")}
               </th>
               {/* Day headers */}
@@ -470,12 +534,12 @@ export function FactoryBoard() {
                 return (
                   <th
                     key={day.toISOString()}
-                    className={`border-b border-gray-800 px-1 py-2 text-center text-sm font-semibold ${
+                    className={`border-b border-gray-200 dark:border-gray-800 px-1 py-2 text-center text-sm font-semibold ${
                       isToday
-                        ? "bg-blue-900/30 text-blue-300"
+                        ? "bg-blue-50/30 dark:bg-blue-900/30 text-blue-600 dark:text-blue-300"
                         : weekend
-                        ? "bg-gray-900/80 text-gray-600"
-                        : "bg-gray-900 text-gray-400"
+                        ? "bg-gray-100/80 dark:bg-gray-900/80 text-gray-400 dark:text-gray-600"
+                        : "bg-white dark:bg-gray-900 text-gray-500 dark:text-gray-400"
                     }`}
                   >
                     <div className="leading-tight">
@@ -484,7 +548,7 @@ export function FactoryBoard() {
                       </div>
                       <div
                         className={`text-lg font-bold ${
-                          isToday ? "text-blue-400" : ""
+                          isToday ? "text-blue-500 dark:text-blue-400" : ""
                         }`}
                       >
                         {formatDateShort(day)}
@@ -500,8 +564,8 @@ export function FactoryBoard() {
             {machines.map((machine) => (
               <tr key={machine.id}>
                 {/* Machine name */}
-                <td className="sticky left-0 z-10 bg-gray-900 border-b border-r border-gray-800 px-3 py-2 w-36 min-w-[9rem]">
-                  <div className="font-semibold text-sm text-white truncate">
+                <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 px-3 py-2 w-36 min-w-[9rem]">
+                  <div className="font-semibold text-sm text-gray-900 dark:text-white truncate">
                     {machine.code}
                   </div>
                   <div className="text-xs text-gray-500 truncate">
@@ -516,17 +580,17 @@ export function FactoryBoard() {
                   return (
                     <td
                       key={day.toISOString()}
-                      className={`border-b border-gray-800/50 px-1 py-1 align-top ${
+                      className={`border-b border-gray-200/50 dark:border-gray-800/50 px-1 py-1 align-top ${
                         isToday
-                          ? "bg-blue-950/20"
+                          ? "bg-blue-50/20 dark:bg-blue-950/20"
                           : weekend
-                          ? "bg-gray-900/40"
-                          : "bg-gray-950"
+                          ? "bg-gray-100/40 dark:bg-gray-900/40"
+                          : "bg-gray-50 dark:bg-gray-950"
                       }`}
                     >
                       <div className="space-y-1 min-h-[3.5rem]">
                         {cellWOs.length === 0 && (
-                          <div className="text-gray-800 text-xs text-center py-3">
+                          <div className="text-gray-300 dark:text-gray-800 text-xs text-center py-3">
                             -
                           </div>
                         )}
@@ -550,12 +614,12 @@ export function FactoryBoard() {
                                     wo.status
                                   )}`}
                                 />
-                                <span className="text-sm font-semibold text-white truncate">
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                                   {wo.product.code}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs text-gray-300">
+                                <span className="text-xs text-gray-600 dark:text-gray-300">
                                   {Number(wo.plannedQty)} {t("plan.pieces")}
                                 </span>
                                 <span
@@ -577,8 +641,8 @@ export function FactoryBoard() {
             {/* Unassigned row */}
             {workOrders.some((wo) => !wo.cncMachineId) && (
               <tr>
-                <td className="sticky left-0 z-10 bg-gray-900 border-b border-r border-gray-800 px-3 py-2 w-36 min-w-[9rem]">
-                  <div className="font-semibold text-sm text-orange-400 truncate">
+                <td className="sticky left-0 z-10 bg-white dark:bg-gray-900 border-b border-r border-gray-200 dark:border-gray-800 px-3 py-2 w-36 min-w-[9rem]">
+                  <div className="font-semibold text-sm text-orange-500 dark:text-orange-400 truncate">
                     {t("plan.unassigned")}
                   </div>
                 </td>
@@ -589,12 +653,12 @@ export function FactoryBoard() {
                   return (
                     <td
                       key={day.toISOString()}
-                      className={`border-b border-gray-800/50 px-1 py-1 align-top ${
+                      className={`border-b border-gray-200/50 dark:border-gray-800/50 px-1 py-1 align-top ${
                         isToday
-                          ? "bg-blue-950/20"
+                          ? "bg-blue-50/20 dark:bg-blue-950/20"
                           : weekend
-                          ? "bg-gray-900/40"
-                          : "bg-gray-950"
+                          ? "bg-gray-100/40 dark:bg-gray-900/40"
+                          : "bg-gray-50 dark:bg-gray-950"
                       }`}
                     >
                       <div className="space-y-1 min-h-[3.5rem]">
@@ -617,12 +681,12 @@ export function FactoryBoard() {
                                     wo.status
                                   )}`}
                                 />
-                                <span className="text-sm font-semibold text-white truncate">
+                                <span className="text-sm font-semibold text-gray-900 dark:text-white truncate">
                                   {wo.product.code}
                                 </span>
                               </div>
                               <div className="flex items-center gap-1.5 mt-0.5">
-                                <span className="text-xs text-gray-300">
+                                <span className="text-xs text-gray-600 dark:text-gray-300">
                                   {Number(wo.plannedQty)} {t("plan.pieces")}
                                 </span>
                                 <span
@@ -646,13 +710,91 @@ export function FactoryBoard() {
         {/* Empty state */}
         {workOrders.length === 0 && machines.length === 0 && (
           <div className="text-center py-24">
-            <p className="text-gray-600 text-xl">{t("factory.noWork")}</p>
+            <p className="text-gray-400 dark:text-gray-600 text-xl">{t("factory.noWork")}</p>
+          </div>
+        )}
+      </div>
+
+      {/* ── Pending SO Queue ─────────────────────────── */}
+      <div className="px-4 py-3 border-t border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-950 shrink-0">
+        <div className="flex items-center gap-2 mb-3">
+          <svg className="w-5 h-5 text-gray-500 dark:text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01" />
+          </svg>
+          <span className="text-gray-800 dark:text-gray-200 font-semibold text-sm">
+            {t("factory.pendingQueue")}
+          </span>
+          <span className="bg-blue-100 dark:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-full px-2 py-0.5">
+            {pendingSOs.length}
+          </span>
+        </div>
+
+        {pendingSOs.length === 0 ? (
+          <div className="text-gray-400 dark:text-gray-600 text-sm text-center py-4">
+            {t("factory.noPending")}
+          </div>
+        ) : (
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {pendingSOs.map((so) => (
+              <div
+                key={so.id}
+                className="rounded-xl border bg-white border-gray-200 shadow-sm dark:bg-gray-800/60 dark:border-gray-700 p-3 min-w-[220px] max-w-[260px] shrink-0 space-y-2"
+              >
+                {/* SO number */}
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-mono font-bold text-sm text-gray-900 dark:text-white">
+                    {so.orderNumber}
+                  </span>
+                  <span
+                    className={`text-[10px] font-semibold rounded-full px-2 py-0.5 ${
+                      so.status === "CONFIRMED"
+                        ? "bg-blue-100 text-blue-700 dark:bg-blue-900/60 dark:text-blue-300"
+                        : "bg-orange-100 text-orange-700 dark:bg-orange-900/60 dark:text-orange-300"
+                    }`}
+                  >
+                    {so.status === "CONFIRMED" ? "CONFIRMED" : "DEPOSIT PENDING"}
+                  </span>
+                </div>
+
+                {/* Customer */}
+                <div className="text-xs text-gray-600 dark:text-gray-400 truncate">
+                  {so.customer.name}
+                </div>
+
+                {/* Requested date */}
+                <div className="text-xs text-gray-500 dark:text-gray-500">
+                  {t("factory.requestedDate")}:{" "}
+                  <span className="text-gray-700 dark:text-gray-300 font-medium">
+                    {new Date(so.requestedDate).toLocaleDateString(locale === "th" ? "th-TH" : "en-US", { day: "numeric", month: "short" })}
+                  </span>
+                </div>
+
+                {/* Product lines */}
+                <div className="space-y-1 border-t border-gray-100 dark:border-gray-700 pt-2">
+                  {so.lines.map((line) => (
+                    <div key={line.id} className="text-xs">
+                      <span className="font-mono text-gray-800 dark:text-gray-200">
+                        {line.product.code}
+                      </span>
+                      <span className="text-gray-500 dark:text-gray-400">
+                        {" "}{"\u00d7"}{Number(line.quantity)}
+                      </span>
+                      {line.color && (
+                        <span className="text-gray-400 dark:text-gray-500 ml-1">
+                          ({line.color})
+                        </span>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
       {/* ── Status Legend ────────────────────────────── */}
-      <footer className="bg-gray-900/60 border-t border-gray-800 px-6 py-2 flex items-center gap-4 flex-wrap shrink-0">
+      <footer className="bg-white/60 dark:bg-gray-900/60 border-t border-gray-200 dark:border-gray-800 px-6 py-2 flex items-center gap-4 flex-wrap shrink-0">
         {[
           { status: "PENDING", color: "bg-gray-400" },
           { status: "IN_PROGRESS", color: "bg-blue-400" },
@@ -663,17 +805,17 @@ export function FactoryBoard() {
         ].map(({ status, color }) => (
           <div key={status} className="flex items-center gap-1.5">
             <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
-            <span className="text-gray-400 text-xs">
+            <span className="text-gray-500 dark:text-gray-400 text-xs">
               {getStatusLabel(status, t)}
             </span>
           </div>
         ))}
-        <div className="ml-auto flex items-center gap-3 text-gray-600 text-xs">
-          <span className="bg-green-500/30 text-green-300 border border-green-500/50 rounded px-1 text-[10px] font-bold">
+        <div className="ml-auto flex items-center gap-3 text-gray-500 dark:text-gray-600 text-xs">
+          <span className="bg-green-500/30 text-green-600 dark:text-green-300 border border-green-500/50 rounded px-1 text-[10px] font-bold">
             {"\u2713"}
           </span>
           <span>{t("workOrder.materialReadiness.READY")}</span>
-          <span className="bg-red-500/30 text-red-300 border border-red-500/50 rounded px-1 text-[10px] font-bold">
+          <span className="bg-red-500/30 text-red-600 dark:text-red-300 border border-red-500/50 rounded px-1 text-[10px] font-bold">
             !
           </span>
           <span>{t("workOrder.materialReadiness.NOT_ORDERED")}</span>
@@ -687,22 +829,22 @@ export function FactoryBoard() {
           onClick={() => setSelectedWO(null)}
         >
           <div
-            className="bg-gray-900 border border-gray-700 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl"
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-y-auto shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Close button */}
-            <div className="sticky top-0 z-10 bg-gray-900/95 backdrop-blur-sm border-b border-gray-800 p-4 flex items-center justify-between rounded-t-2xl">
+            <div className="sticky top-0 z-10 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm border-b border-gray-200 dark:border-gray-800 p-4 flex items-center justify-between rounded-t-2xl">
               <div>
-                <h2 className="text-2xl font-bold text-white">
+                <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
                   {selectedWO.woNumber}
                 </h2>
-                <p className="text-gray-400 text-sm mt-0.5">
+                <p className="text-gray-500 dark:text-gray-400 text-sm mt-0.5">
                   {selectedWO.product.code} - {selectedWO.product.name}
                 </p>
               </div>
               <button
                 onClick={() => setSelectedWO(null)}
-                className="w-10 h-10 rounded-xl bg-gray-800 hover:bg-gray-700 flex items-center justify-center text-gray-400 hover:text-white transition-colors text-xl"
+                className="w-10 h-10 rounded-xl bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700 flex items-center justify-center text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white transition-colors text-xl"
               >
                 {"\u2715"}
               </button>
@@ -716,7 +858,7 @@ export function FactoryBoard() {
                   {selectedWO.product.images.length > 0 ? (
                     <>
                       {/* Main image */}
-                      <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-800 border border-gray-700">
+                      <div className="relative aspect-[4/3] rounded-xl overflow-hidden bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
                         <Image
                           src={selectedWO.product.images[selectedImageIdx]?.url || ""}
                           alt={selectedWO.product.images[selectedImageIdx]?.caption || selectedWO.product.name}
@@ -735,7 +877,7 @@ export function FactoryBoard() {
                               className={`relative w-16 h-16 rounded-lg overflow-hidden border-2 shrink-0 transition-all ${
                                 idx === selectedImageIdx
                                   ? "border-blue-500 ring-2 ring-blue-500/30"
-                                  : "border-gray-700 hover:border-gray-500"
+                                  : "border-gray-200 dark:border-gray-700 hover:border-gray-400 dark:hover:border-gray-500"
                               }`}
                             >
                               <Image
@@ -751,8 +893,8 @@ export function FactoryBoard() {
                       )}
                     </>
                   ) : (
-                    <div className="aspect-[4/3] rounded-xl bg-gray-800 border border-gray-700 flex items-center justify-center">
-                      <span className="text-gray-600 text-lg">
+                    <div className="aspect-[4/3] rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700 flex items-center justify-center">
+                      <span className="text-gray-400 dark:text-gray-600 text-lg">
                         No Image
                       </span>
                     </div>
@@ -780,12 +922,12 @@ export function FactoryBoard() {
                   {/* Progress bar */}
                   <div className="space-y-1.5">
                     <div className="flex justify-between text-sm">
-                      <span className="text-gray-400">{t("workOrder.progress")}</span>
-                      <span className="text-white font-mono">
+                      <span className="text-gray-500 dark:text-gray-400">{t("workOrder.progress")}</span>
+                      <span className="text-gray-900 dark:text-white font-mono">
                         {Number(selectedWO.completedQty)} / {Number(selectedWO.plannedQty)} {t("plan.pieces")}
                       </span>
                     </div>
-                    <div className="w-full bg-gray-800 rounded-full h-3">
+                    <div className="w-full bg-gray-200 dark:bg-gray-800 rounded-full h-3">
                       <div
                         className="bg-blue-500 h-3 rounded-full transition-all duration-500"
                         style={{
@@ -803,8 +945,8 @@ export function FactoryBoard() {
                   </div>
 
                   {/* Info grid */}
-                  <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
-                    <h3 className="text-white font-semibold text-base">
+                  <div className="bg-gray-100/50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3">
+                    <h3 className="text-gray-900 dark:text-white font-semibold text-base">
                       {t("factory.productInfo")}
                     </h3>
                     <InfoRow
@@ -874,11 +1016,11 @@ export function FactoryBoard() {
 
                   {/* Drawing Notes */}
                   {selectedWO.product.drawingNotes && (
-                    <div className="bg-amber-900/20 border border-amber-700/30 rounded-xl p-4 space-y-2">
-                      <h3 className="text-amber-300 font-semibold text-sm">
+                    <div className="bg-amber-50/50 dark:bg-amber-900/20 border border-amber-200/50 dark:border-amber-700/30 rounded-xl p-4 space-y-2">
+                      <h3 className="text-amber-700 dark:text-amber-300 font-semibold text-sm">
                         {t("factory.drawingNotes")}
                       </h3>
-                      <p className="text-amber-100/80 text-sm whitespace-pre-wrap">
+                      <p className="text-amber-800/80 dark:text-amber-100/80 text-sm whitespace-pre-wrap">
                         {selectedWO.product.drawingNotes}
                       </p>
                     </div>
@@ -886,11 +1028,11 @@ export function FactoryBoard() {
 
                   {/* WO Notes */}
                   {selectedWO.notes && (
-                    <div className="bg-gray-800/50 border border-gray-700 rounded-xl p-4 space-y-2">
-                      <h3 className="text-gray-300 font-semibold text-sm">
+                    <div className="bg-gray-100/50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4 space-y-2">
+                      <h3 className="text-gray-600 dark:text-gray-300 font-semibold text-sm">
                         {t("common.notes")}
                       </h3>
-                      <p className="text-gray-400 text-sm whitespace-pre-wrap">
+                      <p className="text-gray-500 dark:text-gray-400 text-sm whitespace-pre-wrap">
                         {selectedWO.notes}
                       </p>
                     </div>
@@ -900,14 +1042,14 @@ export function FactoryBoard() {
 
               {/* BOM Materials */}
               {selectedWO.product.bomLines.length > 0 && (
-                <div className="bg-gray-800/50 rounded-xl p-4 space-y-3">
-                  <h3 className="text-white font-semibold text-base">
+                <div className="bg-gray-100/50 dark:bg-gray-800/50 rounded-xl p-4 space-y-3">
+                  <h3 className="text-gray-900 dark:text-white font-semibold text-base">
                     {t("factory.materialList")}
                   </h3>
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
                       <thead>
-                        <tr className="border-b border-gray-700 text-gray-400">
+                        <tr className="border-b border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400">
                           <th className="text-left py-2 px-2 font-medium">
                             {t("material.code")}
                           </th>
@@ -932,7 +1074,7 @@ export function FactoryBoard() {
                         {selectedWO.product.bomLines.map((bom) => (
                           <tr
                             key={bom.id}
-                            className="border-b border-gray-800/50 text-gray-300"
+                            className="border-b border-gray-200/50 dark:border-gray-800/50 text-gray-700 dark:text-gray-300"
                           >
                             <td className="py-2 px-2 font-mono text-xs">
                               {bom.material.code}
@@ -940,10 +1082,10 @@ export function FactoryBoard() {
                             <td className="py-2 px-2">
                               {bom.material.name}
                             </td>
-                            <td className="py-2 px-2 text-gray-400">
+                            <td className="py-2 px-2 text-gray-500 dark:text-gray-400">
                               {bom.materialType || bom.material.type || "-"}
                             </td>
-                            <td className="py-2 px-2 text-gray-400">
+                            <td className="py-2 px-2 text-gray-500 dark:text-gray-400">
                               {bom.materialSize ||
                                 bom.material.dimensions ||
                                 "-"}
@@ -980,8 +1122,8 @@ function InfoRow({
 }) {
   return (
     <div className="flex items-start justify-between gap-4">
-      <span className="text-gray-500 text-sm shrink-0">{label}</span>
-      <span className="text-white text-sm text-right font-medium">
+      <span className="text-gray-500 dark:text-gray-500 text-sm shrink-0">{label}</span>
+      <span className="text-gray-900 dark:text-white text-sm text-right font-medium">
         {value}
       </span>
     </div>

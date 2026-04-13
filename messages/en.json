@@ -630,7 +630,12 @@
     "drawingNotes": "Drawing Notes",
     "noWork": "No Work",
     "clickForDetails": "Click for details",
-    "updating": "Updating..."
+    "updating": "Updating...",
+    "pendingQueue": "Pending Queue",
+    "noPending": "No pending work",
+    "requestedDate": "Requested Date",
+    "lightMode": "Light",
+    "darkMode": "Dark"
   },
   "report": {
     "title": "Reports",

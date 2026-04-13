@@ -630,7 +630,12 @@
     "drawingNotes": "หมายเหตุแบบ",
     "noWork": "ไม่มีงาน",
     "clickForDetails": "คลิกเพื่อดูรายละเอียด",
-    "updating": "กำลังอัพเดท..."
+    "updating": "กำลังอัพเดท...",
+    "pendingQueue": "งานรอเข้าแผน",
+    "noPending": "ไม่มีงานรอเข้าแผน",
+    "requestedDate": "วันที่ต้องการ",
+    "lightMode": "Light",
+    "darkMode": "Dark"
   },
   "report": {
     "title": "รายงาน",

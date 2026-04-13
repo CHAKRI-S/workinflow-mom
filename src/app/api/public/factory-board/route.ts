@@ -87,9 +87,27 @@ export async function GET(req: NextRequest) {
       ],
     });
 
+    // Get confirmed SOs not yet in production plan (pending queue)
+    const pendingSOs = await prisma.salesOrder.findMany({
+      where: {
+        tenantId,
+        status: { in: ["CONFIRMED", "DEPOSIT_PENDING"] },
+      },
+      include: {
+        customer: { select: { id: true, code: true, name: true } },
+        lines: {
+          include: {
+            product: { select: { id: true, code: true, name: true } },
+          },
+        },
+      },
+      orderBy: { orderDate: "asc" },
+    });
+
     return NextResponse.json({
       machines: JSON.parse(JSON.stringify(machines)),
       workOrders: JSON.parse(JSON.stringify(workOrders)),
+      pendingSOs: JSON.parse(JSON.stringify(pendingSOs)),
       serverTime: new Date().toISOString(),
     });
   } catch (error) {
