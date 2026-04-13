@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
+import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 
 // GET /api/finance/tax-invoices — list all tax invoices for tenant
@@ -134,6 +135,16 @@ export async function POST(req: NextRequest) {
       });
 
       return created;
+    });
+
+    await createAuditLog({
+      action: "CREATE",
+      entityType: "TaxInvoice",
+      entityId: taxInvoice.id,
+      entityNumber: taxInvoice.taxInvoiceNumber,
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(taxInvoice)), {

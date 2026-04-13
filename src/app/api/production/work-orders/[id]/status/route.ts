@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import type { WorkOrderStatus } from "@/generated/prisma/client";
 
@@ -188,6 +189,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       });
 
       return result;
+    });
+
+    await createAuditLog({
+      action: newStatus === "CANCELLED" ? "CANCEL" : "STATUS_CHANGE",
+      entityType: "WorkOrder",
+      entityId: id,
+      entityNumber: workOrder.woNumber,
+      changes: { status: { from: currentStatus, to: newStatus } },
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(updated)));

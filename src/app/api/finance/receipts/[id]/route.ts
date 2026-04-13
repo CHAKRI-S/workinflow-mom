@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import { createAuditLog, canEditDocument, canCancelDocument } from "@/lib/audit";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -86,15 +87,57 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         );
       }
 
+      const statusUpdateData: Record<string, unknown> = { status: body.status };
+
+      // Cancel requires reason
+      if (body.status === "CANCELLED") {
+        if (!canCancelDocument(existing.status)) {
+          return NextResponse.json(
+            { error: "Document is already cancelled" },
+            { status: 400 }
+          );
+        }
+        const { cancelReason } = body;
+        if (!cancelReason) {
+          return NextResponse.json(
+            { error: "Cancel reason is required" },
+            { status: 400 }
+          );
+        }
+        statusUpdateData.cancelledAt = new Date();
+        statusUpdateData.cancelledById = session!.user.id;
+        statusUpdateData.cancelReason = cancelReason;
+      }
+
       const updated = await prisma.receipt.update({
         where: { id },
-        data: { status: body.status },
+        data: statusUpdateData,
         include: {
           invoice: { select: { id: true, invoiceNumber: true } },
         },
       });
 
+      await createAuditLog({
+        action: body.status === "CANCELLED" ? "CANCEL" : "STATUS_CHANGE",
+        entityType: "Receipt",
+        entityId: id,
+        entityNumber: existing.receiptNumber,
+        changes: { status: { from: existing.status, to: body.status } },
+        reason: body.cancelReason || undefined,
+        userId: session!.user.id,
+        userName: session!.user.name || "",
+        tenantId,
+      });
+
       return NextResponse.json(JSON.parse(JSON.stringify(updated)));
+    }
+
+    // Field edit — only DRAFT
+    if (!canEditDocument(existing.status)) {
+      return NextResponse.json(
+        { error: "Cannot edit document after it has been issued. Create a credit note or cancel and reissue." },
+        { status: 400 }
+      );
     }
 
     return NextResponse.json(

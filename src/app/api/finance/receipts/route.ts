@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, receiptPrefix } from "@/lib/doc-numbering";
+import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 
 // GET /api/finance/receipts — list all receipts for tenant
@@ -107,6 +108,16 @@ export async function POST(req: NextRequest) {
       });
 
       return created;
+    });
+
+    await createAuditLog({
+      action: "CREATE",
+      entityType: "Receipt",
+      entityId: receipt.id,
+      entityNumber: receipt.receiptNumber,
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(receipt)), {

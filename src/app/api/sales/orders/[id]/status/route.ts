@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import type { SalesOrderStatus } from "@/generated/prisma/client";
 
@@ -71,6 +72,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         where: { id },
         data: { status: "CANCELLED" as SalesOrderStatus },
       });
+
+      await createAuditLog({
+        action: "CANCEL",
+        entityType: "SalesOrder",
+        entityId: id,
+        entityNumber: order.orderNumber,
+        changes: { status: { from: currentStatus, to: "CANCELLED" } },
+        userId: session!.user.id,
+        userName: session!.user.name || "",
+        tenantId,
+      });
+
       return NextResponse.json(JSON.parse(JSON.stringify(updated)));
     }
 
@@ -99,6 +112,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const updated = await prisma.salesOrder.update({
       where: { id },
       data: { status: newStatus as SalesOrderStatus },
+    });
+
+    await createAuditLog({
+      action: "STATUS_CHANGE",
+      entityType: "SalesOrder",
+      entityId: id,
+      entityNumber: order.orderNumber,
+      changes: { status: { from: currentStatus, to: newStatus } },
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(updated)));

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import { createAuditLog } from "@/lib/audit";
 import { z } from "zod";
 import { QuotationStatus } from "@/generated/prisma/client";
 
@@ -69,6 +70,17 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       include: {
         customer: { select: { id: true, code: true, name: true } },
       },
+    });
+
+    await createAuditLog({
+      action: newStatus === QuotationStatus.CANCELLED ? "CANCEL" : "STATUS_CHANGE",
+      entityType: "Quotation",
+      entityId: id,
+      entityNumber: existing.quotationNumber,
+      changes: { status: { from: existing.status, to: newStatus } },
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(updated)));

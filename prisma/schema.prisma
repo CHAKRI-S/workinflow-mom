@@ -571,13 +571,21 @@ model Invoice {
   status          InvoiceStatus @default(DRAFT)
   issueDate       DateTime      @default(now())
   dueDate         DateTime      // วันครบกำหนดชำระ
+  // Snapshot ข้อมูลลูกค้า ณ วันออกเอกสาร
+  snapshotCustomerName    String?   // ชื่อลูกค้า ณ วันออก
+  snapshotCustomerAddress String?   // ที่อยู่ ณ วันออก
+  snapshotCustomerTaxId   String?   // เลขภาษี ณ วันออก
   // ยอดเงิน
   subtotal        Decimal       @db.Decimal(14, 2) @default(0)
   discountAmount  Decimal       @db.Decimal(14, 2) @default(0)
   vatRate         Decimal       @db.Decimal(5, 2)  @default(7)
   vatAmount       Decimal       @db.Decimal(14, 2) @default(0)
   totalAmount     Decimal       @db.Decimal(14, 2) @default(0)
-  paidAmount      Decimal       @db.Decimal(14, 2) @default(0) // ยอดที่ชำระแล้ว
+  paidAmount      Decimal       @db.Decimal(14, 2) @default(0)
+  // ยกเลิก
+  cancelledAt     DateTime?
+  cancelledById   String?
+  cancelReason    String?       // เหตุผลที่ยกเลิก
   // หมายเหตุ
   notes           String?
   createdById     String
@@ -645,6 +653,10 @@ model TaxInvoice {
   vatRate          Decimal          @db.Decimal(5, 2)  @default(7)
   vatAmount        Decimal          @db.Decimal(14, 2) @default(0)
   totalAmount      Decimal          @db.Decimal(14, 2) @default(0)
+  // ยกเลิก
+  cancelledAt      DateTime?
+  cancelledById    String?
+  cancelReason     String?
   notes            String?
   tenantId         String
   tenant           Tenant           @relation(fields: [tenantId], references: [id])
@@ -680,6 +692,10 @@ model Receipt {
   payerName     String
   payerTaxId    String?
   payerAddress  String?
+  // ยกเลิก
+  cancelledAt   DateTime?
+  cancelledById String?
+  cancelReason  String?
   notes         String?
   createdById   String
   createdBy     User          @relation("ReceiptCreatedBy", fields: [createdById], references: [id])
@@ -725,6 +741,10 @@ model CreditNote {
   vatAmount        Decimal          @db.Decimal(14, 2) @default(0)
   totalAmount      Decimal          @db.Decimal(14, 2) @default(0)
   description      String           // เหตุผลที่ลดหนี้
+  // ยกเลิก
+  cancelledAt      DateTime?
+  cancelledById    String?
+  cancelReason     String?
   notes            String?
   tenantId         String
   tenant           Tenant           @relation(fields: [tenantId], references: [id])
@@ -1027,6 +1047,28 @@ model WorkOrderLog {
   createdAt   DateTime        @default(now())
 
   @@index([workOrderId])
+}
+
+// ══════════════════════════════════════════════════
+// AUDIT LOG (ประวัติการเปลี่ยนแปลง)
+// ══════════════════════════════════════════════════
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  action      String   // CREATE, UPDATE, DELETE, STATUS_CHANGE, CANCEL
+  entityType  String   // Invoice, Quotation, SalesOrder, WorkOrder, etc.
+  entityId    String   // ID ของเอกสาร
+  entityNumber String? // เลขเอกสาร (INV-2026-00001)
+  changes     String?  // JSON: { field: { from, to } }
+  reason      String?  // เหตุผล (สำหรับการยกเลิก)
+  userId      String
+  userName    String   // snapshot ชื่อผู้ทำ
+  tenantId    String
+  createdAt   DateTime @default(now())
+
+  @@index([tenantId, entityType, entityId])
+  @@index([tenantId, createdAt])
+  @@index([userId])
 }
 
 // ══════════════════════════════════════════════════

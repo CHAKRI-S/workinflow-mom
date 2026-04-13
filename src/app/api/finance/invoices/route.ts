@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, invoicePrefix } from "@/lib/doc-numbering";
+import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 
 // GET /api/finance/invoices — list all invoices for tenant
@@ -72,7 +73,16 @@ export async function POST(req: NextRequest) {
     const salesOrder = await prisma.salesOrder.findFirst({
       where: { id: salesOrderId, tenantId },
       include: {
-        customer: { select: { id: true, isVatRegistered: true } },
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            isVatRegistered: true,
+            taxId: true,
+            billingAddress: true,
+            shippingAddress: true,
+          },
+        },
       },
     });
 
@@ -145,6 +155,9 @@ export async function POST(req: NextRequest) {
           totalAmount,
           paidAmount: 0,
           notes: notes || null,
+          snapshotCustomerName: customer.name,
+          snapshotCustomerAddress: customer.billingAddress || customer.shippingAddress || null,
+          snapshotCustomerTaxId: customer.taxId || null,
           createdById: session!.user.id,
           tenantId,
           lines: {
@@ -159,6 +172,16 @@ export async function POST(req: NextRequest) {
       });
 
       return created;
+    });
+
+    await createAuditLog({
+      action: "CREATE",
+      entityType: "Invoice",
+      entityId: invoice.id,
+      entityNumber: invoice.invoiceNumber,
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(invoice)), {

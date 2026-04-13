@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, creditNotePrefix } from "@/lib/doc-numbering";
+import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 
 // GET /api/finance/credit-notes — list all credit notes for tenant
@@ -144,6 +145,16 @@ export async function POST(req: NextRequest) {
       });
 
       return created;
+    });
+
+    await createAuditLog({
+      action: "CREATE",
+      entityType: "CreditNote",
+      entityId: creditNote.id,
+      entityNumber: creditNote.creditNoteNumber,
+      userId: session!.user.id,
+      userName: session!.user.name || "",
+      tenantId,
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(creditNote)), {
