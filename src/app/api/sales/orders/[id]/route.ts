@@ -234,3 +234,34 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
+
+// DELETE /api/sales/orders/[id] — soft cancel order
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const session = await auth();
+    requirePermission(session, ROLES.SALES_TEAM);
+    const { id } = await params;
+    const tenantId = session!.user.tenantId;
+
+    const existing = await prisma.salesOrder.findFirst({
+      where: { id, tenantId },
+    });
+
+    if (!existing) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    await prisma.salesOrder.updateMany({
+      where: { id, tenantId },
+      data: { status: "CANCELLED" },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    if (err instanceof Error && err.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    console.error("DELETE /api/sales/orders/[id] error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

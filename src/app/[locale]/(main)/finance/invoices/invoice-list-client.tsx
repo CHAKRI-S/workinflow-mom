@@ -2,9 +2,11 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, SortableHeader } from "@/components/data-table/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -13,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, Plus } from "lucide-react";
 import { useState, useMemo } from "react";
 
 interface InvoiceRow {
@@ -200,6 +202,12 @@ export function InvoiceListClient({
         <h1 className="text-2xl font-medium tracking-tight">
           {t("invoice.title")}
         </h1>
+        <Link href="/finance/invoices/new">
+          <Button>
+            <Plus className="h-4 w-4 mr-1" />
+            {t("invoice.new")}
+          </Button>
+        </Link>
       </div>
 
       <div className="flex items-center gap-4">

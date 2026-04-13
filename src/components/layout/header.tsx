@@ -53,7 +53,7 @@ export function Header() {
                 </p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => signOut()}>
+              <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/th/login" })}>
                 <LogOut className="mr-2 h-4 w-4" />
                 {t("logout")}
               </DropdownMenuItem>

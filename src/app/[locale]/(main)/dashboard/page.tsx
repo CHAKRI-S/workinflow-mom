@@ -1,18 +1,10 @@
-import { useTranslations } from "next-intl";
 import { setRequestLocale } from "next-intl/server";
 import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { hasPermission, ROLES } from "@/lib/permissions";
 import { AccessDenied } from "@/components/shared/access-denied";
-import { KpiCard } from "@/components/shared/kpi-card";
-import {
-  FileText,
-  ShoppingCart,
-  Wrench,
-  AlertTriangle,
-  CreditCard,
-  CheckCircle,
-} from "lucide-react";
+import { prisma } from "@/lib/prisma";
+import { DashboardClient } from "./dashboard-client";
 
 export default async function DashboardPage({
   params,
@@ -26,54 +18,61 @@ export default async function DashboardPage({
   if (!session?.user) redirect(`/${locale}/login`);
   if (!hasPermission(session, ROLES.ALL)) return <AccessDenied />;
 
-  return <DashboardContent />;
-}
+  const tenantId = session.user.tenantId;
+  const now = new Date();
 
-function DashboardContent() {
-  const t = useTranslations("dashboard");
+  const [
+    openQuotations,
+    activeOrders,
+    woInProgress,
+    overdueWOs,
+    awaitingPayment,
+    woTotal,
+    woCompleted,
+    recentOrders,
+  ] = await Promise.all([
+    prisma.quotation.count({
+      where: { tenantId, status: { in: ["DRAFT", "SENT", "REVISED"] } },
+    }),
+    prisma.salesOrder.count({
+      where: { tenantId, status: { in: ["CONFIRMED", "DEPOSIT_PENDING", "IN_PRODUCTION", "PAINTING", "ENGRAVING", "QC_FINAL", "PACKING"] } },
+    }),
+    prisma.workOrder.count({
+      where: { tenantId, status: "IN_PROGRESS" },
+    }),
+    prisma.workOrder.count({
+      where: { tenantId, status: { notIn: ["COMPLETED", "CANCELLED"] }, plannedEnd: { lt: now } },
+    }),
+    prisma.salesOrder.count({
+      where: { tenantId, status: "AWAITING_PAYMENT" },
+    }),
+    prisma.workOrder.count({
+      where: { tenantId, status: { not: "CANCELLED" } },
+    }),
+    prisma.workOrder.count({
+      where: { tenantId, status: "COMPLETED" },
+    }),
+    prisma.salesOrder.findMany({
+      where: { tenantId, status: { not: "CANCELLED" } },
+      orderBy: { createdAt: "desc" },
+      take: 5,
+      include: { customer: { select: { name: true } } },
+    }),
+  ]);
+
+  const completionRate = woTotal > 0 ? Math.round((woCompleted / woTotal) * 100) : 0;
 
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-medium tracking-tight">{t("title")}</h1>
-
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        <KpiCard
-          title={t("openQuotations")}
-          value={0}
-          icon={<FileText className="h-4 w-4" />}
-          description="--"
-        />
-        <KpiCard
-          title={t("activeOrders")}
-          value={0}
-          icon={<ShoppingCart className="h-4 w-4" />}
-          description="--"
-        />
-        <KpiCard
-          title={t("workOrdersInProgress")}
-          value={0}
-          icon={<Wrench className="h-4 w-4" />}
-          description="--"
-        />
-        <KpiCard
-          title={t("overdueWorkOrders")}
-          value={0}
-          icon={<AlertTriangle className="h-4 w-4" />}
-          description="--"
-        />
-        <KpiCard
-          title={t("awaitingPayment")}
-          value={0}
-          icon={<CreditCard className="h-4 w-4" />}
-          description="--"
-        />
-        <KpiCard
-          title={t("completionRate")}
-          value="--"
-          icon={<CheckCircle className="h-4 w-4" />}
-          description="--"
-        />
-      </div>
-    </div>
+    <DashboardClient
+      kpi={{
+        openQuotations,
+        activeOrders,
+        woInProgress,
+        overdueWOs,
+        awaitingPayment,
+        completionRate,
+      }}
+      recentOrders={JSON.parse(JSON.stringify(recentOrders))}
+    />
   );
 }

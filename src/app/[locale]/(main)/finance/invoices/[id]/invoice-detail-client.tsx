@@ -437,7 +437,7 @@ export function InvoiceDetailClient({
               {invoice.taxInvoices.map((ti) => (
                 <Link
                   key={ti.id}
-                  href={`/finance/tax-invoices`}
+                  href={`/finance/tax-invoices/${ti.id}`}
                   className="block p-2 rounded border border-border hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between">
@@ -476,7 +476,7 @@ export function InvoiceDetailClient({
               {invoice.receipts.map((rc) => (
                 <Link
                   key={rc.id}
-                  href={`/finance/receipts`}
+                  href={`/finance/receipts/${rc.id}`}
                   className="block p-2 rounded border border-border hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between">
@@ -515,7 +515,7 @@ export function InvoiceDetailClient({
               {invoice.creditNotes.map((cn) => (
                 <Link
                   key={cn.id}
-                  href={`/finance/credit-notes`}
+                  href={`/finance/credit-notes/${cn.id}`}
                   className="block p-2 rounded border border-border hover:bg-muted/50 transition-colors"
                 >
                   <div className="flex items-center justify-between">

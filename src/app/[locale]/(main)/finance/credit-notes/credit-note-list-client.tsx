@@ -1,6 +1,7 @@
 "use client";
 
 import { useTranslations } from "next-intl";
+import { useRouter } from "@/i18n/navigation";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, SortableHeader } from "@/components/data-table/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -34,6 +35,7 @@ export function CreditNoteListClient({
   creditNotes: CreditNoteRow[];
 }) {
   const t = useTranslations();
+  const router = useRouter();
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
 
@@ -182,7 +184,11 @@ export function CreditNoteListClient({
         </Select>
       </div>
 
-      <DataTable columns={columns} data={filtered} />
+      <DataTable
+        columns={columns}
+        data={filtered}
+        onRowClick={(row) => router.push(`/finance/credit-notes/${row.id}`)}
+      />
     </div>
   );
 }
