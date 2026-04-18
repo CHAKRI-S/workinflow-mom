@@ -59,7 +59,9 @@
     "admin": "ผู้ดูแลระบบ",
     "users": "ผู้ใช้งาน",
     "settings": "ตั้งค่า",
-    "reports": "รายงาน"
+    "reports": "รายงาน",
+    "billing": "การชำระเงิน",
+    "auditLog": "Audit Log"
   },
   "auth": {
     "login": "เข้าสู่ระบบ",

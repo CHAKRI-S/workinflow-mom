@@ -1,26 +1,37 @@
 import { redirect } from "next/navigation";
 import { getSaSession } from "@/lib/sa-auth";
+import { prisma } from "@/lib/prisma";
 import { SaShell } from "@/components/superadmin/sa-shell";
-import { Tag } from "lucide-react";
+import { DiscountsClient } from "./discounts-client";
 
 export default async function DiscountsPage() {
   const session = await getSaSession();
   if (!session) redirect("/login");
 
+  const codes = await prisma.discountCode.findMany({
+    orderBy: { createdAt: "desc" },
+    include: { _count: { select: { subscriptions: true } } },
+  });
+
   return (
     <SaShell saName={session.name}>
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold mb-1">Discount Codes</h1>
-        <p className="text-muted-foreground">สร้างโค้ดส่วนลดสำหรับลูกค้า</p>
-      </div>
-
-      <div className="rounded-xl border-2 border-dashed bg-card p-12 text-center">
-        <Tag className="h-10 w-10 mx-auto mb-3 text-muted-foreground/40" />
-        <div className="font-medium mb-1">Discount CRUD — Coming in Phase 6</div>
-        <div className="text-sm text-muted-foreground">
-          จะเปิดใช้งานพร้อมกับ Omise / SlipOK payment integration
-        </div>
-      </div>
+      <DiscountsClient
+        initialCodes={codes.map((c) => ({
+          id: c.id,
+          code: c.code,
+          description: c.description,
+          discountType: c.discountType,
+          discountValue: c.discountValue,
+          validFrom: c.validFrom?.toISOString() ?? null,
+          validUntil: c.validUntil?.toISOString() ?? null,
+          maxUses: c.maxUses,
+          usedCount: c.usedCount,
+          maxUsesPerTenant: c.maxUsesPerTenant,
+          isActive: c.isActive,
+          createdAt: c.createdAt.toISOString(),
+          usageCount: c._count.subscriptions,
+        }))}
+      />
     </SaShell>
   );
 }

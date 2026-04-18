@@ -4,37 +4,45 @@ import { useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { cn } from "@/lib/utils";
+import { usePlan } from "@/hooks/use-plan";
 import {
   LayoutDashboard,
-  FileText,
   ShoppingCart,
-  Users,
-  Package,
-  Boxes,
-  ClipboardList,
-  Wrench,
-  Cog,
   BarChart3,
-  UserCog,
   Settings,
   ChevronDown,
   Factory,
   FileSpreadsheet,
   Receipt,
-  CreditCard,
 } from "lucide-react";
 import { useState } from "react";
+
+interface NavChild {
+  label: string;
+  href: string;
+  /** Only show when this feature is enabled (omit = always visible) */
+  requiresFeature?:
+    | "production"
+    | "finance"
+    | "maintenance"
+    | "factoryDashboard"
+    | "auditLog"
+    | "purchaseOrders"
+    | "advancedReports";
+}
 
 interface NavItem {
   label: string;
   href?: string;
   icon: React.ReactNode;
-  children?: { label: string; href: string }[];
+  children?: NavChild[];
+  requiresFeature?: NavChild["requiresFeature"];
 }
 
 export function Sidebar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
+  const { hasFeature } = usePlan();
   const [openMenus, setOpenMenus] = useState<string[]>(["sales", "production"]);
 
   const toggleMenu = (key: string) => {
@@ -61,6 +69,7 @@ export function Sidebar() {
     {
       label: t("production"),
       icon: <Factory className="h-4 w-4" />,
+      requiresFeature: "production",
       children: [
         { label: t("products"), href: "/production/products" },
         { label: t("materials"), href: "/production/materials" },
@@ -72,6 +81,7 @@ export function Sidebar() {
     {
       label: t("finance"),
       icon: <Receipt className="h-4 w-4" />,
+      requiresFeature: "finance",
       children: [
         { label: t("invoices"), href: "/finance/invoices" },
         { label: t("receipts"), href: "/finance/receipts" },
@@ -82,6 +92,7 @@ export function Sidebar() {
     {
       label: t("procurement"),
       icon: <FileSpreadsheet className="h-4 w-4" />,
+      requiresFeature: "purchaseOrders",
       children: [
         { label: t("purchaseOrders"), href: "/procurement/purchase-orders" },
         { label: t("consumables"), href: "/procurement/consumables" },
@@ -97,12 +108,24 @@ export function Sidebar() {
       icon: <Settings className="h-4 w-4" />,
       children: [
         { label: t("users"), href: "/admin/users" },
+        { label: t("billing"), href: "/admin/billing" },
+        { label: t("auditLog"), href: "/admin/audit-log", requiresFeature: "auditLog" },
         { label: t("settings"), href: "/admin/settings" },
       ],
     },
   ];
 
   const isActive = (href: string) => pathname === href;
+
+  // Filter by feature flags
+  const visibleNav = navItems
+    .filter((item) => !item.requiresFeature || hasFeature(item.requiresFeature))
+    .map((item) => ({
+      ...item,
+      children: item.children?.filter(
+        (c) => !c.requiresFeature || hasFeature(c.requiresFeature),
+      ),
+    }));
 
   return (
     <aside className="w-64 border-r bg-sidebar text-sidebar-foreground flex flex-col h-full">
@@ -118,7 +141,7 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto p-3 space-y-1">
-        {navItems.map((item) => {
+        {visibleNav.map((item) => {
           if (item.href) {
             return (
               <Link

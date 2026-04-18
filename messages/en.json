@@ -59,7 +59,9 @@
     "admin": "Admin",
     "users": "Users",
     "settings": "Settings",
-    "reports": "Reports"
+    "reports": "Reports",
+    "billing": "Billing",
+    "auditLog": "Audit Log"
   },
   "auth": {
     "login": "Sign In",

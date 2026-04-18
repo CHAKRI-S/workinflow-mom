@@ -12,10 +12,12 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { LocaleSwitcher } from "./locale-switcher";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { LogOut } from "lucide-react";
+import { LogOut, KeyRound } from "lucide-react";
+import { useRouter } from "@/i18n/navigation";
 
 export function Header() {
   const { data: session } = useSession();
+  const router = useRouter();
   const t = useTranslations("auth");
 
   const initials = session?.user?.name
@@ -53,6 +55,10 @@ export function Header() {
                 </p>
               </div>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => router.push("/admin/change-password")}>
+                <KeyRound className="mr-2 h-4 w-4" />
+                เปลี่ยนรหัสผ่าน
+              </DropdownMenuItem>
               <DropdownMenuItem onClick={() => signOut({ callbackUrl: "/th/login" })}>
                 <LogOut className="mr-2 h-4 w-4" />
                 {t("logout")}
