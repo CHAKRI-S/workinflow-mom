@@ -63,7 +63,8 @@
     "reports": "รายงาน",
     "billing": "การชำระเงิน",
     "auditLog": "Audit Log",
-    "export": "Export ข้อมูล"
+    "export": "Export ข้อมูล",
+    "roles": "สิทธิตาม Role"
   },
   "auth": {
     "login": "เข้าสู่ระบบ",

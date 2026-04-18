@@ -63,7 +63,8 @@
     "reports": "Reports",
     "billing": "Billing",
     "auditLog": "Audit Log",
-    "export": "Export Data"
+    "export": "Export Data",
+    "roles": "Role Permissions"
   },
   "auth": {
     "login": "Sign In",

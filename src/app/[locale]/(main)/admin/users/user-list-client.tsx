@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search, Send } from "lucide-react";
+import { Plus, Search, Send, AlertTriangle, ShieldCheck, Users as UsersIcon } from "lucide-react";
 import { useState, useMemo } from "react";
 
 const ROLES_LIST = [
@@ -47,11 +47,27 @@ interface User {
   createdAt: string;
 }
 
-export function UserListClient({ users }: { users: User[] }) {
+export function UserListClient({
+  users,
+  activeCount,
+  maxUsers,
+  planName,
+}: {
+  users: User[];
+  activeCount: number;
+  maxUsers: number; // 0 = unlimited
+  planName: string | null;
+}) {
   const t = useTranslations();
   const router = useRouter();
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<string>("ALL");
+
+  const unlimited = maxUsers === 0;
+  const atCap = !unlimited && activeCount >= maxUsers;
+  const usageLabel = unlimited
+    ? `${activeCount} / ไม่จำกัด`
+    : `${activeCount} / ${maxUsers}`;
 
   const filtered = useMemo(() => {
     let result = users;
@@ -140,25 +156,76 @@ export function UserListClient({ users }: { users: User[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-medium tracking-tight">
-          {t("user.title")}
-        </h1>
+      <div className="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-2xl font-medium tracking-tight">
+            {t("user.title")}
+          </h1>
+          <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground">
+            <UsersIcon className="h-3.5 w-3.5" />
+            <span>ใช้งานอยู่ {usageLabel}</span>
+            {planName && (
+              <span className="text-xs">• Plan: {planName}</span>
+            )}
+          </div>
+        </div>
         <div className="flex gap-2">
-          <Link href="/admin/users/invite">
+          <Link href="/admin/roles">
             <Button variant="outline">
-              <Send className="h-4 w-4 mr-1" />
-              เชิญผ่านอีเมล
+              <ShieldCheck className="h-4 w-4 mr-1" />
+              ดูสิทธิของ Role
             </Button>
           </Link>
-          <Link href="/admin/users/new">
-            <Button>
-              <Plus className="h-4 w-4 mr-1" />
-              {t("user.new")}
-            </Button>
-          </Link>
+          {atCap ? (
+            <>
+              <Button variant="outline" disabled title="ต้องอัพเกรด Plan ก่อน">
+                <Send className="h-4 w-4 mr-1" />
+                เชิญผ่านอีเมล
+              </Button>
+              <Button disabled title="ต้องอัพเกรด Plan ก่อน">
+                <Plus className="h-4 w-4 mr-1" />
+                {t("user.new")}
+              </Button>
+            </>
+          ) : (
+            <>
+              <Link href="/admin/users/invite">
+                <Button variant="outline">
+                  <Send className="h-4 w-4 mr-1" />
+                  เชิญผ่านอีเมล
+                </Button>
+              </Link>
+              <Link href="/admin/users/new">
+                <Button>
+                  <Plus className="h-4 w-4 mr-1" />
+                  {t("user.new")}
+                </Button>
+              </Link>
+            </>
+          )}
         </div>
       </div>
+
+      {atCap && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-900/40 bg-amber-50 dark:bg-amber-900/10 p-4">
+          <div className="flex items-start gap-3">
+            <AlertTriangle className="h-5 w-5 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <div className="font-medium text-amber-900 dark:text-amber-200">
+                ใช้โควตา user เต็มแล้ว ({activeCount}/{maxUsers})
+              </div>
+              <p className="text-sm text-amber-800/90 dark:text-amber-300/90 mt-0.5">
+                เพิ่ม user ใหม่ หรือ เปิดใช้งาน user ที่ปิดอยู่ไม่ได้จนกว่าจะอัพเกรด Plan
+              </p>
+            </div>
+            <Link href="/admin/billing/upgrade">
+              <Button size="sm" className="shrink-0">
+                อัพเกรด Plan
+              </Button>
+            </Link>
+          </div>
+        </div>
+      )}
 
       <div className="flex items-center gap-3">
         <div className="relative max-w-sm">

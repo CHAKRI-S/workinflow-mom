@@ -116,6 +116,7 @@ export function Sidebar() {
       icon: <Settings className="h-4 w-4" />,
       children: [
         { label: t("users"), href: "/admin/users" },
+        { label: t("roles"), href: "/admin/roles" },
         { label: t("billing"), href: "/admin/billing" },
         { label: t("export"), href: "/admin/export" },
         {
