@@ -21,7 +21,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useState } from "react";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Trash2 } from "lucide-react";
 
 const ROLES_LIST = [
   "ADMIN",
@@ -61,12 +61,20 @@ interface UserEditData {
   isActive: boolean;
 }
 
-export function UserDetailClient({ user }: { user: User }) {
+export function UserDetailClient({
+  user,
+  currentUserId,
+}: {
+  user: User;
+  currentUserId: string;
+}) {
   const t = useTranslations();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const isSelf = user.id === currentUserId;
 
   const {
     register,
@@ -121,6 +129,36 @@ export function UserDetailClient({ user }: { user: User }) {
       setError(err instanceof Error ? err.message : "Unknown error");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDelete = async () => {
+    if (
+      !confirm(
+        `ลบผู้ใช้ "${user.name}" (${user.email}) อย่างถาวร?\nการดำเนินการนี้ไม่สามารถย้อนกลับได้`,
+      )
+    ) {
+      return;
+    }
+
+    setDeleting(true);
+    setError(null);
+
+    try {
+      const res = await fetch(`/api/admin/users/${user.id}`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to delete user");
+      }
+
+      router.push("/admin/users");
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+      setDeleting(false);
     }
   };
 
@@ -273,20 +311,36 @@ export function UserDetailClient({ user }: { user: User }) {
           </div>
         </Card>
 
-        <div className="flex items-center gap-3">
-          <Button type="submit" disabled={loading}>
-            {loading ? (
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <Button type="submit" disabled={loading || deleting}>
+              {loading ? (
+                <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+              ) : (
+                <Save className="h-4 w-4 mr-1" />
+              )}
+              {t("common.save")}
+            </Button>
+            <Link href="/admin/users">
+              <Button type="button" variant="outline">
+                {t("common.back")}
+              </Button>
+            </Link>
+          </div>
+          <Button
+            type="button"
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={loading || deleting || isSelf}
+            title={isSelf ? "ไม่สามารถลบบัญชีของตัวเองได้" : undefined}
+          >
+            {deleting ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
             ) : (
-              <Save className="h-4 w-4 mr-1" />
+              <Trash2 className="h-4 w-4 mr-1" />
             )}
-            {t("common.save")}
+            ลบผู้ใช้
           </Button>
-          <Link href="/admin/users">
-            <Button type="button" variant="outline">
-              {t("common.back")}
-            </Button>
-          </Link>
         </div>
       </form>
     </div>

@@ -1,22 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import type { Role } from "@/generated/prisma/client";
 
 /** Default trial length for new SaaS signups */
 export const TRIAL_DAYS = 30;
-
-/** Roles that are auto-created as preset users for a new tenant */
-export const PRESET_ROLES: { role: Role; name: string; roleKey: string }[] = [
-  { role: "MANAGER", name: "Factory Manager", roleKey: "manager" },
-  { role: "PLANNER", name: "Production Planner", roleKey: "planner" },
-  { role: "SALES", name: "Sales Team", roleKey: "sales" },
-  { role: "OPERATOR", name: "CNC Operator", roleKey: "operator" },
-  { role: "QC", name: "QC Inspector", roleKey: "qc" },
-  { role: "ACCOUNTING", name: "Accounting", roleKey: "accounting" },
-];
-
-/** Default password for auto-created preset users (admin prompts them to change) */
-export const PRESET_DEFAULT_PASSWORD = "changeme123";
 
 // ───────────────────────────────────────────────
 // Slug / code helpers
@@ -85,7 +71,6 @@ export interface ProvisionTenantResult {
   code: string;
   adminUserId: string;
   trialEndsAt: Date;
-  presetUserEmails: string[];
 }
 
 /**
@@ -95,8 +80,12 @@ export interface ProvisionTenantResult {
  * Side effects:
  * - 1 Tenant (status=TRIAL, trialEndsAt=+30 days)
  * - 1 admin User (with the email+password from signup)
- * - 6 preset Users (manager/planner/sales/operator/qc/accounting) with placeholder emails
  * - Linked to default plan (FREE by default)
+ *
+ * Note: we intentionally do NOT seed preset users anymore — they consumed
+ * seat quota immediately (blocking FREE tenants at signup) and had
+ * placeholder `.workinflow.local` emails that couldn't be used to log in.
+ * Admins invite real teammates via /admin/users/invite instead.
  */
 export async function provisionTenant(
   input: ProvisionTenantInput,
@@ -134,9 +123,8 @@ export async function provisionTenant(
   const trialEndsAt = new Date();
   trialEndsAt.setDate(trialEndsAt.getDate() + trialDays);
 
-  // Hash passwords
+  // Hash password
   const adminHash = await bcrypt.hash(adminPassword, 10);
-  const presetHash = await bcrypt.hash(PRESET_DEFAULT_PASSWORD, 10);
 
   const result = await prisma.$transaction(async (tx) => {
     // 1. Create tenant
@@ -155,7 +143,7 @@ export async function provisionTenant(
       },
     });
 
-    // 2. Create admin user
+    // 2. Create admin user (only — no preset team members)
     const admin = await tx.user.create({
       data: {
         email: adminEmail.toLowerCase(),
@@ -166,29 +154,12 @@ export async function provisionTenant(
       },
     });
 
-    // 3. Create preset users (placeholder emails using slug)
-    const presetEmails: string[] = [];
-    for (const p of PRESET_ROLES) {
-      const presetEmail = `${p.roleKey}.${slug}@workinflow.local`;
-      await tx.user.create({
-        data: {
-          email: presetEmail,
-          name: p.name,
-          hashedPassword: presetHash,
-          role: p.role,
-          tenantId: tenant.id,
-        },
-      });
-      presetEmails.push(presetEmail);
-    }
-
     return {
       tenantId: tenant.id,
       slug: tenant.slug!,
       code: tenant.code,
       adminUserId: admin.id,
       trialEndsAt,
-      presetUserEmails: presetEmails,
     };
   });
 

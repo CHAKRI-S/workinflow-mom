@@ -108,3 +108,73 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
+
+// DELETE /api/admin/users/[id]
+export async function DELETE(_req: NextRequest, { params }: Params) {
+  try {
+    const session = await auth();
+    requirePermission(session, ROLES.ADMIN_ONLY);
+    const { id } = await params;
+    const tenantId = session!.user.tenantId;
+    const currentUserId = session!.user.id;
+
+    // Block self-delete
+    if (id === currentUserId) {
+      return NextResponse.json(
+        { error: "ไม่สามารถลบบัญชีของตัวเองได้" },
+        { status: 400 },
+      );
+    }
+
+    const target = await prisma.user.findFirst({
+      where: { id, tenantId },
+      select: { id: true, role: true },
+    });
+    if (!target) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 });
+    }
+
+    // Block deleting the last admin in the tenant
+    if (target.role === Role.ADMIN) {
+      const adminCount = await prisma.user.count({
+        where: { tenantId, role: Role.ADMIN, isActive: true },
+      });
+      if (adminCount <= 1) {
+        return NextResponse.json(
+          { error: "ไม่สามารถลบ ADMIN คนสุดท้ายในระบบได้" },
+          { status: 400 },
+        );
+      }
+    }
+
+    // Refuse hard-delete if the user has created financial documents or
+    // work-order logs — those relations are Restrict. Suggest deactivate instead.
+    const [quoCount, soCount, invCount, rcpCount, logCount] = await Promise.all([
+      prisma.quotation.count({ where: { createdById: id } }),
+      prisma.salesOrder.count({ where: { createdById: id } }),
+      prisma.invoice.count({ where: { createdById: id } }),
+      prisma.receipt.count({ where: { createdById: id } }),
+      prisma.workOrderLog.count({ where: { createdById: id } }),
+    ]);
+    const depCount = quoCount + soCount + invCount + rcpCount + logCount;
+    if (depCount > 0) {
+      return NextResponse.json(
+        {
+          error:
+            "ผู้ใช้นี้มีเอกสารหรือประวัติการใช้งานอยู่ในระบบ ไม่สามารถลบถาวรได้ — กรุณา 'ปิดใช้งาน' แทน",
+        },
+        { status: 409 },
+      );
+    }
+
+    await prisma.user.delete({ where: { id } });
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    if (err instanceof Error && err.message === "Unauthorized") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    console.error("DELETE /api/admin/users/[id] error:", err);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}

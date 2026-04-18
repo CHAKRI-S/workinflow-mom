@@ -33,5 +33,10 @@ export default async function UserDetailPage({
 
   if (!user) notFound();
 
-  return <UserDetailClient user={JSON.parse(JSON.stringify(user))} />;
+  return (
+    <UserDetailClient
+      user={JSON.parse(JSON.stringify(user))}
+      currentUserId={session.user.id}
+    />
+  );
 }
