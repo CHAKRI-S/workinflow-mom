@@ -229,6 +229,29 @@ model DiscountCode {
 }
 
 // ══════════════════════════════════════════════════
+// USER INVITES (invite by email → accept → set password)
+// ══════════════════════════════════════════════════
+
+model UserInvite {
+  id             String    @id @default(cuid())
+  token          String    @unique // random URL-safe token
+  email          String
+  name           String? // suggested name (can be edited on accept)
+  role           Role      @default(OPERATOR)
+  tenantId       String
+  invitedById    String // User.id of the inviter
+  invitedByName  String // snapshot
+  expiresAt      DateTime // default +7 days
+  acceptedAt     DateTime?
+  acceptedUserId String? // User.id created on accept
+  cancelledAt    DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([tenantId, acceptedAt])
+  @@index([email])
+}
+
+// ══════════════════════════════════════════════════
 // SUPER ADMIN (Platform Operator)
 // ══════════════════════════════════════════════════
 
@@ -259,21 +282,21 @@ enum Role {
 }
 
 model User {
-  id                    String    @id @default(cuid())
-  email                 String    @unique
-  name                  String
-  hashedPassword        String
-  role                  Role      @default(OPERATOR)
-  isActive              Boolean   @default(true)
+  id                  String    @id @default(cuid())
+  email               String    @unique
+  name                String
+  hashedPassword      String
+  role                Role      @default(OPERATOR)
+  isActive            Boolean   @default(true)
   // Password reset
-  resetToken            String?   @unique
-  resetTokenExpiresAt   DateTime?
+  resetToken          String?   @unique
+  resetTokenExpiresAt DateTime?
   // Email verification
-  emailVerifiedAt       DateTime?
-  tenantId              String
-  tenant                Tenant    @relation(fields: [tenantId], references: [id])
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  emailVerifiedAt     DateTime?
+  tenantId            String
+  tenant              Tenant    @relation(fields: [tenantId], references: [id])
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   quotations    Quotation[]    @relation("QuotationCreatedBy")
   salesOrders   SalesOrder[]   @relation("SOCreatedBy")

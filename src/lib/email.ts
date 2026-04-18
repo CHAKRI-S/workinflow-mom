@@ -130,6 +130,38 @@ export async function sendTrialEndingEmail(to: string, params: {
   return sendEmail({ to, subject: `ทดลองใช้เหลืออีก ${params.daysLeft} วัน — WorkinFlow`, html });
 }
 
+export async function sendUserInviteEmail(to: string, params: {
+  inviteeName: string;
+  inviterName: string;
+  companyName: string;
+  role: string;
+  acceptUrl: string;
+  expiresInDays: number;
+}) {
+  const roleLabels: Record<string, string> = {
+    ADMIN: "ผู้ดูแลระบบ",
+    MANAGER: "ผู้จัดการ",
+    PLANNER: "ผู้วางแผนการผลิต",
+    SALES: "ฝ่ายขาย",
+    OPERATOR: "ช่าง CNC",
+    QC: "ฝ่ายตรวจสอบคุณภาพ",
+    ACCOUNTING: "ฝ่ายบัญชี",
+  };
+  const roleLabel = roleLabels[params.role] ?? params.role;
+  const html = layout(`
+    <h2 style="margin:0 0 12px">คุณได้รับเชิญเข้าสู่ ${params.companyName} 🎉</h2>
+    <p>สวัสดีคุณ${params.inviteeName},</p>
+    <p><strong>${params.inviterName}</strong> เชิญคุณเข้าร่วมเป็น <strong>${roleLabel}</strong> ของ ${params.companyName} บน WorkinFlow MOM</p>
+    <p style="margin-top:24px">
+      <a href="${params.acceptUrl}" style="display:inline-block;background:#3b82f6;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">ตอบรับคำเชิญ</a>
+    </p>
+    <p style="margin-top:24px;font-size:13px;color:#64748b">
+      ลิงก์นี้จะหมดอายุใน ${params.expiresInDays} วัน — กดเพื่อตั้งรหัสผ่านและเข้าใช้งาน
+    </p>
+  `);
+  return sendEmail({ to, subject: `เชิญเข้าใช้งาน ${params.companyName} บน WorkinFlow`, html });
+}
+
 export async function sendPaymentSuccessEmail(to: string, params: {
   name: string;
   planName: string;

@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Plus, Search } from "lucide-react";
+import { Plus, Search, Send } from "lucide-react";
 import { useState, useMemo } from "react";
 
 const ROLES_LIST = [
@@ -144,12 +144,20 @@ export function UserListClient({ users }: { users: User[] }) {
         <h1 className="text-2xl font-medium tracking-tight">
           {t("user.title")}
         </h1>
-        <Link href="/admin/users/new">
-          <Button>
-            <Plus className="h-4 w-4 mr-1" />
-            {t("user.new")}
-          </Button>
-        </Link>
+        <div className="flex gap-2">
+          <Link href="/admin/users/invite">
+            <Button variant="outline">
+              <Send className="h-4 w-4 mr-1" />
+              เชิญผ่านอีเมล
+            </Button>
+          </Link>
+          <Link href="/admin/users/new">
+            <Button>
+              <Plus className="h-4 w-4 mr-1" />
+              {t("user.new")}
+            </Button>
+          </Link>
+        </div>
       </div>
 
       <div className="flex items-center gap-3">

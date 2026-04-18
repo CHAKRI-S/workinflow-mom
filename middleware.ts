@@ -25,7 +25,7 @@ function detectHost(hostname: string): HostMode {
 // ═══════════════════════════════════════════════════════
 
 // Paths on mom.* that don't require auth
-const MOM_PUBLIC_PATHS = ["/login", "/api/auth", "/factory", "/signup", "/forgot-password", "/reset-password"];
+const MOM_PUBLIC_PATHS = ["/login", "/api/auth", "/api/invites", "/factory", "/signup", "/forgot-password", "/reset-password", "/invite"];
 
 function isMomPublicPath(pathname: string): boolean {
   const pathWithoutLocale = pathname.replace(/^\/(th|en)/, "") || "/";

@@ -109,6 +109,7 @@ export function Sidebar() {
       children: [
         { label: t("users"), href: "/admin/users" },
         { label: t("billing"), href: "/admin/billing" },
+        { label: t("export"), href: "/admin/export" },
         { label: t("auditLog"), href: "/admin/audit-log", requiresFeature: "auditLog" },
         { label: t("settings"), href: "/admin/settings" },
       ],

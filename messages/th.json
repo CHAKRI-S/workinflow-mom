@@ -61,7 +61,8 @@
     "settings": "ตั้งค่า",
     "reports": "รายงาน",
     "billing": "การชำระเงิน",
-    "auditLog": "Audit Log"
+    "auditLog": "Audit Log",
+    "export": "Export ข้อมูล"
   },
   "auth": {
     "login": "เข้าสู่ระบบ",

@@ -61,7 +61,8 @@
     "settings": "Settings",
     "reports": "Reports",
     "billing": "Billing",
-    "auditLog": "Audit Log"
+    "auditLog": "Audit Log",
+    "export": "Export Data"
   },
   "auth": {
     "login": "Sign In",
