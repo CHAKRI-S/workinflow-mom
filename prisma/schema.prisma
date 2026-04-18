@@ -8,40 +8,240 @@ datasource db {
 }
 
 // ══════════════════════════════════════════════════
-// MULTI-TENANCY
+// MULTI-TENANCY + SaaS
 // ══════════════════════════════════════════════════
 
-model Tenant {
-  id          String   @id @default(cuid())
-  name        String   // ชื่อบริษัท
-  code        String   @unique // e.g. "WF01" — prefix doc numbering
-  taxId       String?  // เลขผู้เสียภาษีบริษัท
-  address     String?  // ที่อยู่บริษัท (สำหรับใบกำกับภาษี)
-  phone       String?
-  email       String?
-  logo        String?  // URL โลโก้
-  vatRate     Decimal  @db.Decimal(5, 2) @default(7) // อัตรา VAT %
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+enum TenantStatus {
+  TRIAL // ช่วงทดลองใช้
+  ACTIVE // สมัครแล้ว / จ่ายแล้ว
+  SUSPENDED // ถูกระงับชั่วคราว (อ่านอย่างเดียว)
+  CANCELLED // ยกเลิก
+}
 
-  users              User[]
-  customers          Customer[]
-  products           Product[]
-  materials          Material[]
-  consumables        Consumable[]
-  cncMachines        CncMachine[]
-  quotations         Quotation[]
-  salesOrders        SalesOrder[]
-  invoices           Invoice[]
-  taxInvoices        TaxInvoice[]
-  receipts           Receipt[]
-  creditNotes        CreditNote[]
-  payments           Payment[]
-  productionPlans    ProductionPlan[]
-  workOrders         WorkOrder[]
-  purchaseOrders     PurchaseOrder[]
-  documentSequences  DocumentSequence[]
+model Tenant {
+  id           String       @id @default(cuid())
+  name         String // ชื่อบริษัท
+  code         String       @unique // e.g. "WF01" — prefix doc numbering
+  slug         String?      @unique // e.g. "workinflow" — สำหรับ URL / SA อ้างอิง
+  taxId        String? // เลขผู้เสียภาษีบริษัท
+  address      String? // ที่อยู่บริษัท (สำหรับใบกำกับภาษี)
+  phone        String?
+  email        String?
+  logo         String? // URL โลโก้
+  vatRate      Decimal      @default(7) @db.Decimal(5, 2) // อัตรา VAT %
+  // Subscription state
+  status       TenantStatus @default(TRIAL)
+  trialEndsAt  DateTime? // วันที่ทดลองใช้หมด
+  planId       String? // FK → Plan
+  plan         Plan?        @relation(fields: [planId], references: [id])
+  // Activity tracking
+  lastActiveAt DateTime?
+  onboardedAt  DateTime? // เมื่อ tenant ทำ onboarding เสร็จ
+  isActive     Boolean      @default(true) // เก็บไว้เพื่อ backward compat
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  users                User[]
+  customers            Customer[]
+  products             Product[]
+  materials            Material[]
+  consumables          Consumable[]
+  cncMachines          CncMachine[]
+  quotations           Quotation[]
+  salesOrders          SalesOrder[]
+  invoices             Invoice[]
+  taxInvoices          TaxInvoice[]
+  receipts             Receipt[]
+  creditNotes          CreditNote[]
+  payments             Payment[]
+  productionPlans      ProductionPlan[]
+  workOrders           WorkOrder[]
+  purchaseOrders       PurchaseOrder[]
+  documentSequences    DocumentSequence[]
+  subscriptions        Subscription[]
+  subscriptionInvoices SubscriptionInvoice[]
+
+  @@index([status])
+  @@index([planId])
+}
+
+// ══════════════════════════════════════════════════
+// PLANS & SUBSCRIPTIONS (SaaS)
+// ══════════════════════════════════════════════════
+
+enum PlanTier {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+  CUSTOM
+}
+
+model Plan {
+  id                      String   @id @default(cuid())
+  tier                    PlanTier @default(FREE)
+  slug                    String   @unique // "free", "starter", "pro", "enterprise"
+  name                    String // "Free", "Starter", "Professional", "Enterprise"
+  description             String?
+  // Pricing (satang — 1 THB = 100 satang)
+  priceMonthly            Int      @default(0) // satang / เดือน
+  priceYearly             Int      @default(0) // satang / ปี
+  yearlyDiscountPercent   Int      @default(0) // e.g. 16 = 16% off when paying yearly
+  // Usage limits (0 = unlimited)
+  maxUsers                Int      @default(0)
+  maxMachines             Int      @default(0)
+  maxCustomers            Int      @default(0)
+  maxProducts             Int      @default(0)
+  maxWorkOrdersPerMonth   Int      @default(0)
+  // Feature flags
+  featureProduction       Boolean  @default(true) // Work Orders, BOM, Planning
+  featureFinance          Boolean  @default(true) // Invoices, Tax Invoices, Receipts
+  featureMaintenance      Boolean  @default(false)
+  featureFactoryDashboard Boolean  @default(false) // Public TV dashboard
+  featureAuditLog         Boolean  @default(false)
+  featurePurchaseOrders   Boolean  @default(true)
+  featureAdvancedReports  Boolean  @default(false)
+  featureExcelExport      Boolean  @default(false)
+  featureCustomBranding   Boolean  @default(false) // remove WorkinFlow branding
+  featureApiAccess        Boolean  @default(false) // external API
+  featureMultiLocation    Boolean  @default(false)
+  // Metadata
+  sortOrder               Int      @default(0) // display order on pricing page
+  isPublic                Boolean  @default(true) // false = hidden (for CUSTOM per-tenant plans)
+  isActive                Boolean  @default(true)
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime @updatedAt
+
+  tenants       Tenant[]
+  subscriptions Subscription[]
+
+  @@index([tier])
+}
+
+enum SubscriptionStatus {
+  TRIAL
+  PENDING // สร้างแล้วรอชำระเงิน
+  ACTIVE // จ่ายแล้ว
+  EXPIRED // หมดอายุ
+  CANCELLED
+  SUSPENDED
+}
+
+enum BillingCycle {
+  MONTHLY
+  YEARLY
+}
+
+enum PaymentGateway {
+  OMISE
+  SLIPOK
+  MANUAL
+}
+
+model Subscription {
+  id             String             @id @default(cuid())
+  tenantId       String
+  tenant         Tenant             @relation(fields: [tenantId], references: [id])
+  planId         String
+  plan           Plan               @relation(fields: [planId], references: [id])
+  status         SubscriptionStatus @default(PENDING)
+  billingCycle   BillingCycle       @default(MONTHLY)
+  periodStart    DateTime
+  periodEnd      DateTime
+  // Amount (satang)
+  amountSatang   Int // subtotal
+  discountSatang Int                @default(0)
+  vatSatang      Int // VAT 7%
+  totalSatang    Int // amount - discount + vat
+  // Payment details
+  paymentGateway PaymentGateway?
+  omiseChargeId  String?            @unique
+  slipUrl        String? // PromptPay slip image
+  slipVerifiedAt DateTime?
+  gatewayRef     String? // external reference
+  // Discount
+  discountCodeId String?
+  discountCode   DiscountCode?      @relation(fields: [discountCodeId], references: [id])
+  // Cancel
+  cancelledAt    DateTime?
+  cancelReason   String?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  invoices SubscriptionInvoice[]
+
+  @@index([tenantId, status])
+  @@index([periodEnd])
+}
+
+model SubscriptionInvoice {
+  id             String       @id @default(cuid())
+  invoiceNumber  String       @unique // "WF-SUB-2026-00001"
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id])
+  tenantId       String
+  tenant         Tenant       @relation(fields: [tenantId], references: [id])
+  // Snapshot
+  tenantName     String
+  tenantTaxId    String?
+  tenantAddress  String?
+  planName       String
+  // Amount (satang)
+  subtotalSatang Int
+  discountSatang Int          @default(0)
+  vatSatang      Int
+  totalSatang    Int
+  // Dates
+  issueDate      DateTime     @default(now())
+  paidAt         DateTime?
+  // File
+  pdfUrl         String?
+  createdAt      DateTime     @default(now())
+
+  @@index([tenantId])
+  @@index([subscriptionId])
+}
+
+enum DiscountType {
+  PERCENT // ส่วนลดเป็น %
+  FIXED // ส่วนลดเป็นจำนวนเงิน (satang)
+}
+
+model DiscountCode {
+  id               String       @id @default(cuid())
+  code             String       @unique
+  description      String?
+  discountType     DiscountType @default(PERCENT)
+  discountValue    Int // percent (1-100) OR satang
+  // Restrictions
+  validFrom        DateTime?
+  validUntil       DateTime?
+  maxUses          Int? // total uses across all tenants (null = unlimited)
+  usedCount        Int          @default(0)
+  maxUsesPerTenant Int? // null = unlimited per tenant
+  // Plan restriction (null = all plans)
+  allowedPlanIds   String[]     @default([])
+  isActive         Boolean      @default(true)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  subscriptions Subscription[]
+}
+
+// ══════════════════════════════════════════════════
+// SUPER ADMIN (Platform Operator)
+// ══════════════════════════════════════════════════
+
+model SuperAdmin {
+  id             String    @id @default(cuid())
+  username       String    @unique
+  email          String    @unique
+  name           String
+  hashedPassword String
+  isActive       Boolean   @default(true)
+  lastLoginAt    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 }
 
 // ══════════════════════════════════════════════════
@@ -59,22 +259,27 @@ enum Role {
 }
 
 model User {
-  id             String   @id @default(cuid())
-  email          String   @unique
-  name           String
-  hashedPassword String
-  role           Role     @default(OPERATOR)
-  isActive       Boolean  @default(true)
-  tenantId       String
-  tenant         Tenant   @relation(fields: [tenantId], references: [id])
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  id                    String    @id @default(cuid())
+  email                 String    @unique
+  name                  String
+  hashedPassword        String
+  role                  Role      @default(OPERATOR)
+  isActive              Boolean   @default(true)
+  // Password reset
+  resetToken            String?   @unique
+  resetTokenExpiresAt   DateTime?
+  // Email verification
+  emailVerifiedAt       DateTime?
+  tenantId              String
+  tenant                Tenant    @relation(fields: [tenantId], references: [id])
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
 
-  quotations     Quotation[]    @relation("QuotationCreatedBy")
-  salesOrders    SalesOrder[]   @relation("SOCreatedBy")
-  invoices       Invoice[]      @relation("InvoiceCreatedBy")
-  receipts       Receipt[]      @relation("ReceiptCreatedBy")
-  workOrderLogs  WorkOrderLog[]
+  quotations    Quotation[]    @relation("QuotationCreatedBy")
+  salesOrders   SalesOrder[]   @relation("SOCreatedBy")
+  invoices      Invoice[]      @relation("InvoiceCreatedBy")
+  receipts      Receipt[]      @relation("ReceiptCreatedBy")
+  workOrderLogs WorkOrderLog[]
 
   @@index([tenantId])
 }
@@ -98,16 +303,16 @@ model Customer {
   contactName     String?
   email           String?
   phone           String?
-  lineId          String?      // LINE ID สำหรับติดต่อ
-  taxId           String?      // เลขผู้เสียภาษี (สำหรับใบกำกับภาษี)
+  lineId          String? // LINE ID สำหรับติดต่อ
+  taxId           String? // เลขผู้เสียภาษี (สำหรับใบกำกับภาษี)
   // ที่อยู่ออกบิล
   billingAddress  String?
   // ที่อยู่จัดส่ง (ถ้าต่างจากที่อยู่ออกบิล)
   shippingAddress String?
   // VAT
-  isVatRegistered Boolean      @default(true)  // ลูกค้าจด VAT หรือไม่ — กำหนดว่าออก TI ได้ + ใช้ prefix เอกสารแยก
+  isVatRegistered Boolean      @default(true) // ลูกค้าจด VAT หรือไม่ — กำหนดว่าออก TI ได้ + ใช้ prefix เอกสารแยก
   // เงื่อนไขการเงิน
-  paymentTermDays Int          @default(30)  // เครดิตเทอม (วัน)
+  paymentTermDays Int          @default(30) // เครดิตเทอม (วัน)
   creditLimit     Decimal?     @db.Decimal(14, 2) // วงเงินเครดิต
   isActive        Boolean      @default(true)
   tenantId        String
@@ -125,15 +330,15 @@ model Customer {
 }
 
 model CustomerContact {
-  id         String  @id @default(cuid())
+  id         String   @id @default(cuid())
   customerId String
   customer   Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
   name       String
-  position   String?  // ตำแหน่ง
+  position   String? // ตำแหน่ง
   phone      String?
   email      String?
   lineId     String?
-  isPrimary  Boolean @default(false)
+  isPrimary  Boolean  @default(false)
 
   @@index([customerId])
 }
@@ -143,29 +348,29 @@ model CustomerContact {
 // ══════════════════════════════════════════════════
 
 model Product {
-  id              String   @id @default(cuid())
-  code            String
-  name            String
-  description     String?
-  category        String?  // e.g. "Bracket", "Mount", "Cover"
-  fusionFileName  String?  // ชื่อไฟล์แบบ Fusion 360
-  fusionFileUrl   String?  // link ไปยังไฟล์แบบ
-  drawingNotes    String?  // หมายเหตุจากแบบ
-  requiresPainting Boolean @default(false)
-  requiresLogoEngraving Boolean @default(false)
-  defaultColor    String?
-  defaultSurfaceFinish String? // e.g. "Anodize", "Bead Blast", "Polish"
-  unitPrice         Decimal? @db.Decimal(12, 2) // ราคาอ้างอิง
-  cycleTimeMinutes  Decimal? @db.Decimal(8, 2)  // เวลาผลิตต่อชิ้น (นาที)
-  leadTimeDays      Int      @default(0)
-  isActive        Boolean  @default(true)
-  tenantId        String
-  tenant          Tenant   @relation(fields: [tenantId], references: [id])
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  code                  String
+  name                  String
+  description           String?
+  category              String? // e.g. "Bracket", "Mount", "Cover"
+  fusionFileName        String? // ชื่อไฟล์แบบ Fusion 360
+  fusionFileUrl         String? // link ไปยังไฟล์แบบ
+  drawingNotes          String? // หมายเหตุจากแบบ
+  requiresPainting      Boolean  @default(false)
+  requiresLogoEngraving Boolean  @default(false)
+  defaultColor          String?
+  defaultSurfaceFinish  String? // e.g. "Anodize", "Bead Blast", "Polish"
+  unitPrice             Decimal? @db.Decimal(12, 2) // ราคาอ้างอิง
+  cycleTimeMinutes      Decimal? @db.Decimal(8, 2) // เวลาผลิตต่อชิ้น (นาที)
+  leadTimeDays          Int      @default(0)
+  isActive              Boolean  @default(true)
+  tenantId              String
+  tenant                Tenant   @relation(fields: [tenantId], references: [id])
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   images              ProductImage[]
-  bomLines            BomLine[]          @relation("ProductBom")
+  bomLines            BomLine[]            @relation("ProductBom")
   quotationLines      QuotationLine[]
   salesOrderLines     SalesOrderLine[]
   productionPlanLines ProductionPlanLine[]
@@ -179,8 +384,8 @@ model ProductImage {
   id        String   @id @default(cuid())
   productId String
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
-  url       String   // /uploads/products/xxx.jpg
-  caption   String?  // คำอธิบาย เช่น "แบบด้านหน้า", "ชิ้นงานจริง"
+  url       String // /uploads/products/xxx.jpg
+  caption   String? // คำอธิบาย เช่น "แบบด้านหน้า", "ชิ้นงานจริง"
   sortOrder Int      @default(0)
   createdAt DateTime @default(now())
 
@@ -208,13 +413,13 @@ enum MaterialUnit {
 model Material {
   id            String       @id @default(cuid())
   code          String
-  name          String       // e.g. "Aluminium 6061 T6 Round Bar"
-  type          String?      // e.g. "Aluminium", "Steel", "Brass"
-  specification String?      // e.g. "6061-T6", "SUS304"
+  name          String // e.g. "Aluminium 6061 T6 Round Bar"
+  type          String? // e.g. "Aluminium", "Steel", "Brass"
+  specification String? // e.g. "6061-T6", "SUS304"
   unit          MaterialUnit @default(PCS)
-  dimensions    String?      // e.g. "Ø50 x 100mm"
-  stockQty      Decimal      @db.Decimal(12, 4) @default(0)
-  minStockQty   Decimal      @db.Decimal(12, 4) @default(0)
+  dimensions    String? // e.g. "Ø50 x 100mm"
+  stockQty      Decimal      @default(0) @db.Decimal(12, 4)
+  minStockQty   Decimal      @default(0) @db.Decimal(12, 4)
   unitCost      Decimal?     @db.Decimal(12, 2)
   supplierId    String?
   isActive      Boolean      @default(true)
@@ -235,32 +440,32 @@ model Material {
 // ══════════════════════════════════════════════════
 
 enum ConsumableCategory {
-  CUTTING_TOOL    // ดอกกัด, endmill, ดอกสว่าน
-  COOLANT         // น้ำหล่อเย็น, น้ำมัน
-  ABRASIVE        // กระดาษทราย, หินเจียร
-  MEASURING       // เครื่องมือวัด
-  SAFETY          // ถุงมือ, แว่น, อุปกรณ์ความปลอดภัย
+  CUTTING_TOOL // ดอกกัด, endmill, ดอกสว่าน
+  COOLANT // น้ำหล่อเย็น, น้ำมัน
+  ABRASIVE // กระดาษทราย, หินเจียร
+  MEASURING // เครื่องมือวัด
+  SAFETY // ถุงมือ, แว่น, อุปกรณ์ความปลอดภัย
   OTHER
 }
 
 model Consumable {
-  id            String             @id @default(cuid())
-  code          String
-  name          String             // e.g. "Endmill Ø10 4F Carbide"
-  category      ConsumableCategory @default(OTHER)
-  brand         String?            // ยี่ห้อ
-  specification String?            // สเปค
-  unit          String             @default("PCS")   // PCS, L, BOX, SET...
-  lastPrice     Decimal?           @db.Decimal(12, 2) // ราคาล่าสุด
-  lastSupplier  String?            // ซัพพลายเออร์ล่าสุด
-  lastPurchaseDate DateTime?       // วันที่ซื้อล่าสุด
-  stockQty      Decimal            @db.Decimal(12, 4) @default(0)
-  minStockQty   Decimal            @db.Decimal(12, 4) @default(0)
-  isActive      Boolean            @default(true)
-  tenantId      String
-  tenant        Tenant             @relation(fields: [tenantId], references: [id])
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
+  id               String             @id @default(cuid())
+  code             String
+  name             String // e.g. "Endmill Ø10 4F Carbide"
+  category         ConsumableCategory @default(OTHER)
+  brand            String? // ยี่ห้อ
+  specification    String? // สเปค
+  unit             String             @default("PCS") // PCS, L, BOX, SET...
+  lastPrice        Decimal?           @db.Decimal(12, 2) // ราคาล่าสุด
+  lastSupplier     String? // ซัพพลายเออร์ล่าสุด
+  lastPurchaseDate DateTime? // วันที่ซื้อล่าสุด
+  stockQty         Decimal            @default(0) @db.Decimal(12, 4)
+  minStockQty      Decimal            @default(0) @db.Decimal(12, 4)
+  isActive         Boolean            @default(true)
+  tenantId         String
+  tenant           Tenant             @relation(fields: [tenantId], references: [id])
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   purchaseOrderLines PurchaseOrderLine[]
 
@@ -273,19 +478,19 @@ model Consumable {
 // ══════════════════════════════════════════════════
 
 model BomLine {
-  id         String   @id @default(cuid())
-  productId  String
-  product    Product  @relation("ProductBom", fields: [productId], references: [id])
-  materialId String
-  material   Material @relation(fields: [materialId], references: [id])
+  id             String   @id @default(cuid())
+  productId      String
+  product        Product  @relation("ProductBom", fields: [productId], references: [id])
+  materialId     String
+  material       Material @relation(fields: [materialId], references: [id])
   qtyPerUnit     Decimal  @db.Decimal(12, 4)
-  materialSize   String?  // ขนาดวัสดุ เช่น "Ø50 x 100mm"
-  materialType   String?  // ประเภทวัสดุ เช่น "AL6061-T6"
-  piecesPerStock Int?     // จำนวนชิ้นที่ได้ต่อวัสดุ 1 หน่วย
+  materialSize   String? // ขนาดวัสดุ เช่น "Ø50 x 100mm"
+  materialType   String? // ประเภทวัสดุ เช่น "AL6061-T6"
+  piecesPerStock Int? // จำนวนชิ้นที่ได้ต่อวัสดุ 1 หน่วย
   notes          String?
   sortOrder      Int      @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
   @@index([productId])
   @@index([materialId])
@@ -335,17 +540,17 @@ model CncMachine {
 // ══════════════════════════════════════════════════
 
 enum MaintenanceType {
-  PREVENTIVE    // ซ่อมบำรุงตามแผน
-  CORRECTIVE    // ซ่อมเมื่อเสีย
-  INSPECTION    // ตรวจสอบ
-  CALIBRATION   // สอบเทียบ
+  PREVENTIVE // ซ่อมบำรุงตามแผน
+  CORRECTIVE // ซ่อมเมื่อเสีย
+  INSPECTION // ตรวจสอบ
+  CALIBRATION // สอบเทียบ
 }
 
 enum MaintenanceStatus {
-  SCHEDULED     // กำหนดแล้ว ยังไม่ถึงวัน
-  OVERDUE       // เลยกำหนดแล้ว ยังไม่ได้ทำ
-  IN_PROGRESS   // กำลังซ่อม
-  COMPLETED     // เสร็จแล้ว
+  SCHEDULED // กำหนดแล้ว ยังไม่ถึงวัน
+  OVERDUE // เลยกำหนดแล้ว ยังไม่ได้ทำ
+  IN_PROGRESS // กำลังซ่อม
+  COMPLETED // เสร็จแล้ว
 }
 
 model MaintenanceLog {
@@ -354,12 +559,12 @@ model MaintenanceLog {
   cncMachine    CncMachine        @relation(fields: [cncMachineId], references: [id], onDelete: Cascade)
   type          MaintenanceType   @default(CORRECTIVE)
   status        MaintenanceStatus @default(SCHEDULED)
-  description   String            // รายละเอียดงาน
-  performedBy   String?           // ช่างที่ซ่อม
+  description   String // รายละเอียดงาน
+  performedBy   String? // ช่างที่ซ่อม
   cost          Decimal?          @db.Decimal(12, 2)
-  scheduledDate DateTime          // วันที่กำหนดทำ
-  startDate     DateTime?         // วันเริ่มจริง
-  endDate       DateTime?         // วันเสร็จจริง
+  scheduledDate DateTime // วันที่กำหนดทำ
+  startDate     DateTime? // วันเริ่มจริง
+  endDate       DateTime? // วันเสร็จจริง
   notes         String?
   tenantId      String
   createdAt     DateTime          @default(now())
@@ -377,7 +582,7 @@ model MaintenanceLog {
 enum QuotationStatus {
   DRAFT
   SENT
-  REVISED       // แก้ไขแล้วรอส่งอีกครั้ง
+  REVISED // แก้ไขแล้วรอส่งอีกครั้ง
   APPROVED
   REJECTED
   EXPIRED
@@ -386,7 +591,7 @@ enum QuotationStatus {
 
 model Quotation {
   id              String          @id @default(cuid())
-  quotationNumber String          // QT-2026-00001
+  quotationNumber String // QT-2026-00001
   revision        Int             @default(1) // revision tracking
   customerId      String
   customer        Customer        @relation(fields: [customerId], references: [id])
@@ -394,18 +599,18 @@ model Quotation {
   issueDate       DateTime        @default(now())
   validUntil      DateTime
   // เงื่อนไข
-  paymentTerms    String?         // e.g. "มัดจำ 50%, เครดิต 30 วัน"
-  deliveryTerms   String?         // e.g. "จัดส่งภายใน 30 วัน"
-  leadTimeDays    Int?            // lead time โดยประมาณ
+  paymentTerms    String? // e.g. "มัดจำ 50%, เครดิต 30 วัน"
+  deliveryTerms   String? // e.g. "จัดส่งภายใน 30 วัน"
+  leadTimeDays    Int? // lead time โดยประมาณ
   // ยอดเงิน
-  subtotal        Decimal         @db.Decimal(14, 2) @default(0) // ยอดก่อน VAT
-  discountPercent Decimal         @db.Decimal(5, 2)  @default(0) // ส่วนลดรวม %
-  discountAmount  Decimal         @db.Decimal(14, 2) @default(0) // ส่วนลดเป็นเงิน
-  vatRate         Decimal         @db.Decimal(5, 2)  @default(7) // VAT %
-  vatAmount       Decimal         @db.Decimal(14, 2) @default(0) // VAT เงิน
-  totalAmount     Decimal         @db.Decimal(14, 2) @default(0) // ยอดรวมสุทธิ
+  subtotal        Decimal         @default(0) @db.Decimal(14, 2) // ยอดก่อน VAT
+  discountPercent Decimal         @default(0) @db.Decimal(5, 2) // ส่วนลดรวม %
+  discountAmount  Decimal         @default(0) @db.Decimal(14, 2) // ส่วนลดเป็นเงิน
+  vatRate         Decimal         @default(7) @db.Decimal(5, 2) // VAT %
+  vatAmount       Decimal         @default(0) @db.Decimal(14, 2) // VAT เงิน
+  totalAmount     Decimal         @default(0) @db.Decimal(14, 2) // ยอดรวมสุทธิ
   notes           String?
-  internalNotes   String?         // โน้ตภายใน (ลูกค้าไม่เห็น)
+  internalNotes   String? // โน้ตภายใน (ลูกค้าไม่เห็น)
   createdById     String
   createdBy       User            @relation("QuotationCreatedBy", fields: [createdById], references: [id])
   tenantId        String
@@ -422,21 +627,21 @@ model Quotation {
 }
 
 model QuotationLine {
-  id            String   @id @default(cuid())
-  quotationId   String
-  quotation     Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product  @relation(fields: [productId], references: [id])
-  description   String?  // รายละเอียดเพิ่มเติม
-  quantity      Decimal  @db.Decimal(12, 4)
-  color         String?
-  surfaceFinish String?  // e.g. "Anodize Black"
-  materialSpec  String?  // e.g. "AL6061-T6 Ø50mm"
-  unitPrice     Decimal  @db.Decimal(12, 2)
-  discountPercent Decimal @db.Decimal(5, 2) @default(0) // ส่วนลดต่อรายการ %
-  lineTotal     Decimal  @db.Decimal(14, 2)
-  notes         String?
-  sortOrder     Int      @default(0)
+  id              String    @id @default(cuid())
+  quotationId     String
+  quotation       Quotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product   @relation(fields: [productId], references: [id])
+  description     String? // รายละเอียดเพิ่มเติม
+  quantity        Decimal   @db.Decimal(12, 4)
+  color           String?
+  surfaceFinish   String? // e.g. "Anodize Black"
+  materialSpec    String? // e.g. "AL6061-T6 Ø50mm"
+  unitPrice       Decimal   @db.Decimal(12, 2)
+  discountPercent Decimal   @default(0) @db.Decimal(5, 2) // ส่วนลดต่อรายการ %
+  lineTotal       Decimal   @db.Decimal(14, 2)
+  notes           String?
+  sortOrder       Int       @default(0)
 
   @@index([quotationId])
 }
@@ -447,13 +652,13 @@ model QuotationLine {
 
 enum SalesOrderStatus {
   CONFIRMED
-  DEPOSIT_PENDING   // รอมัดจำ
+  DEPOSIT_PENDING // รอมัดจำ
   IN_PRODUCTION
   PAINTING
   ENGRAVING
   QC_FINAL
   PACKING
-  AWAITING_PAYMENT  // รอชำระส่วนที่เหลือ
+  AWAITING_PAYMENT // รอชำระส่วนที่เหลือ
   SHIPPED
   COMPLETED
   CANCELLED
@@ -461,19 +666,19 @@ enum SalesOrderStatus {
 
 enum PaymentStatus {
   UNPAID
-  DEPOSIT_PAID    // จ่ายมัดจำแล้ว
+  DEPOSIT_PAID // จ่ายมัดจำแล้ว
   PARTIAL
   PAID
 }
 
 model SalesOrder {
   id               String           @id @default(cuid())
-  orderNumber      String           // SO-2026-00001
+  orderNumber      String // SO-2026-00001
   quotationId      String?
   quotation        Quotation?       @relation(fields: [quotationId], references: [id])
   customerId       String
   customer         Customer         @relation(fields: [customerId], references: [id])
-  customerPoNumber String?          // เลข PO ของลูกค้า
+  customerPoNumber String? // เลข PO ของลูกค้า
   status           SalesOrderStatus @default(CONFIRMED)
   orderDate        DateTime         @default(now())
   requestedDate    DateTime
@@ -481,19 +686,19 @@ model SalesOrder {
   // ที่อยู่จัดส่ง
   shippingAddress  String?
   // มัดจำ
-  depositPercent   Decimal          @db.Decimal(5, 2)  @default(0) // มัดจำ %
-  depositAmount    Decimal          @db.Decimal(14, 2) @default(0) // มัดจำเป็นเงิน
-  depositPaidDate  DateTime?        // วันที่ได้รับมัดจำ
+  depositPercent   Decimal          @default(0) @db.Decimal(5, 2) // มัดจำ %
+  depositAmount    Decimal          @default(0) @db.Decimal(14, 2) // มัดจำเป็นเงิน
+  depositPaidDate  DateTime? // วันที่ได้รับมัดจำ
   // ยอดเงิน
-  subtotal         Decimal          @db.Decimal(14, 2) @default(0)
-  discountPercent  Decimal          @db.Decimal(5, 2)  @default(0)
-  discountAmount   Decimal          @db.Decimal(14, 2) @default(0)
-  vatRate          Decimal          @db.Decimal(5, 2)  @default(7)
-  vatAmount        Decimal          @db.Decimal(14, 2) @default(0)
-  totalAmount      Decimal          @db.Decimal(14, 2) @default(0)
+  subtotal         Decimal          @default(0) @db.Decimal(14, 2)
+  discountPercent  Decimal          @default(0) @db.Decimal(5, 2)
+  discountAmount   Decimal          @default(0) @db.Decimal(14, 2)
+  vatRate          Decimal          @default(7) @db.Decimal(5, 2)
+  vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
+  totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
   // สถานะชำระเงิน
   paymentStatus    PaymentStatus    @default(UNPAID)
-  paymentTerms     String?          // e.g. "มัดจำ 50%, ส่วนที่เหลือเครดิต 30 วัน"
+  paymentTerms     String? // e.g. "มัดจำ 50%, ส่วนที่เหลือเครดิต 30 วัน"
   // หมายเหตุ
   notes            String?
   internalNotes    String?
@@ -516,22 +721,22 @@ model SalesOrder {
 }
 
 model SalesOrderLine {
-  id            String     @id @default(cuid())
-  salesOrderId  String
-  salesOrder    SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product    @relation(fields: [productId], references: [id])
-  description   String?
-  quantity      Decimal    @db.Decimal(12, 4)
-  color         String?
-  surfaceFinish String?
-  materialSpec  String?
-  unitPrice     Decimal    @db.Decimal(12, 2)
-  discountPercent Decimal  @db.Decimal(5, 2) @default(0)
-  lineTotal     Decimal    @db.Decimal(14, 2)
-  deliveredQty  Decimal    @db.Decimal(12, 4) @default(0) // จำนวนที่ส่งแล้ว
-  notes         String?
-  sortOrder     Int        @default(0)
+  id              String     @id @default(cuid())
+  salesOrderId    String
+  salesOrder      SalesOrder @relation(fields: [salesOrderId], references: [id], onDelete: Cascade)
+  productId       String
+  product         Product    @relation(fields: [productId], references: [id])
+  description     String?
+  quantity        Decimal    @db.Decimal(12, 4)
+  color           String?
+  surfaceFinish   String?
+  materialSpec    String?
+  unitPrice       Decimal    @db.Decimal(12, 2)
+  discountPercent Decimal    @default(0) @db.Decimal(5, 2)
+  lineTotal       Decimal    @db.Decimal(14, 2)
+  deliveredQty    Decimal    @default(0) @db.Decimal(12, 4) // จำนวนที่ส่งแล้ว
+  notes           String?
+  sortOrder       Int        @default(0)
 
   productionPlanLines ProductionPlanLine[]
   invoiceLines        InvoiceLine[]
@@ -544,56 +749,56 @@ model SalesOrderLine {
 // ══════════════════════════════════════════════════
 
 enum InvoiceType {
-  DEPOSIT     // ใบแจ้งหนี้มัดจำ
-  FULL        // ใบแจ้งหนี้เต็มจำนวน
-  REMAINING   // ใบแจ้งหนี้ส่วนที่เหลือ (หัก deposit)
-  PARTIAL     // ใบแจ้งหนี้บางส่วน (แบ่งส่ง)
+  DEPOSIT // ใบแจ้งหนี้มัดจำ
+  FULL // ใบแจ้งหนี้เต็มจำนวน
+  REMAINING // ใบแจ้งหนี้ส่วนที่เหลือ (หัก deposit)
+  PARTIAL // ใบแจ้งหนี้บางส่วน (แบ่งส่ง)
 }
 
 enum InvoiceStatus {
   DRAFT
-  ISSUED       // ออกแล้ว
-  SENT         // ส่งลูกค้าแล้ว
+  ISSUED // ออกแล้ว
+  SENT // ส่งลูกค้าแล้ว
   PARTIALLY_PAID
   PAID
-  OVERDUE      // เลยกำหนดชำระ
+  OVERDUE // เลยกำหนดชำระ
   CANCELLED
 }
 
 model Invoice {
-  id              String        @id @default(cuid())
-  invoiceNumber   String        // INV-2026-00001
-  invoiceType     InvoiceType   @default(FULL)
-  salesOrderId    String
-  salesOrder      SalesOrder    @relation(fields: [salesOrderId], references: [id])
-  customerId      String
-  customer        Customer      @relation(fields: [customerId], references: [id])
-  status          InvoiceStatus @default(DRAFT)
-  issueDate       DateTime      @default(now())
-  dueDate         DateTime      // วันครบกำหนดชำระ
+  id                      String        @id @default(cuid())
+  invoiceNumber           String // INV-2026-00001
+  invoiceType             InvoiceType   @default(FULL)
+  salesOrderId            String
+  salesOrder              SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  customerId              String
+  customer                Customer      @relation(fields: [customerId], references: [id])
+  status                  InvoiceStatus @default(DRAFT)
+  issueDate               DateTime      @default(now())
+  dueDate                 DateTime // วันครบกำหนดชำระ
   // Snapshot ข้อมูลลูกค้า ณ วันออกเอกสาร
-  snapshotCustomerName    String?   // ชื่อลูกค้า ณ วันออก
-  snapshotCustomerAddress String?   // ที่อยู่ ณ วันออก
-  snapshotCustomerTaxId   String?   // เลขภาษี ณ วันออก
+  snapshotCustomerName    String? // ชื่อลูกค้า ณ วันออก
+  snapshotCustomerAddress String? // ที่อยู่ ณ วันออก
+  snapshotCustomerTaxId   String? // เลขภาษี ณ วันออก
   // ยอดเงิน
-  subtotal        Decimal       @db.Decimal(14, 2) @default(0)
-  discountAmount  Decimal       @db.Decimal(14, 2) @default(0)
-  vatRate         Decimal       @db.Decimal(5, 2)  @default(7)
-  vatAmount       Decimal       @db.Decimal(14, 2) @default(0)
-  totalAmount     Decimal       @db.Decimal(14, 2) @default(0)
-  paidAmount      Decimal       @db.Decimal(14, 2) @default(0)
+  subtotal                Decimal       @default(0) @db.Decimal(14, 2)
+  discountAmount          Decimal       @default(0) @db.Decimal(14, 2)
+  vatRate                 Decimal       @default(7) @db.Decimal(5, 2)
+  vatAmount               Decimal       @default(0) @db.Decimal(14, 2)
+  totalAmount             Decimal       @default(0) @db.Decimal(14, 2)
+  paidAmount              Decimal       @default(0) @db.Decimal(14, 2)
   // ยกเลิก
-  cancelledAt     DateTime?
-  cancelledById   String?
-  cancelReason    String?       // เหตุผลที่ยกเลิก
+  cancelledAt             DateTime?
+  cancelledById           String?
+  cancelReason            String? // เหตุผลที่ยกเลิก
   // หมายเหตุ
-  notes           String?
-  createdById     String
-  createdBy       User          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
-  tenantId        String
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  notes                   String?
+  createdById             String
+  createdBy               User          @relation("InvoiceCreatedBy", fields: [createdById], references: [id])
+  tenantId                String
+  tenant                  Tenant        @relation(fields: [tenantId], references: [id])
+  createdAt               DateTime      @default(now())
+  updatedAt               DateTime      @updatedAt
 
   lines       InvoiceLine[]
   taxInvoices TaxInvoice[]
@@ -607,17 +812,17 @@ model Invoice {
 }
 
 model InvoiceLine {
-  id               String     @id @default(cuid())
+  id               String          @id @default(cuid())
   invoiceId        String
-  invoice          Invoice    @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice          Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   salesOrderLineId String?
   salesOrderLine   SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
-  description      String     // รายละเอียดรายการ
-  quantity         Decimal    @db.Decimal(12, 4)
-  unitPrice        Decimal    @db.Decimal(12, 2)
-  lineTotal        Decimal    @db.Decimal(14, 2)
+  description      String // รายละเอียดรายการ
+  quantity         Decimal         @db.Decimal(12, 4)
+  unitPrice        Decimal         @db.Decimal(12, 2)
+  lineTotal        Decimal         @db.Decimal(14, 2)
   notes            String?
-  sortOrder        Int        @default(0)
+  sortOrder        Int             @default(0)
 
   @@index([invoiceId])
 }
@@ -634,7 +839,7 @@ enum TaxInvoiceStatus {
 
 model TaxInvoice {
   id               String           @id @default(cuid())
-  taxInvoiceNumber String           // TI-2026-00001
+  taxInvoiceNumber String // TI-2026-00001
   invoiceId        String
   invoice          Invoice          @relation(fields: [invoiceId], references: [id])
   status           TaxInvoiceStatus @default(DRAFT)
@@ -643,16 +848,16 @@ model TaxInvoice {
   buyerName        String
   buyerTaxId       String?
   buyerAddress     String?
-  buyerBranch      String?          // สำนักงานใหญ่ / สาขา
+  buyerBranch      String? // สำนักงานใหญ่ / สาขา
   // ข้อมูลผู้ขาย (snapshot ณ วันออก)
   sellerName       String
   sellerTaxId      String?
   sellerAddress    String?
   // ยอดเงิน
-  subtotal         Decimal          @db.Decimal(14, 2) @default(0)
-  vatRate          Decimal          @db.Decimal(5, 2)  @default(7)
-  vatAmount        Decimal          @db.Decimal(14, 2) @default(0)
-  totalAmount      Decimal          @db.Decimal(14, 2) @default(0)
+  subtotal         Decimal          @default(0) @db.Decimal(14, 2)
+  vatRate          Decimal          @default(7) @db.Decimal(5, 2)
+  vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
+  totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
   // ยกเลิก
   cancelledAt      DateTime?
   cancelledById    String?
@@ -679,7 +884,7 @@ enum ReceiptStatus {
 
 model Receipt {
   id            String        @id @default(cuid())
-  receiptNumber String        // RC-2026-00001
+  receiptNumber String // RC-2026-00001
   invoiceId     String
   invoice       Invoice       @relation(fields: [invoiceId], references: [id])
   paymentId     String?
@@ -715,32 +920,32 @@ model Receipt {
 enum CreditNoteStatus {
   DRAFT
   ISSUED
-  APPLIED      // หักกับ Invoice แล้ว
+  APPLIED // หักกับ Invoice แล้ว
   CANCELLED
 }
 
 enum CreditNoteReason {
-  DEFECTIVE     // สินค้าชำรุด
-  RETURN        // คืนสินค้า
-  OVERCHARGE    // คิดเกิน
-  DISCOUNT      // ส่วนลดเพิ่มเติม
+  DEFECTIVE // สินค้าชำรุด
+  RETURN // คืนสินค้า
+  OVERCHARGE // คิดเกิน
+  DISCOUNT // ส่วนลดเพิ่มเติม
   OTHER
 }
 
 model CreditNote {
   id               String           @id @default(cuid())
-  creditNoteNumber String           // CN-2026-00001
+  creditNoteNumber String // CN-2026-00001
   invoiceId        String
   invoice          Invoice          @relation(fields: [invoiceId], references: [id])
   status           CreditNoteStatus @default(DRAFT)
   reason           CreditNoteReason @default(OTHER)
   issueDate        DateTime         @default(now())
   // ยอดเงิน
-  subtotal         Decimal          @db.Decimal(14, 2) @default(0)
-  vatRate          Decimal          @db.Decimal(5, 2)  @default(7)
-  vatAmount        Decimal          @db.Decimal(14, 2) @default(0)
-  totalAmount      Decimal          @db.Decimal(14, 2) @default(0)
-  description      String           // เหตุผลที่ลดหนี้
+  subtotal         Decimal          @default(0) @db.Decimal(14, 2)
+  vatRate          Decimal          @default(7) @db.Decimal(5, 2)
+  vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
+  totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
+  description      String // เหตุผลที่ลดหนี้
   // ยกเลิก
   cancelledAt      DateTime?
   cancelledById    String?
@@ -775,45 +980,45 @@ model CreditNoteLine {
 // ══════════════════════════════════════════════════
 
 enum PaymentMethod {
-  BANK_TRANSFER   // โอนเงิน
-  CASH            // เงินสด
-  CHEQUE          // เช็ค
-  CREDIT_CARD     // บัตรเครดิต
+  BANK_TRANSFER // โอนเงิน
+  CASH // เงินสด
+  CHEQUE // เช็ค
+  CREDIT_CARD // บัตรเครดิต
   OTHER
 }
 
 enum PaymentType {
-  DEPOSIT         // มัดจำ
-  PARTIAL         // ชำระบางส่วน
-  FINAL           // ชำระส่วนที่เหลือ
-  FULL            // ชำระเต็มจำนวน
+  DEPOSIT // มัดจำ
+  PARTIAL // ชำระบางส่วน
+  FINAL // ชำระส่วนที่เหลือ
+  FULL // ชำระเต็มจำนวน
 }
 
 model Payment {
-  id              String        @id @default(cuid())
-  paymentNumber   String        // PAY-2026-00001
-  salesOrderId    String
-  salesOrder      SalesOrder    @relation(fields: [salesOrderId], references: [id])
-  invoiceId       String?
-  invoice         Invoice?      @relation(fields: [invoiceId], references: [id])
-  paymentType     PaymentType
-  paymentMethod   PaymentMethod @default(BANK_TRANSFER)
-  amount          Decimal       @db.Decimal(14, 2)
+  id                    String        @id @default(cuid())
+  paymentNumber         String // PAY-2026-00001
+  salesOrderId          String
+  salesOrder            SalesOrder    @relation(fields: [salesOrderId], references: [id])
+  invoiceId             String?
+  invoice               Invoice?      @relation(fields: [invoiceId], references: [id])
+  paymentType           PaymentType
+  paymentMethod         PaymentMethod @default(BANK_TRANSFER)
+  amount                Decimal       @db.Decimal(14, 2)
   // หัก ณ ที่จ่าย (WHT)
-  withholdingTaxPercent Decimal @db.Decimal(5, 2) @default(0) // WHT %
-  withholdingTaxAmount  Decimal @db.Decimal(14, 2) @default(0) // WHT เงิน
-  netAmount       Decimal       @db.Decimal(14, 2) // ยอดสุทธิหลังหัก WHT
-  paymentDate     DateTime
+  withholdingTaxPercent Decimal       @default(0) @db.Decimal(5, 2) // WHT %
+  withholdingTaxAmount  Decimal       @default(0) @db.Decimal(14, 2) // WHT เงิน
+  netAmount             Decimal       @db.Decimal(14, 2) // ยอดสุทธิหลังหัก WHT
+  paymentDate           DateTime
   // รายละเอียดการโอน
-  bankName        String?       // ชื่อธนาคาร
-  referenceNumber String?       // เลขอ้างอิงการโอน
-  chequeNumber    String?       // เลขที่เช็ค
-  slipUrl         String?       // รูปสลิป
-  notes           String?
-  tenantId        String
-  tenant          Tenant        @relation(fields: [tenantId], references: [id])
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  bankName              String? // ชื่อธนาคาร
+  referenceNumber       String? // เลขอ้างอิงการโอน
+  chequeNumber          String? // เลขที่เช็ค
+  slipUrl               String? // รูปสลิป
+  notes                 String?
+  tenantId              String
+  tenant                Tenant        @relation(fields: [tenantId], references: [id])
+  createdAt             DateTime      @default(now())
+  updatedAt             DateTime      @updatedAt
 
   receipts Receipt[]
 
@@ -827,17 +1032,17 @@ model Payment {
 // ══════════════════════════════════════════════════
 
 model DocumentAttachment {
-  id          String   @id @default(cuid())
-  fileName    String   // ชื่อไฟล์
-  fileUrl     String   // URL ไฟล์
-  fileType    String?  // MIME type
-  fileSize    Int?     // bytes
+  id           String      @id @default(cuid())
+  fileName     String // ชื่อไฟล์
+  fileUrl      String // URL ไฟล์
+  fileType     String? // MIME type
+  fileSize     Int? // bytes
   // polymorphic relation
-  quotationId   String?
-  quotation     Quotation?  @relation("QuotationAttachments", fields: [quotationId], references: [id], onDelete: Cascade)
-  salesOrderId  String?
-  salesOrder    SalesOrder? @relation("SalesOrderAttachments", fields: [salesOrderId], references: [id], onDelete: Cascade)
-  createdAt   DateTime @default(now())
+  quotationId  String?
+  quotation    Quotation?  @relation("QuotationAttachments", fields: [quotationId], references: [id], onDelete: Cascade)
+  salesOrderId String?
+  salesOrder   SalesOrder? @relation("SalesOrderAttachments", fields: [salesOrderId], references: [id], onDelete: Cascade)
+  createdAt    DateTime    @default(now())
 
   @@index([quotationId])
   @@index([salesOrderId])
@@ -857,7 +1062,7 @@ enum PurchaseOrderStatus {
 
 model PurchaseOrder {
   id              String              @id @default(cuid())
-  poNumber        String              // PO-2026-00001
+  poNumber        String // PO-2026-00001
   supplierName    String
   supplierContact String?
   status          PurchaseOrderStatus @default(DRAFT)
@@ -865,7 +1070,7 @@ model PurchaseOrder {
   expectedDate    DateTime?
   receivedDate    DateTime?
   notes           String?
-  totalAmount     Decimal             @db.Decimal(14, 2) @default(0)
+  totalAmount     Decimal             @default(0) @db.Decimal(14, 2)
   tenantId        String
   tenant          Tenant              @relation(fields: [tenantId], references: [id])
   createdAt       DateTime            @default(now())
@@ -878,9 +1083,9 @@ model PurchaseOrder {
 }
 
 enum POLineType {
-  MATERIAL      // วัตถุดิบ
-  CONSUMABLE    // วัสดุสิ้นเปลือง
-  OTHER         // อื่นๆ (พิมพ์เอง)
+  MATERIAL // วัตถุดิบ
+  CONSUMABLE // วัสดุสิ้นเปลือง
+  OTHER // อื่นๆ (พิมพ์เอง)
 }
 
 model PurchaseOrderLine {
@@ -897,7 +1102,7 @@ model PurchaseOrderLine {
   unit            String        @default("PCS")
   unitCost        Decimal       @db.Decimal(12, 2)
   lineTotal       Decimal       @db.Decimal(14, 2)
-  receivedQty     Decimal       @db.Decimal(12, 4) @default(0)
+  receivedQty     Decimal       @default(0) @db.Decimal(12, 4)
   notes           String?
   sortOrder       Int           @default(0)
 
@@ -917,18 +1122,18 @@ enum ProductionPlanStatus {
 }
 
 model ProductionPlan {
-  id              String               @id @default(cuid())
-  planNumber      String               // PP-2026-00001
-  salesOrderId    String?
-  salesOrder      SalesOrder?          @relation(fields: [salesOrderId], references: [id])
-  status          ProductionPlanStatus @default(DRAFT)
-  plannedStart    DateTime
-  plannedEnd      DateTime
-  notes           String?
-  tenantId        String
-  tenant          Tenant               @relation(fields: [tenantId], references: [id])
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
+  id           String               @id @default(cuid())
+  planNumber   String // PP-2026-00001
+  salesOrderId String?
+  salesOrder   SalesOrder?          @relation(fields: [salesOrderId], references: [id])
+  status       ProductionPlanStatus @default(DRAFT)
+  plannedStart DateTime
+  plannedEnd   DateTime
+  notes        String?
+  tenantId     String
+  tenant       Tenant               @relation(fields: [tenantId], references: [id])
+  createdAt    DateTime             @default(now())
+  updatedAt    DateTime             @updatedAt
 
   lines      ProductionPlanLine[]
   workOrders WorkOrder[]
@@ -938,17 +1143,17 @@ model ProductionPlan {
 }
 
 model ProductionPlanLine {
-  id                String          @id @default(cuid())
-  productionPlanId  String
-  productionPlan    ProductionPlan  @relation(fields: [productionPlanId], references: [id], onDelete: Cascade)
-  productId         String
-  product           Product         @relation(fields: [productId], references: [id])
-  salesOrderLineId  String?
-  salesOrderLine    SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
-  plannedQty        Decimal         @db.Decimal(12, 4)
-  color             String?
-  notes             String?
-  sortOrder         Int             @default(0)
+  id               String          @id @default(cuid())
+  productionPlanId String
+  productionPlan   ProductionPlan  @relation(fields: [productionPlanId], references: [id], onDelete: Cascade)
+  productId        String
+  product          Product         @relation(fields: [productId], references: [id])
+  salesOrderLineId String?
+  salesOrderLine   SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
+  plannedQty       Decimal         @db.Decimal(12, 4)
+  color            String?
+  notes            String?
+  sortOrder        Int             @default(0)
 
   @@index([productionPlanId])
 }
@@ -979,51 +1184,51 @@ enum WorkOrderPriority {
 }
 
 enum MaterialReadiness {
-  READY          // วัสดุพร้อมแล้ว (มีอยู่ในสต็อก)
-  ORDERED        // สั่งแล้วรอของ
-  NOT_ORDERED    // ยังไม่ได้สั่ง
-  PARTIAL        // มีบางส่วน
+  READY // วัสดุพร้อมแล้ว (มีอยู่ในสต็อก)
+  ORDERED // สั่งแล้วรอของ
+  NOT_ORDERED // ยังไม่ได้สั่ง
+  PARTIAL // มีบางส่วน
 }
 
 model WorkOrder {
-  id                String            @id @default(cuid())
-  woNumber          String            // WO-2026-00001
-  productionPlanId  String?
-  productionPlan    ProductionPlan?   @relation(fields: [productionPlanId], references: [id])
-  productId         String
-  product           Product           @relation(fields: [productId], references: [id])
-  cncMachineId      String?
-  cncMachine        CncMachine?       @relation(fields: [cncMachineId], references: [id])
-  status            WorkOrderStatus   @default(PENDING)
-  priority          WorkOrderPriority @default(NORMAL)
-  materialStatus    MaterialReadiness @default(NOT_ORDERED) // สถานะวัสดุ
+  id                   String            @id @default(cuid())
+  woNumber             String // WO-2026-00001
+  productionPlanId     String?
+  productionPlan       ProductionPlan?   @relation(fields: [productionPlanId], references: [id])
+  productId            String
+  product              Product           @relation(fields: [productId], references: [id])
+  cncMachineId         String?
+  cncMachine           CncMachine?       @relation(fields: [cncMachineId], references: [id])
+  status               WorkOrderStatus   @default(PENDING)
+  priority             WorkOrderPriority @default(NORMAL)
+  materialStatus       MaterialReadiness @default(NOT_ORDERED) // สถานะวัสดุ
   // Quantities
-  plannedQty        Decimal           @db.Decimal(12, 4)
-  completedQty      Decimal           @db.Decimal(12, 4) @default(0)
-  scrapQty          Decimal           @db.Decimal(12, 4) @default(0)
+  plannedQty           Decimal           @db.Decimal(12, 4)
+  completedQty         Decimal           @default(0) @db.Decimal(12, 4)
+  scrapQty             Decimal           @default(0) @db.Decimal(12, 4)
   // Specifications
-  color             String?
-  materialSize      String?
-  fusionFileName    String?
+  color                String?
+  materialSize         String?
+  fusionFileName       String?
   // Dates
-  plannedStart      DateTime
-  plannedEnd        DateTime
-  actualStart       DateTime?
-  actualEnd         DateTime?
+  plannedStart         DateTime
+  plannedEnd           DateTime
+  actualStart          DateTime?
+  actualEnd            DateTime?
   // Painting outsource
-  sentToPaintingDate    DateTime?
-  paintingExpectedDate  DateTime?
-  paintingReceivedDate  DateTime?
-  paintingVendor        String?
+  sentToPaintingDate   DateTime?
+  paintingExpectedDate DateTime?
+  paintingReceivedDate DateTime?
+  paintingVendor       String?
   // Assignment & Scheduling
-  assignedTo        String?
-  workCenter        String?
-  sortOrder         Int               @default(0) // ลำดับบนเครื่อง (timeline drag-drop)
-  notes             String?
-  tenantId          String
-  tenant            Tenant            @relation(fields: [tenantId], references: [id])
-  createdAt         DateTime          @default(now())
-  updatedAt         DateTime          @updatedAt
+  assignedTo           String?
+  workCenter           String?
+  sortOrder            Int               @default(0) // ลำดับบนเครื่อง (timeline drag-drop)
+  notes                String?
+  tenantId             String
+  tenant               Tenant            @relation(fields: [tenantId], references: [id])
+  createdAt            DateTime          @default(now())
+  updatedAt            DateTime          @updatedAt
 
   logs WorkOrderLog[]
 
@@ -1054,17 +1259,17 @@ model WorkOrderLog {
 // ══════════════════════════════════════════════════
 
 model AuditLog {
-  id          String   @id @default(cuid())
-  action      String   // CREATE, UPDATE, DELETE, STATUS_CHANGE, CANCEL
-  entityType  String   // Invoice, Quotation, SalesOrder, WorkOrder, etc.
-  entityId    String   // ID ของเอกสาร
+  id           String   @id @default(cuid())
+  action       String // CREATE, UPDATE, DELETE, STATUS_CHANGE, CANCEL
+  entityType   String // Invoice, Quotation, SalesOrder, WorkOrder, etc.
+  entityId     String // ID ของเอกสาร
   entityNumber String? // เลขเอกสาร (INV-2026-00001)
-  changes     String?  // JSON: { field: { from, to } }
-  reason      String?  // เหตุผล (สำหรับการยกเลิก)
-  userId      String
-  userName    String   // snapshot ชื่อผู้ทำ
-  tenantId    String
-  createdAt   DateTime @default(now())
+  changes      String? // JSON: { field: { from, to } }
+  reason       String? // เหตุผล (สำหรับการยกเลิก)
+  userId       String
+  userName     String // snapshot ชื่อผู้ทำ
+  tenantId     String
+  createdAt    DateTime @default(now())
 
   @@index([tenantId, entityType, entityId])
   @@index([tenantId, createdAt])

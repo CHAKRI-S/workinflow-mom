@@ -95,6 +95,12 @@ export default function LoginPage() {
             >
               {loading ? "..." : t("login")}
             </button>
+
+            <div className="text-center">
+              <a href="/th/forgot-password" className="text-xs text-muted-foreground hover:text-foreground underline">
+                ลืมรหัสผ่าน?
+              </a>
+            </div>
           </form>
         </CardContent>
       </Card>

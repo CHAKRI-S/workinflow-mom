@@ -21,6 +21,17 @@ export default async function DashboardPage({
   const tenantId = session.user.tenantId;
   const now = new Date();
 
+  // First-time admin → redirect to onboarding
+  if (session.user.role === "ADMIN") {
+    const tenant = await prisma.tenant.findUnique({
+      where: { id: tenantId },
+      select: { onboardedAt: true },
+    });
+    if (tenant && !tenant.onboardedAt) {
+      redirect(`/${locale}/onboarding`);
+    }
+  }
+
   const [
     openQuotations,
     activeOrders,
