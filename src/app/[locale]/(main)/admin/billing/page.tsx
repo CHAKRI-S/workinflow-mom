@@ -204,14 +204,6 @@ export default async function BillingPage({
         )}
       </div>
 
-      {/* Coming soon note */}
-      <div className="mt-6 rounded-lg border border-dashed p-4 text-xs text-muted-foreground">
-        <strong>หมายเหตุ:</strong> การ upgrade ผ่านบัตรเครดิต (Omise) และ PromptPay QR (SlipOK) จะ
-        เปิดใช้งานเมื่อ Phase 6 เสร็จ — ระหว่างนี้กรุณาติดต่อ{" "}
-        <a href="mailto:hello@workinflow.cloud" className="text-primary hover:underline">
-          hello@workinflow.cloud
-        </a>
-      </div>
     </div>
   );
 }
