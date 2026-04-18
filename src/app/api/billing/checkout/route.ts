@@ -9,16 +9,65 @@ import { OMISE_CONFIGURED, createPromptPaySource } from "@/lib/omise";
 const checkoutSchema = z.object({
   planId: z.string().min(1),
   billingCycle: z.enum(["MONTHLY", "YEARLY"]),
-  paymentGateway: z.enum(["OMISE", "SLIPOK", "MANUAL"]).default("OMISE"),
+  // MANUAL is intentionally removed — we only support SLIPOK (PromptPay QR + slip)
+  // and OMISE (credit card, coming soon)
+  paymentGateway: z.enum(["OMISE", "SLIPOK"]).default("SLIPOK"),
 });
+
+interface LimitIssue {
+  resource: string;
+  label: string;
+  current: number;
+  limit: number;
+}
+
+/**
+ * Check whether tenant's current resource usage fits within target plan's limits.
+ * Returns a list of issues; empty = fits.
+ */
+async function checkTargetPlanFit(
+  tenantId: string,
+  target: {
+    maxUsers: number;
+    maxMachines: number;
+    maxCustomers: number;
+    maxProducts: number;
+  },
+): Promise<LimitIssue[]> {
+  const [users, machines, customers, products] = await Promise.all([
+    prisma.user.count({ where: { tenantId, isActive: true } }),
+    prisma.cncMachine.count({ where: { tenantId, isActive: true } }),
+    prisma.customer.count({ where: { tenantId, isActive: true } }),
+    prisma.product.count({ where: { tenantId, isActive: true } }),
+  ]);
+
+  const issues: LimitIssue[] = [];
+  if (target.maxUsers > 0 && users > target.maxUsers) {
+    issues.push({ resource: "users", label: "ผู้ใช้งาน", current: users, limit: target.maxUsers });
+  }
+  if (target.maxMachines > 0 && machines > target.maxMachines) {
+    issues.push({ resource: "machines", label: "เครื่องจักร", current: machines, limit: target.maxMachines });
+  }
+  if (target.maxCustomers > 0 && customers > target.maxCustomers) {
+    issues.push({ resource: "customers", label: "ลูกค้า", current: customers, limit: target.maxCustomers });
+  }
+  if (target.maxProducts > 0 && products > target.maxProducts) {
+    issues.push({ resource: "products", label: "สินค้า", current: products, limit: target.maxProducts });
+  }
+  return issues;
+}
 
 /**
  * POST /api/billing/checkout
- * Create a PENDING Subscription + initiate payment.
+ * Create a PENDING Subscription + initiate payment, OR execute an immediate
+ * downgrade-to-FREE without payment.
  *
- * For Omise PromptPay: returns QR code URL — tenant scans → webhook confirms
- * For SlipOK: returns instructions to upload slip → /api/billing/confirm-slip
- * For MANUAL: returns pending — SA activates manually
+ * - Omise (card): returns configMissing=true for now (API key pending); when ready
+ *   will return QR-less card checkout (scaffolded).
+ * - SlipOK (PromptPay + slip): returns instructions → /api/billing/confirm-slip.
+ * - Downgrade to FREE (target.priceMonthly === 0 && current price > 0):
+ *   validates resource usage against target limits, then immediately activates
+ *   the FREE plan without any payment.
  */
 export async function POST(req: NextRequest) {
   try {
@@ -33,11 +82,97 @@ export async function POST(req: NextRequest) {
     }
     const { planId, billingCycle, paymentGateway } = parsed.data;
 
-    const plan = await prisma.plan.findUnique({ where: { id: planId } });
+    const [plan, tenant] = await Promise.all([
+      prisma.plan.findUnique({ where: { id: planId } }),
+      prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: {
+          id: true,
+          planId: true,
+          plan: { select: { priceMonthly: true, tier: true } },
+        },
+      }),
+    ]);
+
     if (!plan || !plan.isActive) {
       return NextResponse.json({ error: "Plan not found" }, { status: 404 });
     }
+    if (!tenant) {
+      return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
 
+    // Always validate: current usage must fit target plan limits.
+    // (Upgrades pass trivially; downgrades may be blocked.)
+    const limitIssues = await checkTargetPlanFit(tenantId, {
+      maxUsers: plan.maxUsers,
+      maxMachines: plan.maxMachines,
+      maxCustomers: plan.maxCustomers,
+      maxProducts: plan.maxProducts,
+    });
+    if (limitIssues.length > 0) {
+      const summary = limitIssues
+        .map((i) => `${i.label}: ${i.current}/${i.limit}`)
+        .join(", ");
+      return NextResponse.json(
+        {
+          error: `ดาวน์เกรดไม่ได้ — เกินโควตาของ Plan เป้าหมาย: ${summary}`,
+          code: "PLAN_FIT_EXCEEDED",
+          issues: limitIssues,
+        },
+        { status: 400 },
+      );
+    }
+
+    const currentPrice = tenant.plan?.priceMonthly ?? 0;
+    const isFreeDowngrade = plan.priceMonthly === 0 && currentPrice > 0;
+
+    // ─── Free downgrade path: no payment needed ───
+    if (isFreeDowngrade) {
+      const { periodStart, periodEnd } = computePeriod(billingCycle);
+
+      const sub = await prisma.$transaction(async (tx) => {
+        // Cancel any existing ACTIVE subscriptions for tenant
+        await tx.subscription.updateMany({
+          where: { tenantId, status: "ACTIVE" },
+          data: { status: "CANCELLED" },
+        });
+
+        // Create a 0-satang ACTIVE subscription record for the free plan
+        const created = await tx.subscription.create({
+          data: {
+            tenantId,
+            planId: plan.id,
+            status: "ACTIVE",
+            billingCycle,
+            periodStart,
+            periodEnd,
+            amountSatang: 0,
+            discountSatang: 0,
+            vatSatang: 0,
+            totalSatang: 0,
+            paymentGateway: "SLIPOK", // nominal value — no actual payment
+          },
+        });
+
+        // Move tenant to the new free plan
+        await tx.tenant.update({
+          where: { id: tenantId },
+          data: { planId: plan.id, status: "ACTIVE" },
+        });
+
+        return created;
+      });
+
+      return NextResponse.json({
+        subscriptionId: sub.id,
+        status: "ACTIVE",
+        downgraded: true,
+        amountSatang: 0,
+        message: "ดาวน์เกรดไป FREE plan สำเร็จ",
+      });
+    }
+
+    // ─── Paid checkout path ─────────────────────
     const amounts = calculateAmounts({
       priceMonthlySatang: plan.priceMonthly,
       priceYearlySatang: plan.priceYearly,
@@ -69,11 +204,14 @@ export async function POST(req: NextRequest) {
           subscriptionId: sub.id,
           status: "PENDING",
           paymentGateway: "OMISE",
-          error: "Omise ยังไม่ได้ตั้งค่า — กรุณาติดต่อผู้ดูแล",
+          error: "ระบบบัตรเครดิตยังไม่เปิดให้บริการ — กรุณาเลือก PromptPay QR แทน",
           configMissing: true,
         }, { status: 200 });
       }
 
+      // Note: for credit card we should use Omise.js token flow on the client
+      // and POST the token here. Current scaffold: generate a PromptPay source
+      // as a placeholder — will be replaced when card flow is wired.
       const source = await createPromptPaySource({
         amountSatang: amounts.totalSatang,
         description: `${plan.name} ${billingCycle} — ${sub.id}`,
@@ -94,23 +232,12 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (paymentGateway === "SLIPOK") {
-      // Return payment instructions; tenant uploads slip to /api/billing/confirm-slip
-      return NextResponse.json({
-        subscriptionId: sub.id,
-        status: "PENDING",
-        paymentGateway: "SLIPOK",
-        instructions: "โอนเงินไปยังบัญชีบริษัท แล้วอัพโหลดสลิปเพื่อยืนยัน",
-        amountSatang: amounts.totalSatang,
-      });
-    }
-
-    // MANUAL
+    // SLIPOK — PromptPay + slip upload
     return NextResponse.json({
       subscriptionId: sub.id,
       status: "PENDING",
-      paymentGateway: "MANUAL",
-      message: "รอการยืนยันจากผู้ดูแลระบบ",
+      paymentGateway: "SLIPOK",
+      instructions: "โอนเงินผ่าน PromptPay ไปยังบัญชีบริษัท แล้วอัพโหลดสลิปเพื่อยืนยัน",
       amountSatang: amounts.totalSatang,
     });
   } catch (err) {
