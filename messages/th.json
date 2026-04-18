@@ -48,6 +48,7 @@
     "plans": "แผนการผลิต",
     "workOrders": "ใบสั่งผลิต",
     "machines": "เครื่อง CNC",
+    "maintenance": "ซ่อมบำรุง",
     "finance": "การเงิน",
     "invoices": "ใบแจ้งหนี้",
     "receipts": "ใบเสร็จรับเงิน",

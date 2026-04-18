@@ -77,6 +77,11 @@ export function Sidebar() {
         { label: t("products"), href: "/production/products" },
         { label: t("materials"), href: "/production/materials" },
         { label: t("machines"), href: "/production/machines" },
+        {
+          label: t("maintenance"),
+          href: "/production/maintenance",
+          requiresFeature: "maintenance",
+        },
         { label: t("plans"), href: "/production/plans" },
         { label: t("workOrders"), href: "/production/work-orders" },
       ],

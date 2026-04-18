@@ -48,6 +48,7 @@
     "plans": "Production Plans",
     "workOrders": "Work Orders",
     "machines": "CNC Machines",
+    "maintenance": "Maintenance",
     "finance": "Finance",
     "invoices": "Invoices",
     "receipts": "Receipts",
