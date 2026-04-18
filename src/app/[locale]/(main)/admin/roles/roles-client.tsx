@@ -10,6 +10,7 @@ import {
   ROLE_MATRIX,
   countAccessibleRoutes,
   type RouteSection,
+  type RoleName,
 } from "@/lib/role-matrix";
 import {
   LayoutDashboard,
@@ -24,7 +25,6 @@ import {
   ArrowLeft,
   Info,
 } from "lucide-react";
-import type { Role } from "@/generated/prisma/client";
 
 const ICON_MAP = {
   LayoutDashboard,
@@ -40,7 +40,7 @@ type ViewMode = "matrix" | "by-role";
 
 export function RolesClient() {
   const [view, setView] = useState<ViewMode>("matrix");
-  const [selectedRole, setSelectedRole] = useState<Role>(ALL_ROLES[0]);
+  const [selectedRole, setSelectedRole] = useState<RoleName>(ALL_ROLES[0]);
 
   return (
     <div className="space-y-6 max-w-7xl">
@@ -113,7 +113,11 @@ export function RolesClient() {
         </div>
       </div>
 
-      {view === "matrix" ? <MatrixView /> : <ByRoleView role={selectedRole} onChangeRole={setSelectedRole} />}
+      {view === "matrix" ? (
+        <MatrixView />
+      ) : (
+        <ByRoleView role={selectedRole} onChangeRole={setSelectedRole} />
+      )}
 
       {/* Legal note */}
       <div className="rounded-lg border bg-muted/40 p-3 text-xs text-muted-foreground flex items-start gap-2">
@@ -121,7 +125,8 @@ export function RolesClient() {
         <div>
           สิทธิ์เหล่านี้กำหนดไว้ในระดับ API + Page guard จึงไม่สามารถข้ามผ่านการเข้ารหัสในเบราว์เซอร์ได้
           บาง API endpoint อาจอนุญาตให้ร่วม role มากกว่าที่ระบุในตารางสำหรับการ{" "}
-          <em>อ่าน</em> ข้อมูลเท่านั้น — ดูโค้ดใน <code className="bg-card px-1 rounded">src/lib/role-matrix.ts</code> เป็นข้อมูลอ้างอิงหลัก
+          <em>อ่าน</em> ข้อมูลเท่านั้น — ดูโค้ดใน{" "}
+          <code className="bg-card px-1 rounded">src/lib/role-matrix.ts</code> เป็นข้อมูลอ้างอิงหลัก
         </div>
       </div>
     </div>
@@ -201,8 +206,8 @@ function ByRoleView({
   role,
   onChangeRole,
 }: {
-  role: Role;
-  onChangeRole: (r: Role) => void;
+  role: RoleName;
+  onChangeRole: (r: RoleName) => void;
 }) {
   const info = ROLE_DESCRIPTIONS[role];
   const accessibleCount = countAccessibleRoutes(role);
