@@ -3,7 +3,7 @@ import { auth } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { hasPermission, ROLES } from "@/lib/permissions";
 import { AccessDenied } from "@/components/shared/access-denied";
-import { Download, Users, Package, Boxes, Cpu, ShoppingCart, Receipt, ClipboardList } from "lucide-react";
+import { FileText, Table2, Users, Package, Boxes, Cpu, ShoppingCart, Receipt, ClipboardList } from "lucide-react";
 
 interface ExportItem {
   entity: string;
@@ -43,23 +43,42 @@ export default async function ExportPage({
         </p>
       </div>
 
+      <div className="mb-4 rounded-lg bg-green-50 border border-green-200 px-4 py-2.5 text-sm text-green-800">
+        XLSX รองรับ Excel ทุกเวอร์ชัน เหมาะสำหรับวิเคราะห์ข้อมูล
+      </div>
+
       <div className="grid md:grid-cols-2 gap-3">
         {EXPORTS.map((e) => (
-          <a
+          <div
             key={e.entity}
-            href={`/api/admin/export/${e.entity}`}
-            download
-            className="group flex items-start gap-3 rounded-xl border bg-card p-4 hover:border-primary/50 hover:shadow-md transition"
+            className="flex items-start gap-3 rounded-xl border bg-card p-4"
           >
             <div className="shrink-0 h-10 w-10 rounded-lg bg-primary/10 text-primary flex items-center justify-center">
               <e.icon className="h-5 w-5" />
             </div>
             <div className="flex-1 min-w-0">
-              <div className="font-medium">{e.label}</div>
-              <div className="text-xs text-muted-foreground">{e.desc}</div>
+              <div className="font-medium mb-1">{e.label}</div>
+              <div className="text-xs text-muted-foreground mb-3">{e.desc}</div>
+              <div className="flex gap-2">
+                <a
+                  href={`/api/admin/export/${e.entity}`}
+                  download
+                  className="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-2.5 py-1 text-xs font-medium hover:bg-accent hover:text-accent-foreground transition"
+                >
+                  <FileText className="h-3.5 w-3.5" />
+                  CSV
+                </a>
+                <a
+                  href={`/api/admin/export/${e.entity}?format=xlsx`}
+                  download
+                  className="inline-flex items-center gap-1.5 rounded-md bg-green-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-green-700 transition"
+                >
+                  <Table2 className="h-3.5 w-3.5" />
+                  XLSX
+                </a>
+              </div>
             </div>
-            <Download className="h-4 w-4 text-muted-foreground shrink-0 mt-1 opacity-0 group-hover:opacity-100 transition" />
-          </a>
+          </div>
         ))}
       </div>
 

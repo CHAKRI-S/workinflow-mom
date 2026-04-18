@@ -1,8 +1,32 @@
 import { NextRequest } from "next/server";
+import * as XLSX from "xlsx";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { toCsv, csvResponse } from "@/lib/csv";
+
+function xlsxResponse(rows: Record<string, unknown>[], filename: string): Response {
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const headers = rows.length > 0 ? Object.keys(rows[0]) : [];
+  ws["!cols"] = headers.map(() => ({ wch: 20 }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Data");
+  // XLSX.write returns a Node.js Buffer. Slice its underlying ArrayBuffer
+  // so the Web Response constructor accepts it (BodyInit requires ArrayBuffer,
+  // not the broader ArrayBufferLike).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nodeBuffer = XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as any;
+  const buf: ArrayBuffer = nodeBuffer.buffer.slice(
+    nodeBuffer.byteOffset,
+    nodeBuffer.byteOffset + nodeBuffer.byteLength,
+  ) as ArrayBuffer;
+  return new Response(buf, {
+    headers: {
+      "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      "Content-Disposition": `attachment; filename="${filename}"`,
+    },
+  });
+}
 
 /**
  * GET /api/admin/export/:entity
@@ -18,8 +42,16 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
     requirePermission(session, ROLES.MANAGEMENT);
     const tenantId = session!.user.tenantId;
     const { entity } = await params;
+    const format = req.nextUrl.searchParams.get("format") ?? "csv";
 
     const today = new Date().toISOString().slice(0, 10);
+
+    function respond(rows: Record<string, unknown>[], baseName: string): Response {
+      if (format === "xlsx") {
+        return xlsxResponse(rows, `${baseName}-${today}.xlsx`);
+      }
+      return csvResponse(toCsv(rows), `${baseName}-${today}.csv`);
+    }
 
     switch (entity) {
       case "customers": {
@@ -34,7 +66,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
             createdAt: true,
           },
         });
-        return csvResponse(toCsv(rows), `customers-${today}.csv`);
+        return respond(rows as Record<string, unknown>[], "customers");
       }
       case "products": {
         const rows = await prisma.product.findMany({
@@ -46,7 +78,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
             requiresPainting: true, requiresLogoEngraving: true, isActive: true,
           },
         });
-        return csvResponse(toCsv(rows), `products-${today}.csv`);
+        return respond(rows as Record<string, unknown>[], "products");
       }
       case "materials": {
         const rows = await prisma.material.findMany({
@@ -58,7 +90,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
             minStockQty: true, unitCost: true, isActive: true,
           },
         });
-        return csvResponse(toCsv(rows), `materials-${today}.csv`);
+        return respond(rows as Record<string, unknown>[], "materials");
       }
       case "machines": {
         const rows = await prisma.cncMachine.findMany({
@@ -69,7 +101,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
             description: true, isActive: true, createdAt: true,
           },
         });
-        return csvResponse(toCsv(rows), `machines-${today}.csv`);
+        return respond(rows as Record<string, unknown>[], "machines");
       }
       case "sales-orders": {
         const rows = await prisma.salesOrder.findMany({
@@ -89,7 +121,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
           totalAmount: r.totalAmount,
           paymentStatus: r.paymentStatus,
         }));
-        return csvResponse(toCsv(flat), `sales-orders-${today}.csv`);
+        return respond(flat as Record<string, unknown>[], "sales-orders");
       }
       case "invoices": {
         const rows = await prisma.invoice.findMany({
@@ -110,7 +142,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
           totalAmount: r.totalAmount,
           paidAmount: r.paidAmount,
         }));
-        return csvResponse(toCsv(flat), `invoices-${today}.csv`);
+        return respond(flat as Record<string, unknown>[], "invoices");
       }
       case "work-orders": {
         const rows = await prisma.workOrder.findMany({
@@ -134,7 +166,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
           plannedStart: r.plannedStart,
           plannedEnd: r.plannedEnd,
         }));
-        return csvResponse(toCsv(flat), `work-orders-${today}.csv`);
+        return respond(flat as Record<string, unknown>[], "work-orders");
       }
       default:
         return Response.json({ error: "Unknown entity" }, { status: 400 });

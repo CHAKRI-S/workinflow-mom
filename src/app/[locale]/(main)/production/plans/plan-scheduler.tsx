@@ -26,6 +26,7 @@ import {
   ChevronRightIcon,
   PlusIcon,
   CalendarIcon,
+  Loader2,
 } from "lucide-react";
 
 // ─── Types ──────────────────────────────────────────
@@ -225,6 +226,11 @@ export function PlanScheduler() {
   const [formMaterialStatus, setFormMaterialStatus] = useState<string>("NOT_ORDERED");
   const [submitting, setSubmitting] = useState(false);
 
+  // Drag & drop state
+  const [dragWoId, setDragWoId] = useState<string | null>(null);
+  const [dropTarget, setDropTarget] = useState<{ machineId: string | null; dateStr: string } | null>(null);
+  const [dragUpdating, setDragUpdating] = useState(false);
+
   // ─── Fetch data ─────────────────────────────────
 
   const fetchSchedule = useCallback(async () => {
@@ -333,6 +339,83 @@ export function PlanScheduler() {
       end.setHours(0, 0, 0, 0);
       return day >= start && day <= end;
     });
+  }
+
+  // ─── Drag & drop handlers ───────────────────────
+
+  function handleDragStart(e: React.DragEvent, wo: WorkOrder) {
+    e.dataTransfer.effectAllowed = "move";
+    e.dataTransfer.setData("text/plain", wo.id);
+    setDragWoId(wo.id);
+  }
+
+  function handleDragEnd() {
+    setDragWoId(null);
+    setDropTarget(null);
+  }
+
+  function handleCellDragOver(e: React.DragEvent, machineId: string | null, day: Date) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    setDropTarget({ machineId, dateStr: formatISO(day) });
+  }
+
+  function handleCellDragLeave() {
+    setDropTarget(null);
+  }
+
+  async function handleCellDrop(
+    e: React.DragEvent,
+    targetMachineId: string | null,
+    targetDay: Date
+  ) {
+    e.preventDefault();
+    const woId = e.dataTransfer.getData("text/plain");
+    if (!woId) return;
+
+    const wo = workOrders.find((w) => w.id === woId);
+    if (!wo) return;
+
+    // Calculate duration and shift dates
+    const originalStart = new Date(wo.plannedStart);
+    const originalEnd = new Date(wo.plannedEnd);
+    const durationMs = originalEnd.getTime() - originalStart.getTime();
+
+    // Align new start to midnight
+    const newStart = new Date(targetDay);
+    newStart.setHours(0, 0, 0, 0);
+    const newEnd = new Date(newStart.getTime() + durationMs);
+
+    // Skip if nothing actually changed
+    const machineChanged = targetMachineId !== wo.cncMachineId;
+    const dateChanged = formatISO(newStart) !== formatISO(originalStart);
+    if (!machineChanged && !dateChanged) {
+      setDragWoId(null);
+      setDropTarget(null);
+      return;
+    }
+
+    setDragUpdating(true);
+    try {
+      const res = await fetch(`/api/production/work-orders/${woId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          cncMachineId: targetMachineId,
+          plannedStart: formatISO(newStart),
+          plannedEnd: formatISO(newEnd),
+        }),
+      });
+      if (res.ok) {
+        await fetchSchedule();
+      }
+    } catch {
+      console.error("drag-drop update failed");
+    } finally {
+      setDragWoId(null);
+      setDropTarget(null);
+      setDragUpdating(false);
+    }
   }
 
   // ─── Dialog ─────────────────────────────────────
@@ -467,11 +550,19 @@ export function PlanScheduler() {
         </div>
       </div>
 
-      {/* Summary badge */}
-      <div className="flex items-center gap-2">
+      {/* Summary badge + drag hint */}
+      <div className="flex items-center gap-3">
         <Badge variant="outline" className="text-xs">
           {workOrders.length} WO / {machines.length} {t("workOrder.machine")}
         </Badge>
+        {dragUpdating && (
+          <span className="text-xs text-muted-foreground flex items-center gap-1">
+            <Loader2 className="size-3 animate-spin" /> อัปเดต...
+          </span>
+        )}
+        <p className="text-xs text-muted-foreground hidden md:block">
+          💡 ลาก Work Order เพื่อเปลี่ยนวันหรือเครื่อง
+        </p>
       </div>
 
       {/* Schedule Table */}
@@ -534,12 +625,20 @@ export function PlanScheduler() {
                     const cellWOs = getWOsForCell(machine.id, day);
                     const isToday = isSameDay(day, today);
                     const weekend = isWeekend(day);
+                    const isDropTarget =
+                      dropTarget?.machineId === machine.id &&
+                      dropTarget?.dateStr === formatISO(day);
                     return (
                       <td
                         key={day.toISOString()}
                         onClick={() => openAddDialog(machine.id, day)}
+                        onDragOver={(e) => handleCellDragOver(e, machine.id, day)}
+                        onDragLeave={handleCellDragLeave}
+                        onDrop={(e) => handleCellDrop(e, machine.id, day)}
                         className={`border-b border-gray-200 dark:border-gray-700 px-1 py-1 align-top cursor-pointer transition-colors min-w-[5rem] ${
-                          isToday
+                          isDropTarget
+                            ? "bg-blue-100 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-400"
+                            : isToday
                             ? "bg-blue-50/50 dark:bg-blue-900/10"
                             : weekend
                             ? "bg-gray-50/50 dark:bg-gray-800/50"
@@ -550,15 +649,21 @@ export function PlanScheduler() {
                           {cellWOs.map((wo) => (
                             <div
                               key={wo.id}
+                              draggable
+                              onDragStart={(e) => {
+                                e.stopPropagation();
+                                handleDragStart(e, wo);
+                              }}
+                              onDragEnd={handleDragEnd}
                               onClick={(e) => {
                                 e.stopPropagation();
                                 router.push(
                                   `/production/work-orders/${wo.id}`
                                 );
                               }}
-                              className={`rounded-lg px-1.5 py-1 text-xs font-medium truncate cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(
+                              className={`rounded-lg px-1.5 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${getStatusColor(
                                 wo.status
-                              )}`}
+                              )} ${dragWoId === wo.id ? "opacity-50 ring-2 ring-blue-400" : ""}`}
                               title={`${wo.woNumber} - ${wo.product.name} (${wo.plannedQty} ${t("plan.pieces")})`}
                             >
                               <div className="truncate">
@@ -608,11 +713,19 @@ export function PlanScheduler() {
                       const cellWOs = getWOsForCell(null, day);
                       const isToday = isSameDay(day, today);
                       const weekend = isWeekend(day);
+                      const isDropTarget =
+                        dropTarget?.machineId === null &&
+                        dropTarget?.dateStr === formatISO(day);
                       return (
                         <td
                           key={day.toISOString()}
+                          onDragOver={(e) => handleCellDragOver(e, null, day)}
+                          onDragLeave={handleCellDragLeave}
+                          onDrop={(e) => handleCellDrop(e, null, day)}
                           className={`border-b border-gray-200 dark:border-gray-700 px-1 py-1 align-top min-w-[5rem] ${
-                            isToday
+                            isDropTarget
+                              ? "bg-blue-100 dark:bg-blue-900/30 ring-2 ring-inset ring-blue-400"
+                              : isToday
                               ? "bg-blue-50/50 dark:bg-blue-900/10"
                               : weekend
                               ? "bg-gray-50/50 dark:bg-gray-800/50"
@@ -623,14 +736,20 @@ export function PlanScheduler() {
                             {cellWOs.map((wo) => (
                               <div
                                 key={wo.id}
+                                draggable
+                                onDragStart={(e) => {
+                                  e.stopPropagation();
+                                  handleDragStart(e, wo);
+                                }}
+                                onDragEnd={handleDragEnd}
                                 onClick={() =>
                                   router.push(
                                     `/production/work-orders/${wo.id}`
                                   )
                                 }
-                                className={`rounded-lg px-1.5 py-1 text-xs font-medium truncate cursor-pointer hover:opacity-80 transition-opacity ${getStatusColor(
+                                className={`rounded-lg px-1.5 py-1 text-xs font-medium truncate cursor-grab active:cursor-grabbing hover:opacity-80 transition-opacity ${getStatusColor(
                                   wo.status
-                                )}`}
+                                )} ${dragWoId === wo.id ? "opacity-50 ring-2 ring-blue-400" : ""}`}
                                 title={`${wo.woNumber} - ${wo.product.name}`}
                               >
                                 <div className="truncate">
