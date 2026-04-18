@@ -3,6 +3,7 @@ import { getSaSession } from "@/lib/sa-auth";
 import { prisma } from "@/lib/prisma";
 import { SaShell } from "@/components/superadmin/sa-shell";
 import { StatusBadge } from "@/components/superadmin/status-badge";
+import { DashboardCharts } from "@/components/superadmin/dashboard-charts";
 import { Building2, Users, DollarSign, TrendingUp, Clock, AlertTriangle } from "lucide-react";
 
 export default async function SuperAdminDashboard() {
@@ -86,6 +87,9 @@ export default async function SuperAdminDashboard() {
         <StatCard icon={DollarSign} label="MRR" value={formatCurrency(mrr)} accent="primary" />
         <StatCard icon={DollarSign} label="ARR" value={formatCurrency(arr)} accent="primary" />
       </div>
+
+      {/* Analytics Charts */}
+      <DashboardCharts />
 
       {/* Recent Tenants */}
       <div className="rounded-xl border bg-card">

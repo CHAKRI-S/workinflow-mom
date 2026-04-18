@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { useTranslations } from "next-intl";
 import { usePathname } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
@@ -14,8 +15,9 @@ import {
   Factory,
   FileSpreadsheet,
   Receipt,
+  Menu,
+  X,
 } from "lucide-react";
-import { useState } from "react";
 
 interface NavChild {
   label: string;
@@ -44,6 +46,7 @@ export function Sidebar() {
   const pathname = usePathname();
   const { hasFeature } = usePlan();
   const [openMenus, setOpenMenus] = useState<string[]>(["sales", "production"]);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const toggleMenu = (key: string) => {
     setOpenMenus((prev) =>
@@ -110,7 +113,11 @@ export function Sidebar() {
         { label: t("users"), href: "/admin/users" },
         { label: t("billing"), href: "/admin/billing" },
         { label: t("export"), href: "/admin/export" },
-        { label: t("auditLog"), href: "/admin/audit-log", requiresFeature: "auditLog" },
+        {
+          label: t("auditLog"),
+          href: "/admin/audit-log",
+          requiresFeature: "auditLog",
+        },
         { label: t("settings"), href: "/admin/settings" },
       ],
     },
@@ -124,20 +131,18 @@ export function Sidebar() {
     .map((item) => ({
       ...item,
       children: item.children?.filter(
-        (c) => !c.requiresFeature || hasFeature(c.requiresFeature),
+        (c) => !c.requiresFeature || hasFeature(c.requiresFeature)
       ),
     }));
 
-  return (
-    <aside className="w-64 border-r bg-sidebar text-sidebar-foreground flex flex-col h-full">
+  const navContent = (
+    <>
       {/* Logo */}
-      <div className="p-4 border-b">
+      <div className="p-4 border-b shrink-0">
         <h1 className="text-lg font-medium tracking-tight">
           WorkinFlow <span className="text-primary">MOM</span>
         </h1>
-        <p className="text-xs text-muted-foreground">
-          Manufacturing Operations
-        </p>
+        <p className="text-xs text-muted-foreground">Manufacturing Operations</p>
       </div>
 
       {/* Navigation */}
@@ -148,6 +153,7 @@ export function Sidebar() {
               <Link
                 key={item.href}
                 href={item.href}
+                onClick={() => setMobileOpen(false)}
                 className={cn(
                   "flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors",
                   isActive(item.href)
@@ -191,6 +197,7 @@ export function Sidebar() {
                     <Link
                       key={child.href}
                       href={child.href}
+                      onClick={() => setMobileOpen(false)}
                       className={cn(
                         "block rounded-xl px-3 py-1.5 text-sm transition-colors",
                         isActive(child.href)
@@ -207,6 +214,46 @@ export function Sidebar() {
           );
         })}
       </nav>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      {/* Mobile top bar — only visible below md */}
+      <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
+        <span className="text-base font-medium tracking-tight">
+          WorkinFlow <span className="text-primary">MOM</span>
+        </span>
+        <button
+          onClick={() => setMobileOpen((prev) => !prev)}
+          className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"
+          aria-label={mobileOpen ? "Close menu" : "Open menu"}
+        >
+          {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        </button>
+      </div>
+
+      {/* Dark backdrop — mobile only */}
+      {mobileOpen && (
+        <div
+          className="fixed inset-0 z-30 bg-black/50 md:hidden"
+          onClick={() => setMobileOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar panel */}
+      <aside
+        className={cn(
+          // Mobile: fixed overlay panel, slides in from left
+          "fixed inset-y-0 left-0 z-40 w-64 border-r bg-sidebar text-sidebar-foreground flex flex-col transition-transform duration-200",
+          // Desktop: static, always visible
+          "md:static md:translate-x-0",
+          mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"
+        )}
+      >
+        {navContent}
+      </aside>
+    </>
   );
 }
