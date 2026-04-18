@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { requireSeatAvailable, planLimitResponse } from "@/lib/plan-limits";
 import bcrypt from "bcryptjs";
-import { Role } from "@/generated/prisma/client";
+import { Role, Prisma } from "@/generated/prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -67,14 +67,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       await requireSeatAvailable(tenantId);
     }
 
-    // Check email uniqueness if email is being changed
-    if (email) {
+    // Check email uniqueness if email is being changed (case-insensitive)
+    let normalizedEmail: string | undefined;
+    if (email !== undefined) {
+      normalizedEmail = String(email).trim().toLowerCase();
       const existing = await prisma.user.findFirst({
-        where: { email, id: { not: id } },
+        where: { email: normalizedEmail, id: { not: id } },
       });
       if (existing) {
         return NextResponse.json(
-          { error: "Email already exists" },
+          { error: "อีเมลนี้ถูกใช้แล้ว" },
           { status: 409 }
         );
       }
@@ -83,7 +85,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Build update data
     const updateData: Record<string, unknown> = {};
     if (name !== undefined) updateData.name = name;
-    if (email !== undefined) updateData.email = email;
+    if (normalizedEmail !== undefined) updateData.email = normalizedEmail;
     if (role !== undefined) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
 
@@ -103,6 +105,16 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     if (limitRes) return limitRes;
     if (err instanceof Error && err.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    // Unique constraint violation (race condition fallback — email already exists)
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "อีเมลนี้ถูกใช้แล้ว" },
+        { status: 409 },
+      );
     }
     console.error("PATCH /api/admin/users/[id] error:", err);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

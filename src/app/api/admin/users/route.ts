@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { requireSeatAvailable, planLimitResponse } from "@/lib/plan-limits";
 import bcrypt from "bcryptjs";
-import { Role } from "@/generated/prisma/client";
+import { Role, Prisma } from "@/generated/prisma/client";
 
 // GET /api/admin/users — list all users for tenant
 export async function GET() {
@@ -55,6 +55,9 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Normalize email (emails are case-insensitive per RFC 5321)
+    const normalizedEmail = String(email).trim().toLowerCase();
+
     // Validate role
     const validRoles = Object.values(Role);
     if (role && !validRoles.includes(role)) {
@@ -62,10 +65,10 @@ export async function POST(req: NextRequest) {
     }
 
     // Check email uniqueness
-    const existing = await prisma.user.findUnique({ where: { email } });
+    const existing = await prisma.user.findUnique({ where: { email: normalizedEmail } });
     if (existing) {
       return NextResponse.json(
-        { error: "Email already exists" },
+        { error: "อีเมลนี้ถูกใช้แล้ว" },
         { status: 409 }
       );
     }
@@ -79,7 +82,7 @@ export async function POST(req: NextRequest) {
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: normalizedEmail,
         hashedPassword,
         role: role || "OPERATOR",
         isActive: isActive ?? true,
@@ -101,6 +104,16 @@ export async function POST(req: NextRequest) {
     if (limitRes) return limitRes;
     if (err instanceof Error && err.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    // Unique constraint violation (race condition fallback — email already exists)
+    if (
+      err instanceof Prisma.PrismaClientKnownRequestError &&
+      err.code === "P2002"
+    ) {
+      return NextResponse.json(
+        { error: "อีเมลนี้ถูกใช้แล้ว" },
+        { status: 409 },
+      );
     }
     console.error("POST /api/admin/users error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
