@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
+import type { JuristicType } from "@/generated/prisma/client";
 
 /** Default trial length for new SaaS signups */
 export const TRIAL_DAYS = 30;
@@ -59,6 +60,12 @@ export interface ProvisionTenantInput {
   phone?: string;
   taxId?: string;
   address?: string;
+  /** Thai juristic type of the business (บริษัทจำกัด, มหาชน, หจก, …) */
+  juristicType?: JuristicType;
+  /** Branch number (00000 = HQ) */
+  branchNo?: string;
+  /** ISO country code (default "TH") */
+  country?: string;
   /** Override default plan (defaults to FREE) */
   planSlug?: string;
   /** Override trial days (default 30) */
@@ -98,6 +105,9 @@ export async function provisionTenant(
     phone,
     taxId,
     address,
+    juristicType,
+    branchNo,
+    country = "TH",
     planSlug = "free",
     trialDays = TRIAL_DAYS,
   } = input;
@@ -137,6 +147,9 @@ export async function provisionTenant(
         address: address ?? null,
         phone: phone ?? null,
         email: adminEmail.toLowerCase(),
+        juristicType: juristicType ?? null,
+        branchNo: branchNo || null,
+        country,
         status: "TRIAL",
         trialEndsAt,
         planId: plan.id,

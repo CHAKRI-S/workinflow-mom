@@ -36,9 +36,18 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const body = await req.json();
   const data = customerUpdateSchema.parse(body);
 
+  // Normalize empty-string juristicType → null, handle branchNo/country
+  const { juristicType, branchNo, country, ...rest } = data;
+  const patch: Record<string, unknown> = { ...rest };
+  if (juristicType !== undefined) {
+    patch.juristicType = juristicType || null;
+  }
+  if (branchNo !== undefined) patch.branchNo = branchNo?.trim() || null;
+  if (country !== undefined) patch.country = country?.trim() || "TH";
+
   const customer = await prisma.customer.updateMany({
     where: { id, tenantId: session!.user.tenantId },
-    data,
+    data: patch,
   });
 
   if (customer.count === 0) {

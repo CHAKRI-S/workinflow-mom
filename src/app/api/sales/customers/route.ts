@@ -38,17 +38,23 @@ export async function POST(req: NextRequest) {
     await requireCustomerAvailable(tenantId);
 
     const providedCode = data.code?.trim();
-    const { code: _ignored, ...rest } = data;
+    const { code: _ignored, juristicType, branchNo, country, ...rest } = data;
+    const cleaned = {
+      ...rest,
+      juristicType: juristicType || null,
+      branchNo: branchNo?.trim() || null,
+      country: country?.trim() || "TH",
+    };
 
     const customer = providedCode
       ? await prisma.customer.create({
-          data: { ...rest, code: providedCode, tenantId },
+          data: { ...cleaned, code: providedCode, tenantId },
         })
       : await createWithGeneratedCode({
           generate: () => generateCustomerCode(tenantId),
           create: (code) =>
             prisma.customer.create({
-              data: { ...rest, code, tenantId },
+              data: { ...cleaned, code, tenantId },
             }),
         });
 

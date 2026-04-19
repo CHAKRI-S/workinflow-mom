@@ -11,6 +11,22 @@ const signupSchema = z.object({
   phone: z.string().optional(),
   taxId: z.string().optional(),
   address: z.string().optional(),
+  // Extended business info (Phase 15)
+  juristicType: z
+    .enum([
+      "COMPANY_LTD",
+      "PUBLIC_CO",
+      "LIMITED_PARTNERSHIP",
+      "FOUNDATION",
+      "ASSOCIATION",
+      "JOINT_VENTURE",
+      "OTHER_JURISTIC",
+      "INDIVIDUAL",
+    ])
+    .optional(),
+  branchNo: z.string().optional(),
+  country: z.string().optional(),
+  billingAddress: z.string().optional(),
   acceptTerms: z.boolean().refine((v) => v === true, "กรุณายอมรับเงื่อนไขการใช้งาน"),
 });
 
@@ -28,8 +44,19 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { companyName, adminName, adminEmail, adminPassword, phone, taxId, address } =
-      parsed.data;
+    const {
+      companyName,
+      adminName,
+      adminEmail,
+      adminPassword,
+      phone,
+      taxId,
+      address,
+      juristicType,
+      branchNo,
+      country,
+      billingAddress,
+    } = parsed.data;
 
     const result = await provisionTenant({
       companyName,
@@ -38,7 +65,10 @@ export async function POST(req: NextRequest) {
       adminPassword,
       phone,
       taxId,
-      address,
+      address: billingAddress || address,
+      juristicType,
+      branchNo,
+      country,
       planSlug: "free", // new tenants start on FREE trial
     });
 

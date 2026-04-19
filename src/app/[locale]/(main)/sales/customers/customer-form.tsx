@@ -20,6 +20,11 @@ import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
+import {
+  BusinessInfoSection,
+  type BusinessInfoValue,
+  type JuristicTypeValue,
+} from "@/components/forms/business-info-section";
 
 interface CustomerFormProps {
   defaultValues?: Partial<CustomerCreateInput> & { id?: string };
@@ -50,6 +55,34 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
 
   const isVat = watch("isVatRegistered");
 
+  // Business info section state (bound to form via setValue)
+  const watched = watch();
+  const businessInfo: BusinessInfoValue = {
+    juristicType: (watched.juristicType as JuristicTypeValue | "") || "",
+    taxId: watched.taxId || "",
+    branchNo: watched.branchNo || "00000",
+    name: watched.name || "",
+    address: watched.billingAddress || "",
+    country: watched.country || "TH",
+  };
+
+  const patchBusinessInfo = (patch: Partial<BusinessInfoValue>) => {
+    if (patch.juristicType !== undefined) {
+      setValue(
+        "juristicType",
+        patch.juristicType === ""
+          ? undefined
+          : (patch.juristicType as CustomerCreateInput["juristicType"]),
+      );
+    }
+    if (patch.taxId !== undefined) setValue("taxId", patch.taxId);
+    if (patch.branchNo !== undefined) setValue("branchNo", patch.branchNo);
+    if (patch.name !== undefined) setValue("name", patch.name);
+    if (patch.address !== undefined)
+      setValue("billingAddress", patch.address);
+    if (patch.country !== undefined) setValue("country", patch.country);
+  };
+
   const onSubmit = async (data: CustomerCreateInput) => {
     setLoading(true);
     setError(null);
@@ -65,6 +98,9 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
         taxId: data.taxId || undefined,
         billingAddress: data.billingAddress || undefined,
         shippingAddress: data.shippingAddress || undefined,
+        juristicType: data.juristicType || undefined,
+        branchNo: data.branchNo || undefined,
+        country: data.country || "TH",
         creditLimit: data.creditLimit && !isNaN(data.creditLimit) ? data.creditLimit : undefined,
       };
 
@@ -113,6 +149,19 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
       )}
 
       <form onSubmit={handleSubmit(onSubmit, (formErrors) => { console.error("Form validation errors:", formErrors); })} className="space-y-6">
+        {/* Business Info / Juristic */}
+        <Card className="p-4 space-y-4">
+          <h2 className="font-semibold">ข้อมูลนิติบุคคล / ผู้เสียภาษี</h2>
+          <BusinessInfoSection
+            value={businessInfo}
+            onChange={patchBusinessInfo}
+            onAutoFill={patchBusinessInfo}
+          />
+          {errors.name && (
+            <p className="text-xs text-destructive">{errors.name.message}</p>
+          )}
+        </Card>
+
         {/* Basic Info */}
         <Card className="p-4 space-y-4">
           <h2 className="font-semibold">{t("customer.basicInfo")}</h2>
@@ -132,15 +181,6 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
               )}
               {errors.code && (
                 <p className="text-xs text-destructive">{errors.code.message}</p>
-              )}
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t("customer.name")} *</Label>
-              <Input {...register("name")} placeholder="บริษัท ○○○ จำกัด / ร้าน ○○○ / ชื่อบุคคล" />
-              <p className="text-xs text-muted-foreground">ชื่อบริษัท, ร้านค้า หรือชื่อลูกค้า</p>
-              {errors.name && (
-                <p className="text-xs text-destructive">{errors.name.message}</p>
               )}
             </div>
 
@@ -210,11 +250,6 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
             </div>
 
             <div className="space-y-1.5">
-              <Label>{t("customer.taxId")}</Label>
-              <Input {...register("taxId")} placeholder="0105XXXXXXXXX" />
-            </div>
-
-            <div className="space-y-1.5">
               <Label>{t("customer.paymentTermDays")}</Label>
               <Input
                 {...register("paymentTermDays", { valueAsNumber: true })}
@@ -238,20 +273,14 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
           </div>
         </Card>
 
-        {/* Address */}
+        {/* Shipping Address (billing is in Business Info above) */}
         <Card className="p-4 space-y-4">
-          <h2 className="font-semibold">{t("customer.address")}</h2>
-
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label>{t("customer.billingAddress")}</Label>
-              <Textarea {...register("billingAddress")} rows={2} />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t("customer.shippingAddress")}</Label>
-              <Textarea {...register("shippingAddress")} rows={2} />
-            </div>
+          <h2 className="font-semibold">{t("customer.shippingAddress")}</h2>
+          <p className="text-xs text-muted-foreground">
+            ที่อยู่สำหรับจัดส่งสินค้า (ถ้าต่างจากที่อยู่ออกบิล)
+          </p>
+          <div className="space-y-1.5">
+            <Textarea {...register("shippingAddress")} rows={2} />
           </div>
         </Card>
 
