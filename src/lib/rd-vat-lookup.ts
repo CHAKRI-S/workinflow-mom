@@ -42,10 +42,12 @@ export class RdVatLookupError extends Error {
 
 const SOAP_ENDPOINT =
   "https://rdws.rd.go.th/serviceRD3/vatserviceRD3.asmx";
-const SOAP_ACTION =
-  "https://rdws.rd.go.th/JserviceRD3/vatserviceRD3/Service";
+// NOTE: as of 2026 the WSDL uses the namespace `serviceRD3` (not `JserviceRD3`
+// which appears in many outdated guides). Using the wrong one returns
+// HTTP 500 with "Server did not recognize the value of HTTP Header SOAPAction".
 const SOAP_NAMESPACE =
-  "https://rdws.rd.go.th/JserviceRD3/vatserviceRD3";
+  "https://rdws.rd.go.th/serviceRD3/vatserviceRD3";
+const SOAP_ACTION = `${SOAP_NAMESPACE}/Service`;
 
 // Simple in-memory cache (TIN info rarely changes)
 type CacheEntry = { at: number; value: RdVatResult };
@@ -210,13 +212,20 @@ export async function lookupByTaxId(
       // Short timeout (RD is sometimes slow)
       signal: AbortSignal.timeout(10_000),
     });
+    xml = await res.text();
     if (!res.ok) {
+      const fault = extractFirst(xml, "faultstring");
+      console.error(
+        `[rd-vat] HTTP ${res.status} from RD service:`,
+        fault ?? xml.slice(0, 500),
+      );
       throw new RdVatLookupError(
-        `RD service returned HTTP ${res.status}`,
+        fault
+          ? `RD service error: ${fault}`
+          : `RD service returned HTTP ${res.status}`,
         "UPSTREAM_ERROR",
       );
     }
-    xml = await res.text();
   } catch (e) {
     if (e instanceof RdVatLookupError) throw e;
     throw new RdVatLookupError(
@@ -238,7 +247,10 @@ export async function lookupByTaxId(
     throw new RdVatLookupError("Tax ID not found", "NOT_FOUND");
   }
 
-  const titleName = extractFirst(xml, "vTitleName");
+  // Actual XML tag is `vtitleName` (lowercase t) — not `vTitleName` as
+  // some docs claim.
+  const titleName =
+    extractFirst(xml, "vtitleName") ?? extractFirst(xml, "vTitleName");
   const name = extractFirst(xml, "vName") ?? "";
   const surname = extractFirst(xml, "vSurname");
   const branchName = extractFirst(xml, "vBranchName");
