@@ -18,12 +18,27 @@ enum TenantStatus {
   CANCELLED // ยกเลิก
 }
 
+/// ประเภทนิติบุคคล / บุคคลธรรมดา (ตามรูปแบบกรมพัฒนาธุรกิจการค้า)
+enum JuristicType {
+  COMPANY_LTD // บริษัทจำกัด
+  PUBLIC_CO // บริษัทมหาชนจำกัด
+  LIMITED_PARTNERSHIP // ห้างหุ้นส่วนจำกัด
+  FOUNDATION // มูลนิธิ
+  ASSOCIATION // สมาคม
+  JOINT_VENTURE // กิจการร่วมค้า
+  OTHER_JURISTIC // นิติบุคคลอื่น ๆ
+  INDIVIDUAL // บุคคลธรรมดา
+}
+
 model Tenant {
   id           String       @id @default(cuid())
   name         String // ชื่อบริษัท
   code         String       @unique // e.g. "WF01" — prefix doc numbering
   slug         String?      @unique // e.g. "workinflow" — สำหรับ URL / SA อ้างอิง
   taxId        String? // เลขผู้เสียภาษีบริษัท
+  branchNo     String? // เลขสาขา (HQ = "00000", สาขา = "00001" ...)
+  juristicType JuristicType? // ประเภทนิติบุคคล
+  country      String       @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
   address      String? // ที่อยู่บริษัท (สำหรับใบกำกับภาษี)
   phone        String?
   email        String?
@@ -323,11 +338,14 @@ model Customer {
   code            String
   name            String
   customerType    CustomerType @default(OTHER)
+  juristicType    JuristicType? // ประเภทนิติบุคคล / บุคคลธรรมดา
+  country         String       @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
   contactName     String?
   email           String?
   phone           String?
   lineId          String? // LINE ID สำหรับติดต่อ
   taxId           String? // เลขผู้เสียภาษี (สำหรับใบกำกับภาษี)
+  branchNo        String? // เลขสาขา (HQ = "00000" หรือว่าง, สาขา = "00001" ...)
   // ที่อยู่ออกบิล
   billingAddress  String?
   // ที่อยู่จัดส่ง (ถ้าต่างจากที่อยู่ออกบิล)
