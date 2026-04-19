@@ -42,6 +42,12 @@ export default async function EditCustomerPage({
         isVatRegistered: customer.isVatRegistered,
         paymentTermDays: customer.paymentTermDays,
         creditLimit: customer.creditLimit ? Number(customer.creditLimit) : undefined,
+        // Juristic / RD fields — previously not populated, which meant editing
+        // an existing customer lost these selections. Include them so the
+        // form state matches the DB row.
+        juristicType: customer.juristicType || undefined,
+        branchNo: customer.branchNo || undefined,
+        country: customer.country || "TH",
       }}
     />
   );

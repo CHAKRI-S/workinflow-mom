@@ -78,8 +78,12 @@ export function BusinessInfoSection({
 
   const isHQ = !value.branchNo || value.branchNo === "00000";
 
+  // Normalize displayed taxId so legacy-stored formatting (dashes, spaces,
+  // NBSP) doesn't break the length check or the lookup button.
+  const cleanTaxId = (value.taxId ?? "").replace(/[^\d]/g, "").slice(0, 13);
+
   const handleLookup = async () => {
-    const taxId = value.taxId.replace(/[^\d]/g, "");
+    const taxId = cleanTaxId;
     if (taxId.length !== 13) {
       setLookupMsg({
         type: "err",
@@ -179,7 +183,7 @@ export function BusinessInfoSection({
         <Label>เลขประจำตัวผู้เสียภาษี (13 หลัก)</Label>
         <div className="flex flex-col sm:flex-row gap-2">
           <Input
-            value={value.taxId}
+            value={cleanTaxId}
             onChange={(e) =>
               onChange({
                 taxId: e.target.value.replace(/[^\d]/g, "").slice(0, 13),
@@ -195,7 +199,11 @@ export function BusinessInfoSection({
             type="button"
             variant="outline"
             onClick={handleLookup}
-            disabled={disabled || looking || value.taxId.length !== 13}
+            // Do NOT disable based on length — let the click run and show
+            // a friendly validation message inside handleLookup instead.
+            // Previously an edit-mode customer whose taxId was stored with
+            // formatting could never trigger the lookup at all.
+            disabled={disabled || looking}
           >
             {looking ? (
               <Loader2 className="h-4 w-4 mr-1 animate-spin" />
