@@ -242,8 +242,11 @@ export async function lookupByTaxId(
     );
   }
 
-  const vTin = extractFirst(xml, "vtin");
-  if (!vTin) {
+  // Response populates <vNID> with the TIN (not <vtin> which is always empty
+  // in practice). Use vNID as the "found" signal.
+  const vNID = extractFirst(xml, "vNID");
+  const nameField = extractFirst(xml, "vName");
+  if (!vNID && !nameField) {
     throw new RdVatLookupError("Tax ID not found", "NOT_FOUND");
   }
 
@@ -251,30 +254,31 @@ export async function lookupByTaxId(
   // some docs claim.
   const titleName =
     extractFirst(xml, "vtitleName") ?? extractFirst(xml, "vTitleName");
-  const name = extractFirst(xml, "vName") ?? "";
+  const name = nameField ?? "";
   const surname = extractFirst(xml, "vSurname");
   const branchName = extractFirst(xml, "vBranchName");
   const branchNumber = extractFirst(xml, "vBranchNumber");
-  const statusRaw = extractFirst(xml, "vStatus");
   const businessFirstDate = extractFirst(xml, "vBusinessFirstDate");
   const postCode = extractFirst(xml, "vPostCode");
   const province = extractFirst(xml, "vProvince");
 
-  const status: RdVatResult["status"] =
-    statusRaw === "AC"
-      ? "ACTIVE"
-      : statusRaw === "IN"
-        ? "INACTIVE"
-        : "UNKNOWN";
+  // RD response doesn't include a status field; default UNKNOWN
+  const status: RdVatResult["status"] = "UNKNOWN";
 
   const displayName = [titleName, name, surname]
     .filter((x) => x && x !== "-")
     .join(" ")
     .trim();
 
+  // vBranchNumber comes back as int string like "0" — pad to 5 digits
+  const normalizedBranchNo = (branchNumber ?? branchNo)
+    .replace(/[^\d]/g, "")
+    .padStart(5, "0")
+    .slice(-5);
+
   const result: RdVatResult = {
     taxId,
-    branchNo: (branchNumber ?? branchNo).padStart(5, "0"),
+    branchNo: normalizedBranchNo,
     branchName: branchName && branchName !== "-" ? branchName : null,
     titleName: titleName && titleName !== "-" ? titleName : null,
     name: displayName || name,
