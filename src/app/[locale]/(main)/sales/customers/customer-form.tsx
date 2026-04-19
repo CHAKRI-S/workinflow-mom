@@ -119,12 +119,17 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>{t("customer.code")} *</Label>
+              <Label>{t("customer.code")}</Label>
               <Input
                 {...register("code")}
                 disabled={isEdit}
-                placeholder="CUST-001"
+                placeholder={isEdit ? "" : "เว้นว่าง = ระบบสร้างให้ (C-0001)"}
               />
+              {!isEdit && (
+                <p className="text-xs text-muted-foreground">
+                  เว้นว่างได้ — ระบบจะสร้างรหัสให้อัตโนมัติ เช่น C-0001, C-0002 ...
+                </p>
+              )}
               {errors.code && (
                 <p className="text-xs text-destructive">{errors.code.message}</p>
               )}

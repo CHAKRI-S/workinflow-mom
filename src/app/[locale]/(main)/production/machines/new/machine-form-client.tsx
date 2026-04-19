@@ -118,11 +118,14 @@ export function MachineFormClient() {
         <Card className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>{t("machine.code")} *</Label>
+              <Label>{t("machine.code")}</Label>
               <Input
-                {...register("code", { required: "Code is required" })}
-                placeholder={t("machine.code")}
+                {...register("code")}
+                placeholder="เว้นว่าง = ระบบสร้างให้ (M-0001)"
               />
+              <p className="text-xs text-muted-foreground">
+                เว้นว่างได้ — ระบบจะสร้างรหัสให้อัตโนมัติ เช่น M-0001, M-0002 ...
+              </p>
               {errors.code && (
                 <p className="text-xs text-destructive">
                   {errors.code.message}

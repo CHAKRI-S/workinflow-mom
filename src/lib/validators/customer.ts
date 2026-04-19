@@ -1,7 +1,8 @@
 import { z } from "zod";
 
 export const customerCreateSchema = z.object({
-  code: z.string().min(1, "Required"),
+  // Optional — auto-generated server-side when blank/omitted
+  code: z.string().optional(),
   name: z.string().min(1, "Required"),
   customerType: z.enum(["OEM", "DEALER", "END_USER", "OTHER"]),
   contactName: z.string().optional(),
