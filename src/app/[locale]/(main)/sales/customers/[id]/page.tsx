@@ -48,6 +48,9 @@ export default async function EditCustomerPage({
         juristicType: customer.juristicType || undefined,
         branchNo: customer.branchNo || undefined,
         country: customer.country || "TH",
+        // Tax policy (Phase 8A) — load stored values so form reflects current DB row
+        withholdsTax: customer.withholdsTax,
+        defaultBillingNature: customer.defaultBillingNature,
       }}
     />
   );

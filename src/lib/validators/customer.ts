@@ -11,6 +11,13 @@ export const juristicTypeEnum = z.enum([
   "INDIVIDUAL",
 ]);
 
+/// Billing nature — ต้อง sync กับ Prisma enum BillingNature
+export const billingNatureEnum = z.enum([
+  "GOODS", // ขายสินค้า (default)
+  "MANUFACTURING_SERVICE", // รับจ้างทำของ (WHT 3%)
+  "MIXED", // ผสม — ระบุ nature ต่อ line
+]);
+
 export const customerCreateSchema = z.object({
   // Optional — auto-generated server-side when blank/omitted
   code: z.string().optional(),
@@ -34,6 +41,11 @@ export const customerCreateSchema = z.object({
     .transform((v) => (v === "" || v === undefined ? undefined : v)),
   branchNo: z.string().optional(),
   country: z.string().optional(),
+  // Tax policy — Phase 8A
+  /// ลูกค้ารายนี้หัก ณ ที่จ่าย 3% หรือไม่ (default false = ขายสินค้าไม่หัก)
+  withholdsTax: z.boolean().optional().default(false),
+  /// ประเภทเอกสารเริ่มต้นของลูกค้ารายนี้
+  defaultBillingNature: billingNatureEnum.optional().default("GOODS"),
 });
 
 export const customerUpdateSchema = customerCreateSchema.partial().omit({ code: true });

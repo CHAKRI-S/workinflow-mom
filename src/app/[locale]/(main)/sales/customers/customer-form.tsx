@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
-import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { ArrowLeft, Save, Loader2, ChevronDown, ChevronRight, Info } from "lucide-react";
 import { Link } from "@/i18n/navigation";
 import {
   BusinessInfoSection,
@@ -36,6 +36,9 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Tax policy section is collapsed by default — base case (GOODS + no WHT)
+  // ไม่ต้องแตะเลย. Expand only for exception customers (contract manufacturing clients).
+  const [taxPolicyOpen, setTaxPolicyOpen] = useState(false);
 
   const {
     register,
@@ -49,11 +52,20 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
       customerType: "OTHER",
       isVatRegistered: true,
       paymentTermDays: 30,
+      // Tax policy defaults — reflect reality ของ tenant ส่วนใหญ่ (OEM goods manufacturer)
+      withholdsTax: false,
+      defaultBillingNature: "GOODS",
       ...defaultValues,
     },
   });
 
   const isVat = watch("isVatRegistered");
+  const withholdsTax = watch("withholdsTax") ?? false;
+  const defaultBillingNature = watch("defaultBillingNature") ?? "GOODS";
+
+  // แสดง warning ถ้า config หลุดจาก base case (ขายสินค้า + ไม่หัก)
+  const isNonDefaultTaxPolicy =
+    withholdsTax || defaultBillingNature !== "GOODS";
 
   // Business info section state (bound to form via setValue)
   const watched = watch();
@@ -271,6 +283,141 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
               />
             </div>
           </div>
+        </Card>
+
+        {/* Tax Policy (Phase 8A) — Billing Nature + WHT toggle
+            Default: collapsed + base case (GOODS, no WHT). Expand only for exceptions. */}
+        <Card className="p-4 space-y-3">
+          <button
+            type="button"
+            onClick={() => setTaxPolicyOpen((v) => !v)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold">นโยบายภาษี</h2>
+              {isNonDefaultTaxPolicy && (
+                <span className="inline-flex items-center rounded-full bg-amber-100 text-amber-700 px-2 py-0.5 text-xs font-medium">
+                  พิเศษ
+                </span>
+              )}
+              {!isNonDefaultTaxPolicy && (
+                <span className="inline-flex items-center rounded-full bg-emerald-100 text-emerald-700 px-2 py-0.5 text-xs font-medium">
+                  ขายสินค้า (default)
+                </span>
+              )}
+            </div>
+            {taxPolicyOpen ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {!taxPolicyOpen && (
+            <p className="text-xs text-muted-foreground">
+              ปกติไม่ต้องแตะ — ลูกค้าส่วนใหญ่คือ &ldquo;ขายสินค้า ไม่หัก ณ ที่จ่าย&rdquo;
+              กดเปิดเฉพาะลูกค้าที่ต้องการออกเป็น &ldquo;รับจ้างทำของ&rdquo; หรือยืนยันจะหัก 3%
+            </p>
+          )}
+
+          {taxPolicyOpen && (
+            <div className="space-y-4 pt-2">
+              {/* Billing nature default */}
+              <div className="space-y-2">
+                <Label>ประเภทเอกสารเริ่มต้น</Label>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+                  {[
+                    {
+                      value: "GOODS" as const,
+                      label: "ขายสินค้า",
+                      desc: "สินค้า catalog + OEM branding",
+                    },
+                    {
+                      value: "MANUFACTURING_SERVICE" as const,
+                      label: "รับจ้างทำของ",
+                      desc: "ลูกค้าเอาแบบมา + โดนหัก 3%",
+                    },
+                    {
+                      value: "MIXED" as const,
+                      label: "ผสม",
+                      desc: "สินค้า + บริการ ในบิลเดียว",
+                    },
+                  ].map((opt) => {
+                    const selected = defaultBillingNature === opt.value;
+                    return (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() =>
+                          setValue("defaultBillingNature", opt.value, {
+                            shouldDirty: true,
+                          })
+                        }
+                        className={`rounded-lg border p-3 text-left transition ${
+                          selected
+                            ? "border-primary bg-primary/5"
+                            : "border-border hover:border-muted-foreground/40"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`h-3 w-3 rounded-full border-2 ${
+                              selected
+                                ? "border-primary bg-primary"
+                                : "border-muted-foreground/40"
+                            }`}
+                          />
+                          <span className="text-sm font-medium">
+                            {opt.label}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {opt.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* WHT toggle */}
+              <div className="space-y-1.5">
+                <Label className="flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={withholdsTax}
+                    onChange={(e) =>
+                      setValue("withholdsTax", e.target.checked, {
+                        shouldDirty: true,
+                      })
+                    }
+                    className="rounded"
+                  />
+                  ลูกค้ารายนี้หัก ณ ที่จ่าย 3% (WHT)
+                </Label>
+                <p className="pl-6 text-xs text-muted-foreground">
+                  เปิดเฉพาะลูกค้าที่ยืนยันจะหัก —
+                  ปกติขายสินค้าไม่ต้องหัก (ไม่ต้องออก ภ.ง.ด.53)
+                </p>
+              </div>
+
+              {/* Info note */}
+              <div className="flex items-start gap-2 rounded-md bg-blue-50 p-3 text-xs text-blue-900">
+                <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <div className="space-y-1">
+                  <p>
+                    <strong>Tip:</strong> ระบบ default เป็น &ldquo;ขายสินค้า&rdquo;
+                    เพราะ OEM manufacturer ที่มี design + วัสดุ + IP เป็นของตัวเอง
+                    ตามกฎหมายถือเป็นการขายสินค้า (แม้มีโลโก้ลูกค้ากัดก็ตาม)
+                  </p>
+                  <p>
+                    การเปลี่ยนเป็น &ldquo;รับจ้างทำของ&rdquo; มีผลต่อการออก PDF
+                    และต้องตาม WHT Cert ทุกครั้ง — ปรึกษา CPA ก่อนเปลี่ยนนโยบาย
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
         </Card>
 
         {/* Shipping Address (billing is in Business Info above) */}
