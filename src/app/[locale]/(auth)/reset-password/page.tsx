@@ -2,7 +2,15 @@
 
 import { useState, use } from "react";
 import Link from "next/link";
-import { KeyRound, CheckCircle2, AlertCircle } from "lucide-react";
+import {
+  KeyRound,
+  CheckCircle2,
+  AlertCircle,
+  Eye,
+  EyeOff,
+  Check,
+  X,
+} from "lucide-react";
 
 export default function ResetPasswordPage({
   searchParams,
@@ -11,24 +19,26 @@ export default function ResetPasswordPage({
 }) {
   const sp = use(searchParams);
   const token = sp.token ?? "";
+
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [showPw, setShowPw] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [done, setDone] = useState(false);
 
+  const passwordLongEnough = password.length >= 8;
+  const hasConfirm = confirm.length > 0;
+  const passwordsMatch = hasConfirm && password === confirm;
+  const canSubmit = passwordLongEnough && passwordsMatch && !loading;
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
+    if (!canSubmit) return;
     setLoading(true);
     setError("");
-
-    const fd = new FormData(e.currentTarget);
-    const password = String(fd.get("password") || "");
-    const confirm = String(fd.get("confirm") || "");
-
-    if (password !== confirm) {
-      setError("รหัสผ่านยืนยันไม่ตรงกัน");
-      setLoading(false);
-      return;
-    }
 
     try {
       const res = await fetch("/api/auth/reset-password", {
@@ -91,30 +101,87 @@ export default function ResetPasswordPage({
         </div>
         <h1 className="text-xl font-semibold text-center mb-6">ตั้งรหัสผ่านใหม่</h1>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4" noValidate>
+          {/* New password */}
           <div className="space-y-1.5">
-            <label htmlFor="password" className="text-sm font-medium">รหัสผ่านใหม่</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+            <label htmlFor="password" className="text-sm font-medium">
+              รหัสผ่านใหม่
+            </label>
+            <div className="relative">
+              <input
+                id="password"
+                name="password"
+                type={showPw ? "text" : "password"}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="flex h-10 w-full rounded-lg border bg-background pl-3 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowPw((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                aria-label={showPw ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+              >
+                {showPw ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {password.length > 0 && !passwordLongEnough && (
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <X className="h-3 w-3 text-destructive" />
+                ต้องมีอย่างน้อย 8 ตัวอักษร
+              </p>
+            )}
+            {passwordLongEnough && (
+              <p className="flex items-center gap-1 text-xs text-green-600">
+                <Check className="h-3 w-3" />
+                ความยาวเพียงพอ ({password.length} ตัว)
+              </p>
+            )}
           </div>
+
+          {/* Confirm password */}
           <div className="space-y-1.5">
-            <label htmlFor="confirm" className="text-sm font-medium">ยืนยันรหัสผ่าน</label>
-            <input
-              id="confirm"
-              name="confirm"
-              type="password"
-              required
-              minLength={8}
-              autoComplete="new-password"
-              className="flex h-10 w-full rounded-lg border bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
-            />
+            <label htmlFor="confirm" className="text-sm font-medium">
+              ยืนยันรหัสผ่าน
+            </label>
+            <div className="relative">
+              <input
+                id="confirm"
+                name="confirm"
+                type={showConfirm ? "text" : "password"}
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={confirm}
+                onChange={(e) => setConfirm(e.target.value)}
+                className="flex h-10 w-full rounded-lg border bg-background pl-3 pr-10 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/20"
+              />
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setShowConfirm((v) => !v)}
+                className="absolute inset-y-0 right-0 flex items-center pr-3 text-muted-foreground hover:text-foreground"
+                aria-label={showConfirm ? "ซ่อนรหัสผ่าน" : "แสดงรหัสผ่าน"}
+              >
+                {showConfirm ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+            </div>
+            {hasConfirm && passwordsMatch && (
+              <p className="flex items-center gap-1 text-xs text-green-600">
+                <Check className="h-3 w-3" />
+                รหัสผ่านตรงกัน
+              </p>
+            )}
+            {hasConfirm && !passwordsMatch && (
+              <p className="flex items-center gap-1 text-xs text-destructive">
+                <X className="h-3 w-3" />
+                รหัสผ่านยืนยันไม่ตรงกัน
+              </p>
+            )}
           </div>
 
           {error && (
@@ -125,8 +192,8 @@ export default function ResetPasswordPage({
 
           <button
             type="submit"
-            disabled={loading}
-            className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-blue-600 disabled:opacity-60"
+            disabled={!canSubmit}
+            className="inline-flex h-10 w-full items-center justify-center rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground hover:bg-blue-600 disabled:opacity-60 disabled:cursor-not-allowed"
           >
             {loading ? "กำลังบันทึก..." : "ตั้งรหัสผ่านใหม่"}
           </button>
