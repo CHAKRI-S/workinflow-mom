@@ -31,30 +31,30 @@ enum JuristicType {
 }
 
 model Tenant {
-  id           String       @id @default(cuid())
+  id           String        @id @default(cuid())
   name         String // ชื่อบริษัท
-  code         String       @unique // e.g. "WF01" — prefix doc numbering
-  slug         String?      @unique // e.g. "workinflow" — สำหรับ URL / SA อ้างอิง
+  code         String        @unique // e.g. "WF01" — prefix doc numbering
+  slug         String?       @unique // e.g. "workinflow" — สำหรับ URL / SA อ้างอิง
   taxId        String? // เลขผู้เสียภาษีบริษัท
   branchNo     String? // เลขสาขา (HQ = "00000", สาขา = "00001" ...)
   juristicType JuristicType? // ประเภทนิติบุคคล
-  country      String       @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
+  country      String        @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
   address      String? // ที่อยู่บริษัท (สำหรับใบกำกับภาษี)
   phone        String?
   email        String?
   logo         String? // URL โลโก้
-  vatRate      Decimal      @default(7) @db.Decimal(5, 2) // อัตรา VAT %
+  vatRate      Decimal       @default(7) @db.Decimal(5, 2) // อัตรา VAT %
   // Subscription state
-  status       TenantStatus @default(TRIAL)
+  status       TenantStatus  @default(TRIAL)
   trialEndsAt  DateTime? // วันที่ทดลองใช้หมด
   planId       String? // FK → Plan
-  plan         Plan?        @relation(fields: [planId], references: [id])
+  plan         Plan?         @relation(fields: [planId], references: [id])
   // Activity tracking
   lastActiveAt DateTime?
   onboardedAt  DateTime? // เมื่อ tenant ทำ onboarding เสร็จ
-  isActive     Boolean      @default(true) // เก็บไว้เพื่อ backward compat
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
+  isActive     Boolean       @default(true) // เก็บไว้เพื่อ backward compat
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
 
   users                User[]
   customers            Customer[]
@@ -334,32 +334,37 @@ enum CustomerType {
 }
 
 model Customer {
-  id              String       @id @default(cuid())
-  code            String
-  name            String
-  customerType    CustomerType @default(OTHER)
-  juristicType    JuristicType? // ประเภทนิติบุคคล / บุคคลธรรมดา
-  country         String       @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
-  contactName     String?
-  email           String?
-  phone           String?
-  lineId          String? // LINE ID สำหรับติดต่อ
-  taxId           String? // เลขผู้เสียภาษี (สำหรับใบกำกับภาษี)
-  branchNo        String? // เลขสาขา (HQ = "00000" หรือว่าง, สาขา = "00001" ...)
+  id                   String        @id @default(cuid())
+  code                 String
+  name                 String
+  customerType         CustomerType  @default(OTHER)
+  juristicType         JuristicType? // ประเภทนิติบุคคล / บุคคลธรรมดา
+  country              String        @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
+  contactName          String?
+  email                String?
+  phone                String?
+  lineId               String? // LINE ID สำหรับติดต่อ
+  taxId                String? // เลขผู้เสียภาษี (สำหรับใบกำกับภาษี)
+  branchNo             String? // เลขสาขา (HQ = "00000" หรือว่าง, สาขา = "00001" ...)
   // ที่อยู่ออกบิล
-  billingAddress  String?
+  billingAddress       String?
   // ที่อยู่จัดส่ง (ถ้าต่างจากที่อยู่ออกบิล)
-  shippingAddress String?
+  shippingAddress      String?
   // VAT
-  isVatRegistered Boolean      @default(true) // ลูกค้าจด VAT หรือไม่ — กำหนดว่าออก TI ได้ + ใช้ prefix เอกสารแยก
+  isVatRegistered      Boolean       @default(true) // ลูกค้าจด VAT หรือไม่ — กำหนดว่าออก TI ได้ + ใช้ prefix เอกสารแยก
+  // Tax policy (Billing Nature + WHT)
+  /// ลูกค้ารายนี้หัก ณ ที่จ่าย 3% หรือไม่ (default false เพราะ base case คือขายสินค้า)
+  withholdsTax         Boolean       @default(false)
+  /// ประเภทเอกสารเริ่มต้นเวลาออกบิลให้ลูกค้ารายนี้ (GOODS = ขายสินค้า)
+  defaultBillingNature BillingNature @default(GOODS)
   // เงื่อนไขการเงิน
-  paymentTermDays Int          @default(30) // เครดิตเทอม (วัน)
-  creditLimit     Decimal?     @db.Decimal(14, 2) // วงเงินเครดิต
-  isActive        Boolean      @default(true)
-  tenantId        String
-  tenant          Tenant       @relation(fields: [tenantId], references: [id])
-  createdAt       DateTime     @default(now())
-  updatedAt       DateTime     @updatedAt
+  paymentTermDays      Int           @default(30) // เครดิตเทอม (วัน)
+  creditLimit          Decimal?      @db.Decimal(14, 2) // วงเงินเครดิต
+  isActive             Boolean       @default(true)
+  tenantId             String
+  tenant               Tenant        @relation(fields: [tenantId], references: [id])
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
 
   contacts    CustomerContact[]
   quotations  Quotation[]
@@ -806,6 +811,39 @@ enum InvoiceStatus {
   CANCELLED
 }
 
+// ══════════════════════════════════════════════════
+// BILLING NATURE & WHT (ขายสินค้า vs รับจ้างทำของ)
+// ══════════════════════════════════════════════════
+
+/// ประเภทธรรมชาติของบิล — มีผลต่อ PDF wording และ WHT workflow
+/// GOODS = ขายสินค้า (default, ไม่หัก ณ ที่จ่าย)
+/// MANUFACTURING_SERVICE = รับจ้างทำของ (ลูกค้าหัก 3% ตามประมวลรัษฎากร ม.3 เตรส)
+/// MIXED = ผสม (ต้องระบุ nature ต่อ line item)
+enum BillingNature {
+  GOODS
+  MANUFACTURING_SERVICE
+  MIXED
+}
+
+/// แหล่งที่มาของแบบงาน — ใช้ auto-suggest billing nature
+/// TENANT_OWNED = tenant ออกแบบเอง (default) → GOODS
+/// CUSTOMER_PROVIDED = ลูกค้าเอาแบบมา → MANUFACTURING_SERVICE
+/// JOINT_DEVELOPMENT = ร่วมพัฒนา (grey area, ดู contract)
+enum DrawingSource {
+  TENANT_OWNED
+  CUSTOMER_PROVIDED
+  JOINT_DEVELOPMENT
+}
+
+/// สถานะหนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ) ต่อ invoice/receipt
+enum WhtCertStatus {
+  NOT_APPLICABLE // ไม่เข้าข่าย (goods + ไม่ถูกหัก)
+  PENDING // ลูกค้าหักแล้วแต่ยังไม่ออก cert
+  RECEIVED // รับ cert แล้ว
+  VERIFIED // ตรวจสอบเลข/ยอดถูกต้อง
+  MISSING_OVERDUE // เลยกำหนดนาน → flag เตือน
+}
+
 model Invoice {
   id                      String        @id @default(cuid())
   invoiceNumber           String // INV-2026-00001
@@ -828,6 +866,14 @@ model Invoice {
   vatAmount               Decimal       @default(0) @db.Decimal(14, 2)
   totalAmount             Decimal       @default(0) @db.Decimal(14, 2)
   paidAmount              Decimal       @default(0) @db.Decimal(14, 2)
+  // Billing nature + Withholding Tax (3% ม.3 เตรส)
+  billingNature           BillingNature @default(GOODS)
+  whtRate                 Decimal       @default(0) @db.Decimal(5, 2) // อัตรา WHT % (0=ไม่หัก, 3=หัก 3%)
+  whtAmount               Decimal       @default(0) @db.Decimal(14, 2) // ยอด WHT ที่ลูกค้าหัก
+  whtCertNumber           String? // เลขหนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ)
+  whtCertReceivedAt       DateTime? // วันรับ cert
+  whtCertFileUrl          String? // ไฟล์ scan cert
+  whtCertStatus           WhtCertStatus @default(NOT_APPLICABLE)
   // ยกเลิก
   cancelledAt             DateTime?
   cancelledById           String?
@@ -850,20 +896,34 @@ model Invoice {
   @@unique([tenantId, invoiceNumber])
   @@index([tenantId, status])
   @@index([tenantId, dueDate])
+  @@index([tenantId, whtCertStatus]) // สำหรับ WHT tracking dashboard
 }
 
 model InvoiceLine {
-  id               String          @id @default(cuid())
-  invoiceId        String
-  invoice          Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  salesOrderLineId String?
-  salesOrderLine   SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
-  description      String // รายละเอียดรายการ
-  quantity         Decimal         @db.Decimal(12, 4)
-  unitPrice        Decimal         @db.Decimal(12, 2)
-  lineTotal        Decimal         @db.Decimal(14, 2)
-  notes            String?
-  sortOrder        Int             @default(0)
+  id                 String          @id @default(cuid())
+  invoiceId          String
+  invoice            Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  salesOrderLineId   String?
+  salesOrderLine     SalesOrderLine? @relation(fields: [salesOrderLineId], references: [id])
+  description        String // รายละเอียดรายการ
+  quantity           Decimal         @db.Decimal(12, 4)
+  unitPrice          Decimal         @db.Decimal(12, 2)
+  lineTotal          Decimal         @db.Decimal(14, 2)
+  notes              String?
+  sortOrder          Int             @default(0)
+  // Drawing source + branding (ใช้ auto-classify billing nature + เป็นหลักฐานทางกฎหมาย)
+  /// แหล่งที่มาของแบบ: tenant ออกเอง (default) / ลูกค้าเอามา / ร่วมพัฒนา
+  drawingSource      DrawingSource   @default(TENANT_OWNED)
+  /// Override billing nature ต่อ line — ใช้เมื่อ invoice ตัวแม่เป็น MIXED
+  lineBillingNature  BillingNature?
+  /// Product SKU/code (จาก catalog ของ tenant) — หลักฐานว่ามี product master
+  productCode        String?
+  /// Drawing revision เช่น "REV-A-2026" — หลักฐาน design ownership
+  drawingRevision    String?
+  /// ไฟล์แบบจากลูกค้า (ถ้า drawingSource = CUSTOMER_PROVIDED)
+  customerDrawingUrl String?
+  /// OEM Branding spec: { logoUrl, markingMethod, position, ... } — spec ของลูกค้าที่ tenant ผลิต
+  customerBranding   Json?
 
   @@index([invoiceId])
 }
@@ -899,6 +959,8 @@ model TaxInvoice {
   vatRate          Decimal          @default(7) @db.Decimal(5, 2)
   vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
   totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
+  // Billing nature snapshot (ณ วันออก TI) — ต้อง preserve เพราะ PDF wording อ้างจากค่านี้
+  billingNature    BillingNature    @default(GOODS)
   // ยกเลิก
   cancelledAt      DateTime?
   cancelledById    String?
@@ -932,8 +994,16 @@ model Receipt {
   payment       Payment?      @relation(fields: [paymentId], references: [id])
   status        ReceiptStatus @default(DRAFT)
   issueDate     DateTime      @default(now())
-  // ยอดเงินที่รับ
+  // ยอดเงินที่รับ (net of WHT)
   amount        Decimal       @db.Decimal(14, 2)
+  // Billing nature snapshot (ณ วันออก receipt)
+  billingNature BillingNature @default(GOODS)
+  // WHT ที่ลูกค้าหัก ณ ที่จ่าย (ถ้ามี) — net = grossAmount - whtAmount
+  grossAmount   Decimal?      @db.Decimal(14, 2) // ยอดก่อนหัก ณ ที่จ่าย
+  whtRate       Decimal       @default(0) @db.Decimal(5, 2)
+  whtAmount     Decimal       @default(0) @db.Decimal(14, 2)
+  whtCertNumber String? // เลข 50 ทวิ (ถ้ารับมาตอนออก receipt)
+  whtCertStatus WhtCertStatus @default(NOT_APPLICABLE)
   // รายละเอียดผู้จ่าย (snapshot)
   payerName     String
   payerTaxId    String?
@@ -974,28 +1044,31 @@ enum CreditNoteReason {
 }
 
 model CreditNote {
-  id               String           @id @default(cuid())
-  creditNoteNumber String // CN-2026-00001
-  invoiceId        String
-  invoice          Invoice          @relation(fields: [invoiceId], references: [id])
-  status           CreditNoteStatus @default(DRAFT)
-  reason           CreditNoteReason @default(OTHER)
-  issueDate        DateTime         @default(now())
+  id                String           @id @default(cuid())
+  creditNoteNumber  String // CN-2026-00001
+  invoiceId         String
+  invoice           Invoice          @relation(fields: [invoiceId], references: [id])
+  status            CreditNoteStatus @default(DRAFT)
+  reason            CreditNoteReason @default(OTHER)
+  issueDate         DateTime         @default(now())
   // ยอดเงิน
-  subtotal         Decimal          @default(0) @db.Decimal(14, 2)
-  vatRate          Decimal          @default(7) @db.Decimal(5, 2)
-  vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
-  totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
-  description      String // เหตุผลที่ลดหนี้
+  subtotal          Decimal          @default(0) @db.Decimal(14, 2)
+  vatRate           Decimal          @default(7) @db.Decimal(5, 2)
+  vatAmount         Decimal          @default(0) @db.Decimal(14, 2)
+  totalAmount       Decimal          @default(0) @db.Decimal(14, 2)
+  // Billing nature snapshot + WHT reversal (ถ้า invoice ต้นฉบับโดนหัก)
+  billingNature     BillingNature    @default(GOODS)
+  whtReversalAmount Decimal          @default(0) @db.Decimal(14, 2) // ยอด WHT ที่ต้อง reverse กลับ (prorate)
+  description       String // เหตุผลที่ลดหนี้
   // ยกเลิก
-  cancelledAt      DateTime?
-  cancelledById    String?
-  cancelReason     String?
-  notes            String?
-  tenantId         String
-  tenant           Tenant           @relation(fields: [tenantId], references: [id])
-  createdAt        DateTime         @default(now())
-  updatedAt        DateTime         @updatedAt
+  cancelledAt       DateTime?
+  cancelledById     String?
+  cancelReason      String?
+  notes             String?
+  tenantId          String
+  tenant            Tenant           @relation(fields: [tenantId], references: [id])
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
 
   lines CreditNoteLine[]
 
