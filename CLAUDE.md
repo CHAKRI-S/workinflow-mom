@@ -194,5 +194,41 @@ ALWAYS follow this 7-step flow in order:
 | Frontend | React, Next.js 16, Tailwind CSS, shadcn/ui v4, next-intl |
 | Backend | Next.js API Routes, Auth.js v5 |
 | Database | PostgreSQL 16, Prisma 7 |
-| Infrastructure | Docker, docker-compose |
+| Infrastructure | Docker, Coolify (auto-deploy via GitHub webhook) |
+| Email | Resend (domain `workinflow.cloud` verified) |
 | Design | CheckinFlow-inspired, blue accent (#3b82f6) |
+
+---
+
+## SaaS Conversion Status (Reference: `C:/Users/tikch/.claude/plans/humble-spinning-volcano.md`)
+
+MOM is being converted to a multi-tenant SaaS with 3-domain split:
+- `workinflow.cloud` — Landing
+- `mom.workinflow.cloud` — tenant app (live, auto-deploy)
+- `admin.workinflow.cloud` — Super Admin
+
+### Phase Progress
+
+| Phase | Scope | Status |
+|---|---|---|
+| 1 | Schema + middleware + SaaS models | ✅ Done |
+| 2 | Signup + onboarding | ✅ Done |
+| 3 | Landing page | ✅ Done |
+| 4 | Super admin panel | ✅ Done |
+| 5 | Plan enforcement | ✅ Done |
+| 6 | Omise + SlipOK billing | ⏳ Pending |
+| 7 | Password reset + email + audit UI | ✅ Done |
+| **8A** | Billing Nature + WHT schema + Customer tax policy UI | ✅ **Done 2026-04-20** |
+| 8B | Invoice line: drawing source + auto-suggest billing nature | ⏳ Pending |
+| 8C | WHT workflow on Receipt + cert tracking dashboard | ⏳ Pending |
+| 8D | 3 PDF template variants (goods/service/mixed) | ⏳ Pending |
+| 8E | Reports (Revenue by Nature, WHT Ledger, Drawing Source Mix) | ⏳ Pending |
+
+### Key Domain Decision (Phase 8)
+
+User's factory is an **OEM Goods Manufacturer** (not contract service provider):
+- Own material + own design + own IP + could sell elsewhere
+- Customers usually do NOT withhold 3% WHT
+- Customer logo engraving = product spec, not service (Thai court precedents ฎ.2776/2532, ฎ.3849/2546)
+
+**System defaults everywhere = `billingNature=GOODS` + `withholdsTax=false`.** WHT management is an optional exception layer. See `memory/tax_classification_decisions.md` for full legal analysis.
