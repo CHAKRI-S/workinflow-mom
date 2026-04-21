@@ -3,6 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { createAuditLog, canEditDocument, canCancelDocument } from "@/lib/audit";
+import { Prisma } from "@/generated/prisma/client";
+import { suggestBillingNature } from "@/lib/validators/billing-nature";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -177,18 +179,77 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       );
     }
 
-    const updateData: Record<string, unknown> = {};
+    const customer = await prisma.customer.findFirst({
+      where: { id: existing.customerId, tenantId },
+      select: { withholdsTax: true },
+    });
+
+    const updateData: Prisma.InvoiceUpdateInput = {};
     if (body.dueDate) updateData.dueDate = new Date(body.dueDate);
     if (body.notes !== undefined) updateData.notes = body.notes || null;
 
-    const updated = await prisma.invoice.update({
-      where: { id },
-      data: updateData,
-      include: {
-        customer: { select: { id: true, code: true, name: true } },
-        salesOrder: { select: { id: true, orderNumber: true } },
-        lines: { orderBy: { sortOrder: "asc" } },
-      },
+    // Billing nature edit — allowed on DRAFT, recalc WHT accordingly
+    if (body.billingNature) {
+      updateData.billingNature = body.billingNature;
+      const isService = body.billingNature === "MANUFACTURING_SERVICE";
+      const shouldWht = isService && (customer?.withholdsTax ?? false);
+      updateData.whtRate = shouldWht ? 3 : 0;
+      updateData.whtCertStatus = shouldWht ? "PENDING" : "NOT_APPLICABLE";
+    }
+
+    // Line-level drawing source / branding update (applies to existing DRAFT lines by id)
+    const lineUpdates: Array<{
+      id: string;
+      drawingSource?: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT";
+      lineBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED" | null;
+      productCode?: string | null;
+      drawingRevision?: string | null;
+      customerDrawingUrl?: string | null;
+      customerBranding?: Record<string, unknown> | null;
+    }> = Array.isArray(body.lines) ? body.lines : [];
+
+    const updated = await prisma.$transaction(async (tx) => {
+      if (lineUpdates.length) {
+        for (const lu of lineUpdates) {
+          if (!lu.id) continue;
+          await tx.invoiceLine.updateMany({
+            where: { id: lu.id, invoiceId: id },
+            data: {
+              drawingSource: lu.drawingSource,
+              lineBillingNature: lu.lineBillingNature,
+              productCode: lu.productCode,
+              drawingRevision: lu.drawingRevision,
+              customerDrawingUrl: lu.customerDrawingUrl,
+              customerBranding:
+                (lu.customerBranding ?? undefined) as Prisma.InputJsonValue | undefined,
+            },
+          });
+        }
+      }
+
+      // If lines changed and billingNature was NOT explicitly set, auto-suggest from new sources
+      if (lineUpdates.length && !body.billingNature) {
+        const refreshedLines = await tx.invoiceLine.findMany({
+          where: { invoiceId: id },
+          select: { drawingSource: true },
+        });
+        const suggested = suggestBillingNature(refreshedLines);
+        const isService = suggested === "MANUFACTURING_SERVICE";
+        const shouldWht = isService && (customer?.withholdsTax ?? false);
+        updateData.billingNature = suggested;
+        updateData.whtRate = shouldWht ? 3 : 0;
+        updateData.whtCertStatus = shouldWht ? "PENDING" : "NOT_APPLICABLE";
+      }
+
+      return tx.invoice.update({
+        where: { id },
+        data: updateData,
+        include: {
+          customer: { select: { id: true, code: true, name: true } },
+          salesOrder: { select: { id: true, orderNumber: true } },
+          lines: { orderBy: { sortOrder: "asc" } },
+        },
+      });
     });
 
     await createAuditLog({
@@ -197,7 +258,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       entityId: id,
       entityNumber: existing.invoiceNumber,
       changes: Object.fromEntries(
-        Object.entries(updateData).map(([k, v]) => [k, { from: (existing as Record<string, unknown>)[k], to: v }])
+        Object.entries(updateData as Record<string, unknown>).map(([k, v]) => [
+          k,
+          { from: (existing as Record<string, unknown>)[k], to: v },
+        ])
       ),
       userId: session!.user.id,
       userName: session!.user.name || "",

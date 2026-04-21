@@ -84,6 +84,12 @@ export async function POST(req: NextRequest) {
         lineTotal,
         notes: line.notes || null,
         sortOrder: line.sortOrder ?? idx,
+        drawingSource: line.drawingSource ?? "TENANT_OWNED",
+        lineBillingNature: line.lineBillingNature ?? null,
+        productCode: line.productCode ?? null,
+        drawingRevision: line.drawingRevision ?? null,
+        customerDrawingUrl: line.customerDrawingUrl ?? null,
+        customerBranding: line.customerBranding ?? undefined,
       };
     });
 
@@ -125,6 +131,7 @@ export async function POST(req: NextRequest) {
           vatAmount,
           totalAmount,
           paymentTerms: data.paymentTerms || null,
+          billingNature: data.billingNature ?? "GOODS",
           notes: data.notes || null,
           internalNotes: data.internalNotes || null,
           createdById: session!.user.id,

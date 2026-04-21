@@ -5,6 +5,7 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, invoicePrefix } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
+import { suggestBillingNature } from "@/lib/validators/billing-nature";
 
 // GET /api/finance/invoices — list all invoices for tenant
 export async function GET(req: NextRequest) {
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
       dueDate,
       lines,
       notes,
+      billingNature: headerBillingNature,
     } = body;
 
     if (!salesOrderId || !invoiceType || !dueDate || !lines?.length) {
@@ -69,7 +71,7 @@ export async function POST(req: NextRequest) {
 
     const tenantId = session!.user.tenantId;
 
-    // Fetch sales order with customer
+    // Fetch sales order with customer + lines (to inherit drawingSource defaults)
     const salesOrder = await prisma.salesOrder.findFirst({
       where: { id: salesOrderId, tenantId },
       include: {
@@ -81,6 +83,19 @@ export async function POST(req: NextRequest) {
             taxId: true,
             billingAddress: true,
             shippingAddress: true,
+            defaultBillingNature: true,
+            withholdsTax: true,
+          },
+        },
+        lines: {
+          select: {
+            id: true,
+            drawingSource: true,
+            lineBillingNature: true,
+            productCode: true,
+            drawingRevision: true,
+            customerDrawingUrl: true,
+            customerBranding: true,
           },
         },
       },
@@ -96,7 +111,10 @@ export async function POST(req: NextRequest) {
     const customer = salesOrder.customer;
     const vatRate = customer.isVatRegistered ? 7 : 0;
 
-    // Calculate line totals
+    // Map SO lines by id for inheritance lookup
+    const soLineById = new Map(salesOrder.lines.map((l) => [l.id, l]));
+
+    // Calculate line totals + inherit drawing/branding from SO line (body overrides inheritance)
     const linesWithTotals = lines.map(
       (
         line: {
@@ -106,12 +124,22 @@ export async function POST(req: NextRequest) {
           unitPrice: number;
           notes?: string;
           sortOrder?: number;
+          drawingSource?: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT";
+          lineBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED" | null;
+          productCode?: string | null;
+          drawingRevision?: string | null;
+          customerDrawingUrl?: string | null;
+          customerBranding?: Record<string, unknown> | null;
         },
         idx: number
       ) => {
         const qty = Number(line.quantity);
         const price = Number(line.unitPrice);
         const lineTotal = Math.round(qty * price * 100) / 100;
+
+        const soLine = line.salesOrderLineId
+          ? soLineById.get(line.salesOrderLineId)
+          : undefined;
 
         return {
           salesOrderLineId: line.salesOrderLineId || null,
@@ -121,9 +149,37 @@ export async function POST(req: NextRequest) {
           lineTotal,
           notes: line.notes || null,
           sortOrder: line.sortOrder ?? idx,
+          drawingSource: line.drawingSource ?? soLine?.drawingSource ?? "TENANT_OWNED",
+          lineBillingNature: line.lineBillingNature ?? soLine?.lineBillingNature ?? null,
+          productCode: line.productCode ?? soLine?.productCode ?? null,
+          drawingRevision: line.drawingRevision ?? soLine?.drawingRevision ?? null,
+          customerDrawingUrl:
+            line.customerDrawingUrl ?? soLine?.customerDrawingUrl ?? null,
+          customerBranding:
+            (line.customerBranding ??
+              (soLine?.customerBranding as Record<string, unknown> | null | undefined) ??
+              undefined) as Prisma.InputJsonValue | undefined,
         };
       }
     );
+
+    // Resolve billingNature: body override > SO snapshot > customer default > auto-suggest > GOODS
+    const suggested = suggestBillingNature(
+      linesWithTotals.map((l: { drawingSource: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT" }) => ({
+        drawingSource: l.drawingSource,
+      }))
+    );
+    const billingNature =
+      headerBillingNature ??
+      salesOrder.billingNature ??
+      customer.defaultBillingNature ??
+      suggested ??
+      "GOODS";
+
+    // Auto-set WHT defaults for service
+    const isService = billingNature === "MANUFACTURING_SERVICE";
+    const whtRate = isService && customer.withholdsTax ? 3 : 0;
+    const whtCertStatus = whtRate > 0 ? "PENDING" : "NOT_APPLICABLE";
 
     // Calculate totals
     const subtotal = linesWithTotals.reduce(
@@ -154,6 +210,9 @@ export async function POST(req: NextRequest) {
           vatAmount,
           totalAmount,
           paidAmount: 0,
+          billingNature,
+          whtRate,
+          whtCertStatus,
           notes: notes || null,
           snapshotCustomerName: customer.name,
           snapshotCustomerAddress: customer.billingAddress || customer.shippingAddress || null,

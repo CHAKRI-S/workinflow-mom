@@ -129,6 +129,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             lineTotal,
             notes: line.notes || null,
             sortOrder: line.sortOrder ?? idx,
+            drawingSource: line.drawingSource ?? "TENANT_OWNED",
+            lineBillingNature: line.lineBillingNature ?? null,
+            productCode: line.productCode ?? null,
+            drawingRevision: line.drawingRevision ?? null,
+            customerDrawingUrl: line.customerDrawingUrl ?? null,
+            customerBranding: (line.customerBranding ?? undefined) as Prisma.InputJsonValue | undefined,
           };
         });
 
@@ -169,6 +175,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             vatAmount,
             totalAmount,
             paymentTerms: data.paymentTerms ?? existing.paymentTerms,
+            billingNature: data.billingNature ?? existing.billingNature,
             notes: data.notes ?? existing.notes,
             internalNotes: data.internalNotes ?? existing.internalNotes,
           },
@@ -201,6 +208,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         const dp = Number(data.depositPercent);
         updateData.depositPercent = dp;
         updateData.depositAmount = Math.round((Number(existing.totalAmount) * dp) / 100);
+      }
+
+      if (data.billingNature !== undefined) {
+        updateData.billingNature = data.billingNature;
       }
 
       updateData.vatRate = vatRate;

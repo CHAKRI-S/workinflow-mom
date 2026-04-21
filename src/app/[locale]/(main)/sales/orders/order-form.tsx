@@ -37,6 +37,13 @@ import {
   Trash2,
 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
+import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
+import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
+import { suggestBillingNature } from "@/lib/validators/billing-nature";
+import type {
+  BillingNature,
+  DrawingSource,
+} from "@/lib/validators/billing-nature";
 
 interface Customer {
   id: string;
@@ -45,6 +52,7 @@ interface Customer {
   isVatRegistered: boolean;
   shippingAddress?: string | null;
   paymentTermDays?: number;
+  defaultBillingNature?: BillingNature;
 }
 
 interface Product {
@@ -82,6 +90,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
       customerId: "",
       depositPercent: 0,
       requestedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      billingNature: "GOODS",
       lines: [
         {
           productId: "",
@@ -89,6 +98,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
           unitPrice: 0,
           discountPercent: 0,
           sortOrder: 0,
+          drawingSource: "TENANT_OWNED",
         },
       ],
       ...defaultValues,
@@ -103,6 +113,13 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
   const watchLines = watch("lines");
   const watchCustomerId = watch("customerId");
   const watchDepositPercent = watch("depositPercent");
+  const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
+
+  const suggestedBillingNature = suggestBillingNature(
+    (watchLines ?? []).map((l) => ({
+      drawingSource: (l.drawingSource as DrawingSource) ?? "TENANT_OWNED",
+    }))
+  );
 
   // Fetch customers and products
   useEffect(() => {
@@ -147,10 +164,15 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
       maximumFractionDigits: 2,
     });
 
-  // Auto-fill shipping address when customer changes
+  // Auto-fill shipping address + billing nature default when customer changes
   useEffect(() => {
-    if (selectedCustomer?.shippingAddress && !isEdit) {
-      setValue("shippingAddress", selectedCustomer.shippingAddress);
+    if (!isEdit) {
+      if (selectedCustomer?.shippingAddress) {
+        setValue("shippingAddress", selectedCustomer.shippingAddress);
+      }
+      if (selectedCustomer?.defaultBillingNature) {
+        setValue("billingNature", selectedCustomer.defaultBillingNature);
+      }
     }
   }, [selectedCustomer, setValue, isEdit]);
 
@@ -301,6 +323,13 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
           </div>
         </Card>
 
+        {/* Billing Nature */}
+        <BillingNaturePicker
+          value={watchBillingNature}
+          suggestion={suggestedBillingNature}
+          onChange={(v) => setValue("billingNature", v)}
+        />
+
         {/* Line Items */}
         <Card className="p-4 space-y-4">
           <div className="flex items-center justify-between">
@@ -316,6 +345,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                   unitPrice: 0,
                   discountPercent: 0,
                   sortOrder: fields.length,
+                  drawingSource: "TENANT_OWNED",
                 })
               }
             >
@@ -505,6 +535,51 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                     </div>
                   </div>
                 ))}
+              </div>
+            </details>
+          )}
+
+          {/* Drawing source per line (collapsible) */}
+          {fields.length > 0 && (
+            <details className="mt-3">
+              <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+                แบบงาน / Drawing source (ใช้ auto-classify billing nature)
+              </summary>
+              <div className="mt-3 space-y-3">
+                {fields.map((field, index) => {
+                  const line = watchLines?.[index];
+                  return (
+                    <div
+                      key={field.id}
+                      className="border rounded-lg p-3 space-y-2"
+                    >
+                      <p className="text-xs text-muted-foreground">
+                        #{index + 1}
+                      </p>
+                      <DrawingSourceRow
+                        value={
+                          (line?.drawingSource as DrawingSource) ??
+                          "TENANT_OWNED"
+                        }
+                        onChange={(v) =>
+                          setValue(`lines.${index}.drawingSource`, v)
+                        }
+                        productCode={line?.productCode}
+                        drawingRevision={line?.drawingRevision}
+                        customerDrawingUrl={line?.customerDrawingUrl}
+                        onProductCodeChange={(v) =>
+                          setValue(`lines.${index}.productCode`, v)
+                        }
+                        onDrawingRevisionChange={(v) =>
+                          setValue(`lines.${index}.drawingRevision`, v)
+                        }
+                        onCustomerDrawingUrlChange={(v) =>
+                          setValue(`lines.${index}.customerDrawingUrl`, v)
+                        }
+                      />
+                    </div>
+                  );
+                })}
               </div>
             </details>
           )}

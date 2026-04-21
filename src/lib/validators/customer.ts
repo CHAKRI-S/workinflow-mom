@@ -1,4 +1,7 @@
 import { z } from "zod";
+import { billingNatureEnum } from "./billing-nature";
+
+export { billingNatureEnum };
 
 export const juristicTypeEnum = z.enum([
   "COMPANY_LTD",
@@ -9,13 +12,6 @@ export const juristicTypeEnum = z.enum([
   "JOINT_VENTURE",
   "OTHER_JURISTIC",
   "INDIVIDUAL",
-]);
-
-/// Billing nature — ต้อง sync กับ Prisma enum BillingNature
-export const billingNatureEnum = z.enum([
-  "GOODS", // ขายสินค้า (default)
-  "MANUFACTURING_SERVICE", // รับจ้างทำของ (WHT 3%)
-  "MIXED", // ผสม — ระบุ nature ต่อ line
 ]);
 
 export const customerCreateSchema = z.object({

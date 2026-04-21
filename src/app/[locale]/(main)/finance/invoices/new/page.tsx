@@ -36,12 +36,15 @@ export default async function NewInvoicePage({
       vatAmount: true,
       discountAmount: true,
       depositAmount: true,
+      billingNature: true,
       customer: {
         select: {
           id: true,
           code: true,
           name: true,
           isVatRegistered: true,
+          withholdsTax: true,
+          defaultBillingNature: true,
         },
       },
       lines: {
@@ -54,6 +57,12 @@ export default async function NewInvoicePage({
           lineTotal: true,
           notes: true,
           sortOrder: true,
+          drawingSource: true,
+          lineBillingNature: true,
+          productCode: true,
+          drawingRevision: true,
+          customerDrawingUrl: true,
+          customerBranding: true,
           product: {
             select: { id: true, name: true },
           },
