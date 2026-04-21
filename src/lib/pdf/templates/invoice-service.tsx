@@ -5,6 +5,7 @@ import { PartyRow } from "../components/PartyBlock";
 import { LineItemsTable } from "../components/LineItemsTable";
 import { TotalsBox } from "../components/TotalsBox";
 import { PageFooter, SignatureRow } from "../components/Footer";
+import { CancelledWatermark } from "../components/CancelledWatermark";
 import { registerPdfFonts } from "../fonts";
 import type { InvoicePdfData } from "../types";
 
@@ -27,6 +28,7 @@ export function InvoiceServicePdf({ data }: { data: InvoicePdfData }) {
       subject="ใบแจ้งหนี้ค่าบริการ / รับจ้างทำของ"
     >
       <Page size="A4" style={pdfStyles.page}>
+        <CancelledWatermark show={data.status === "CANCELLED"} />
         <PdfHeader
           tenant={data.tenant}
           doc={{

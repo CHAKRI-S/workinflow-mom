@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search } from "lucide-react";
+import { Search, FileDown } from "lucide-react";
 import { useState, useMemo } from "react";
 
 interface TaxInvoiceRow {
@@ -143,6 +143,23 @@ export function TaxInvoiceListClient({
         </SortableHeader>
       ),
       cell: ({ row }) => formatDate(row.getValue("issueDate")),
+    },
+    {
+      id: "pdf",
+      header: "",
+      cell: ({ row }) => (
+        <a
+          href={`/api/finance/tax-invoices/${row.original.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="ดาวน์โหลด PDF"
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+        >
+          <FileDown className="h-3.5 w-3.5" />
+          PDF
+        </a>
+      ),
     },
   ];
 

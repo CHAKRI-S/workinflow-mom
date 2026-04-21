@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Search, Plus } from "lucide-react";
+import { Search, Plus, FileDown } from "lucide-react";
 import { useState, useMemo } from "react";
 
 interface InvoiceRow {
@@ -192,6 +192,23 @@ export function InvoiceListClient({
         <span className="font-mono text-sm">
           {formatCurrency(row.getValue("paidAmount"))}
         </span>
+      ),
+    },
+    {
+      id: "pdf",
+      header: "",
+      cell: ({ row }) => (
+        <a
+          href={`/api/finance/invoices/${row.original.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="ดาวน์โหลด PDF"
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+        >
+          <FileDown className="h-3.5 w-3.5" />
+          PDF
+        </a>
       ),
     },
   ];

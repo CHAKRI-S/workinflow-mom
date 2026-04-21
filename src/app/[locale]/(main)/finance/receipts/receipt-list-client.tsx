@@ -4,7 +4,7 @@ import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
 import { Link } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Plus, FileDown } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, SortableHeader } from "@/components/data-table/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -146,6 +146,23 @@ export function ReceiptListClient({
         </SortableHeader>
       ),
       cell: ({ row }) => formatDate(row.getValue("issueDate")),
+    },
+    {
+      id: "pdf",
+      header: "",
+      cell: ({ row }) => (
+        <a
+          href={`/api/finance/receipts/${row.original.id}/pdf`}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          aria-label="ดาวน์โหลด PDF"
+          className="inline-flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800 font-medium"
+        >
+          <FileDown className="h-3.5 w-3.5" />
+          PDF
+        </a>
+      ),
     },
   ];
 

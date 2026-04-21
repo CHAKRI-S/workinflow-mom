@@ -6,6 +6,8 @@ export interface InvoicePdfData {
   tenant: HeaderTenant;
   buyer: Party;
   seller: Party;
+  /** Document status — when "CANCELLED", renders a red diagonal watermark */
+  status?: string | null;
   doc: {
     number: string;
     issueDate: Date | string;
@@ -35,6 +37,8 @@ export interface ReceiptPdfData {
   tenant: HeaderTenant;
   payer: Party; // ผู้จ่ายเงิน
   seller: Party;
+  /** Document status — when "CANCELLED", renders a red diagonal watermark */
+  status?: string | null;
   doc: {
     number: string;
     issueDate: Date | string;
@@ -60,6 +64,8 @@ export interface TaxInvoicePdfData {
   tenant: HeaderTenant;
   buyer: Party;
   seller: Party;
+  /** Document status — when "CANCELLED", renders a red diagonal watermark */
+  status?: string | null;
   doc: {
     number: string;
     issueDate: Date | string;

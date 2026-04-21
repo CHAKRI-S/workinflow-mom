@@ -5,6 +5,7 @@ import { PartyRow } from "../components/PartyBlock";
 import { LineItemsTable } from "../components/LineItemsTable";
 import { TotalsBox } from "../components/TotalsBox";
 import { PageFooter, SignatureRow } from "../components/Footer";
+import { CancelledWatermark } from "../components/CancelledWatermark";
 import { registerPdfFonts } from "../fonts";
 import type { TaxInvoicePdfData } from "../types";
 
@@ -32,6 +33,7 @@ export function TaxInvoicePdf({ data }: { data: TaxInvoicePdfData }) {
       subject="ใบกำกับภาษี"
     >
       <Page size="A4" style={pdfStyles.page}>
+        <CancelledWatermark show={data.status === "CANCELLED"} />
         <PdfHeader
           tenant={data.tenant}
           doc={{

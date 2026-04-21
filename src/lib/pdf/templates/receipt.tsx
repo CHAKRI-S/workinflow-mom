@@ -4,6 +4,7 @@ import { PdfHeader } from "../components/Header";
 import { PartyRow } from "../components/PartyBlock";
 import { TotalsBox } from "../components/TotalsBox";
 import { PageFooter, SignatureRow } from "../components/Footer";
+import { CancelledWatermark } from "../components/CancelledWatermark";
 import { registerPdfFonts } from "../fonts";
 import type { ReceiptPdfData } from "../types";
 
@@ -29,6 +30,7 @@ export function ReceiptPdf({ data }: { data: ReceiptPdfData }) {
       subject="ใบเสร็จรับเงิน"
     >
       <Page size="A4" style={pdfStyles.page}>
+        <CancelledWatermark show={data.status === "CANCELLED"} />
         <PdfHeader
           tenant={data.tenant}
           doc={{

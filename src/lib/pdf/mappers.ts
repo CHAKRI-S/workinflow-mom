@@ -38,6 +38,7 @@ export interface TenantLike {
 
 export interface InvoiceWithLines {
   invoiceNumber: string;
+  status?: string | null;
   issueDate: Date;
   dueDate: Date;
   billingNature: string;
@@ -116,6 +117,7 @@ export function mapInvoiceToPdfData(
 
   return {
     tenant,
+    status: invoice.status ?? null,
     seller: {
       name: tenant.name,
       address: tenant.address,
@@ -163,6 +165,7 @@ export function mapInvoiceToPdfData(
 
 export interface ReceiptForPdf {
   receiptNumber: string;
+  status?: string | null;
   issueDate: Date;
   billingNature: string;
   grossAmount: Dec;
@@ -192,6 +195,7 @@ export function mapReceiptToPdfData(
   const gross = n(r.grossAmount) || n(r.amount); // fallback ถ้าไม่มี WHT
   return {
     tenant,
+    status: r.status ?? null,
     seller: {
       name: tenant.name,
       address: tenant.address,
@@ -230,6 +234,7 @@ export function mapReceiptToPdfData(
 
 export interface TaxInvoiceForPdf {
   taxInvoiceNumber: string;
+  status?: string | null;
   issueDate: Date;
   billingNature: string;
   buyerName: string;
@@ -268,6 +273,7 @@ export function mapTaxInvoiceToPdfData(
   );
   return {
     tenant,
+    status: ti.status ?? null,
     seller: {
       name: ti.sellerName,
       address: ti.sellerAddress,
