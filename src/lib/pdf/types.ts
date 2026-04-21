@@ -60,6 +60,30 @@ export interface ReceiptPdfData {
   createdBy?: string | null;
 }
 
+export interface SubscriptionInvoicePdfData {
+  /** Document status — when "CANCELLED", renders a red diagonal watermark */
+  status?: string | null;
+  doc: {
+    number: string;
+    issueDate: Date | string;
+    paidAt?: Date | string | null;
+  };
+  /** Tenant info (the buyer of the SaaS service) */
+  buyer: Party;
+  lineItem: {
+    planName: string;
+    billingCycle: "MONTHLY" | "YEARLY";
+    periodStart: Date | string;
+    periodEnd: Date | string;
+  };
+  totals: {
+    subtotalSatang: number;
+    discountSatang: number;
+    vatSatang: number;
+    totalSatang: number;
+  };
+}
+
 export interface TaxInvoicePdfData {
   tenant: HeaderTenant;
   buyer: Party;

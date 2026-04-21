@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import type { BillingCycle } from "@/generated/prisma/client";
+import { createSubscriptionInvoice } from "@/lib/subscription-invoice";
 
 export const VAT_RATE = 0.07; // 7% Thai VAT
 
@@ -65,6 +66,17 @@ export async function activateSubscription(params: {
       planId: sub.planId,
     },
   });
+
+  // Auto-generate SubscriptionInvoice (ใบกำกับภาษี/ใบเสร็จ ค่าบริการ SaaS).
+  // Swallow errors — invoice generation failing should NOT fail activation.
+  try {
+    await createSubscriptionInvoice(sub.id);
+  } catch (err) {
+    console.error(
+      `[activateSubscription] Failed to create SubscriptionInvoice for sub ${sub.id}:`,
+      err
+    );
+  }
 
   return sub;
 }

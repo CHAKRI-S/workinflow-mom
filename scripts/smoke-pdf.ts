@@ -11,9 +11,11 @@ import { InvoiceServicePdf } from "../src/lib/pdf/templates/invoice-service";
 import { InvoiceMixedPdf } from "../src/lib/pdf/templates/invoice-mixed";
 import { ReceiptPdf } from "../src/lib/pdf/templates/receipt";
 import { TaxInvoicePdf } from "../src/lib/pdf/templates/tax-invoice";
+import { SubscriptionInvoicePdf } from "../src/lib/pdf/templates/subscription-invoice";
 import type {
   InvoicePdfData,
   ReceiptPdfData,
+  SubscriptionInvoicePdfData,
   TaxInvoicePdfData,
 } from "../src/lib/pdf/types";
 import type { HeaderTenant } from "../src/lib/pdf/components/Header";
@@ -98,6 +100,32 @@ const mockReceiptData: ReceiptPdfData = {
   status: "ISSUED",
 };
 
+const mockSubscriptionInvoiceData: SubscriptionInvoicePdfData = {
+  doc: {
+    number: "INV-202604-0001",
+    issueDate: new Date("2026-04-21"),
+    paidAt: new Date("2026-04-21"),
+  },
+  buyer: {
+    name: "Acme Factory Co., Ltd.",
+    taxId: "0105556789012",
+    address: "456 Buyer St, Bangkok 10200",
+  },
+  lineItem: {
+    planName: "Professional",
+    billingCycle: "MONTHLY",
+    periodStart: new Date("2026-04-21"),
+    periodEnd: new Date("2026-05-21"),
+  },
+  totals: {
+    subtotalSatang: 200_000, // 2,000 THB
+    discountSatang: 0,
+    vatSatang: 14_000, // 140 THB
+    totalSatang: 214_000, // 2,140 THB
+  },
+  status: null,
+};
+
 const mockTaxInvoiceData: TaxInvoicePdfData = {
   tenant: mockTenant,
   seller: mockParty,
@@ -156,6 +184,12 @@ async function main() {
   await smoke(
     "tax-invoice (CANCELLED)",
     createElement(TaxInvoicePdf, { data: mockTaxInvoiceData })
+  );
+  await smoke(
+    "subscription-invoice",
+    createElement(SubscriptionInvoicePdf, {
+      data: mockSubscriptionInvoiceData,
+    })
   );
   console.log("All templates rendered OK");
 }

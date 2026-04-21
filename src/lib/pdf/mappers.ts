@@ -1,6 +1,7 @@
 import type {
   InvoicePdfData,
   ReceiptPdfData,
+  SubscriptionInvoicePdfData,
   TaxInvoicePdfData,
 } from "./types";
 
@@ -261,6 +262,60 @@ export interface TaxInvoiceForPdf {
       unitPrice: Dec;
       lineTotal: Dec;
     }>;
+  };
+}
+
+// ---------- Subscription Invoice mapper ----------
+
+export interface SubscriptionInvoiceForPdf {
+  invoiceNumber: string;
+  issueDate: Date;
+  paidAt: Date | null;
+  tenantName: string;
+  tenantTaxId: string | null;
+  tenantAddress: string | null;
+  planName: string;
+  subtotalSatang: number;
+  discountSatang: number;
+  vatSatang: number;
+  totalSatang: number;
+}
+
+export interface SubscriptionForPdf {
+  billingCycle: "MONTHLY" | "YEARLY";
+  periodStart: Date;
+  periodEnd: Date;
+}
+
+export function mapSubscriptionInvoiceForPdf(
+  invoice: SubscriptionInvoiceForPdf,
+  subscription: SubscriptionForPdf,
+  plan: { name: string }
+): SubscriptionInvoicePdfData {
+  return {
+    status: null,
+    doc: {
+      number: invoice.invoiceNumber,
+      issueDate: invoice.issueDate,
+      paidAt: invoice.paidAt,
+    },
+    buyer: {
+      name: invoice.tenantName,
+      taxId: invoice.tenantTaxId,
+      address: invoice.tenantAddress,
+    },
+    lineItem: {
+      planName: invoice.planName || plan.name,
+      billingCycle: subscription.billingCycle,
+      periodStart: subscription.periodStart,
+      periodEnd: subscription.periodEnd,
+    },
+    totals: {
+      subtotalSatang: invoice.subtotalSatang,
+      discountSatang: invoice.discountSatang,
+      vatSatang: invoice.vatSatang,
+      totalSatang: invoice.totalSatang,
+    },
   };
 }
 

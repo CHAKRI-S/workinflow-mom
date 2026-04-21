@@ -5,7 +5,7 @@ import { hasPermission, ROLES } from "@/lib/permissions";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { prisma } from "@/lib/prisma";
 import Link from "next/link";
-import { CreditCard, TrendingUp, AlertCircle, CheckCircle2, Clock } from "lucide-react";
+import { CreditCard, TrendingUp, AlertCircle, CheckCircle2, Clock, FileText } from "lucide-react";
 
 export default async function BillingPage({
   params,
@@ -21,7 +21,7 @@ export default async function BillingPage({
 
   const tenantId = session.user.tenantId;
 
-  const [tenant, counts, subs] = await Promise.all([
+  const [tenant, counts, subs, subscriptionInvoices] = await Promise.all([
     prisma.tenant.findUnique({
       where: { id: tenantId },
       include: { plan: true },
@@ -37,6 +37,11 @@ export default async function BillingPage({
       orderBy: { createdAt: "desc" },
       take: 20,
       include: { plan: { select: { name: true } } },
+    }),
+    prisma.subscriptionInvoice.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+      take: 20,
     }),
   ]);
 
@@ -197,6 +202,52 @@ export default async function BillingPage({
                   ) : (
                     <AlertCircle className="h-4 w-4 text-muted-foreground" />
                   )}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Tax invoices (ใบกำกับภาษี / ใบเสร็จ ค่าบริการ SaaS) */}
+      <div className="rounded-xl border bg-card p-6 mt-6">
+        <div className="mb-4">
+          <div className="font-semibold">ใบกำกับภาษี / ใบเสร็จรับเงิน</div>
+          <div className="text-xs text-muted-foreground">
+            เอกสารสำหรับค่าบริการ WorkinFlow SaaS
+          </div>
+        </div>
+
+        {subscriptionInvoices.length === 0 ? (
+          <div className="text-center py-8 text-sm text-muted-foreground">
+            <FileText className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            ยังไม่มีใบกำกับภาษี
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {subscriptionInvoices.map((inv) => (
+              <div
+                key={inv.id}
+                className="flex items-center justify-between rounded-lg border p-3 text-sm"
+              >
+                <div>
+                  <div className="font-medium">{inv.invoiceNumber}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {inv.planName} ·{" "}
+                    {new Date(inv.issueDate).toLocaleDateString("th-TH")}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span>{fmt(inv.totalSatang)}</span>
+                  <a
+                    href={`/api/billing/invoices/${inv.id}/pdf`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex h-8 items-center gap-1 rounded-md border border-border bg-background px-3 text-xs font-medium hover:bg-muted"
+                  >
+                    <FileText className="h-3.5 w-3.5" />
+                    ดาวน์โหลด PDF
+                  </a>
                 </div>
               </div>
             ))}
