@@ -1020,8 +1020,10 @@ model Receipt {
   grossAmount   Decimal?      @db.Decimal(14, 2) // ยอดก่อนหัก ณ ที่จ่าย
   whtRate       Decimal       @default(0) @db.Decimal(5, 2)
   whtAmount     Decimal       @default(0) @db.Decimal(14, 2)
-  whtCertNumber String? // เลข 50 ทวิ (ถ้ารับมาตอนออก receipt)
-  whtCertStatus WhtCertStatus @default(NOT_APPLICABLE)
+  whtCertNumber     String? // เลข 50 ทวิ (ถ้ารับมาตอนออก receipt)
+  whtCertReceivedAt DateTime? // วันรับ cert
+  whtCertFileUrl    String? // ไฟล์ scan cert (R2 object key)
+  whtCertStatus     WhtCertStatus @default(NOT_APPLICABLE)
   // รายละเอียดผู้จ่าย (snapshot)
   payerName     String
   payerTaxId    String?
