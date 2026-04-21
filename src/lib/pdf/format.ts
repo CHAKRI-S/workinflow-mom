@@ -27,49 +27,69 @@ export function formatDateTh(
 }
 
 /**
- * Convert a number to Thai baht text.
+ * Convert a number to Thai baht text per สรรพากร rules.
  * e.g. 1250.50 → "หนึ่งพันสองร้อยห้าสิบบาทห้าสิบสตางค์"
+ *      21     → "ยี่สิบเอ็ดบาทถ้วน"  (เอ็ด rule)
  */
 const THAI_NUMBERS = ["", "หนึ่ง", "สอง", "สาม", "สี่", "ห้า", "หก", "เจ็ด", "แปด", "เก้า"];
-const THAI_UNITS = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน", "ล้าน"];
+const THAI_UNITS_IN_BLOCK = ["", "สิบ", "ร้อย", "พัน", "หมื่น", "แสน"];
+
+/**
+ * Read a number 1..999,999 (one "ล้าน" block).
+ * @param n value in range [1, 999999]
+ * @param isLowBlock true when this is the low (units) block of a bigger number;
+ *   makes a standalone "1" read as "เอ็ด" (e.g., 1,000,001 → "หนึ่งล้านเอ็ด")
+ */
+function readThaiBlock(n: number, isLowBlock: boolean): string {
+  if (n === 0) return "";
+  const digits = String(n).split("").map(Number);
+  const len = digits.length;
+  let result = "";
+  for (let i = 0; i < len; i++) {
+    const digit = digits[i];
+    const place = len - i - 1; // 0=units, 1=tens, ..., 5=hundred-thousand
+    if (digit === 0) continue;
+
+    // Units place (ones)
+    if (place === 0) {
+      if (digit === 1 && (i > 0 || isLowBlock)) {
+        // เอ็ด: digit=1 in units with another non-zero digit in the block,
+        // OR this block is the remainder of a bigger number (e.g. 1,000,001)
+        result += "เอ็ด";
+      } else {
+        result += THAI_NUMBERS[digit];
+      }
+      continue;
+    }
+
+    // Tens place
+    if (place === 1) {
+      if (digit === 1) {
+        // สิบ alone (no "หนึ่ง" prefix)
+      } else if (digit === 2) {
+        result += "ยี่";
+      } else {
+        result += THAI_NUMBERS[digit];
+      }
+      result += "สิบ";
+      continue;
+    }
+
+    // Other places (hundreds, thousands, ten-thousands, hundred-thousands)
+    result += THAI_NUMBERS[digit] + THAI_UNITS_IN_BLOCK[place];
+  }
+  return result;
+}
 
 function readThaiNumber(n: number): string {
   if (n === 0) return "ศูนย์";
-  let result = "";
-  const str = String(Math.floor(n));
-  const len = str.length;
-  for (let i = 0; i < len; i++) {
-    const digit = Number(str[i]);
-    const place = len - i - 1;
-    if (digit === 0) continue;
-    const unitIdx = place % 6;
-    // special cases
-    if (unitIdx === 0 && digit === 1 && place !== 0 && len > 1) {
-      // หนึ่ง → เอ็ด (units place, not start)
-      result += "เอ็ด";
-    } else if (unitIdx === 1 && digit === 2) {
-      result += "ยี่";
-    } else if (unitIdx === 1 && digit === 1) {
-      // ไม่ต้องอ่าน "หนึ่ง" หน้า "สิบ"
-      // result += "";
-    } else {
-      result += THAI_NUMBERS[digit];
-    }
-    result += THAI_UNITS[unitIdx];
-    // ล้าน for >= 1,000,000
-    if (place === 6 && digit !== 0) {
-      // already added "ล้าน" via unitIdx=0 loop? — we need different logic
-    }
-  }
-  // handle ล้าน (millions) — simpler: split by 6 digits
-  if (n >= 1_000_000) {
-    const millions = Math.floor(n / 1_000_000);
-    const remainder = Math.floor(n) % 1_000_000;
-    let out = readThaiNumber(millions) + "ล้าน";
-    if (remainder > 0) out += readThaiNumber(remainder);
-    return out;
-  }
-  return result;
+  if (n < 1_000_000) return readThaiBlock(n, false);
+  // Split by 10^6. Recurses to handle ล้านล้าน (>= 10^12).
+  const low = n % 1_000_000;
+  const high = Math.floor(n / 1_000_000);
+  const highStr = readThaiNumber(high) + "ล้าน";
+  const lowStr = low > 0 ? readThaiBlock(low, true) : "";
+  return highStr + lowStr;
 }
 
 export function bahtText(amount: number | string): string {
