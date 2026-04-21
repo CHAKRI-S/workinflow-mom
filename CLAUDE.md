@@ -220,8 +220,8 @@ MOM is being converted to a multi-tenant SaaS with 3-domain split:
 | 7 | Password reset + email + audit UI | ✅ Done |
 | **8A** | Billing Nature + WHT schema + Customer tax policy UI | ✅ **Done 2026-04-20** |
 | **8B** | Quotation/SO/Invoice: drawing source + billing nature chain + auto-suggest | ✅ **Done 2026-04-20** |
-| 8C | WHT workflow on Receipt + cert tracking dashboard | ⏳ Pending |
-| 8D | 3 PDF template variants (goods/service/mixed) | ⏳ Pending |
+| **8C** | WHT workflow on Receipt + cert tracking dashboard + R2 storage | ✅ **Done 2026-04-21** |
+| **8D** | 3 PDF template variants (goods/service/mixed) + Receipt + Tax Invoice | ✅ **Done 2026-04-21** |
 | 8E | Reports (Revenue by Nature, WHT Ledger, Drawing Source Mix) | ⏳ Pending |
 
 ### Key Domain Decision (Phase 8)

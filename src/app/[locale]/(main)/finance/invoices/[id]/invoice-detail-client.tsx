@@ -33,6 +33,7 @@ import {
   Receipt,
   CreditCard,
   Save,
+  Download,
 } from "lucide-react";
 import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
@@ -310,6 +311,16 @@ export function InvoiceDetailClient({
         </div>
 
         <div className="flex items-center gap-2">
+          <a
+            href={`/api/finance/invoices/${invoice.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-1" />
+              ดาวน์โหลด PDF
+            </Button>
+          </a>
           {(invoice.status === "ISSUED" ||
             invoice.status === "PARTIALLY_PAID") && (
             <Link href={`/finance/receipts/new?invoiceId=${invoice.id}`}>

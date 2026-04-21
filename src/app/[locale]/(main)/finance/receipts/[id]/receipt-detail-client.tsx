@@ -327,6 +327,16 @@ export function ReceiptDetailClient({
         </div>
 
         <div className="flex items-center gap-2">
+          <a
+            href={`/api/finance/receipts/${receipt.id}/pdf`}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            <Button variant="outline" size="sm">
+              <Download className="h-4 w-4 mr-1" />
+              ดาวน์โหลด PDF
+            </Button>
+          </a>
           {!isTerminal &&
             nextStatuses.map((s) => (
               <Button
