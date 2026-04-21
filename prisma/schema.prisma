@@ -655,6 +655,8 @@ model Quotation {
   vatRate         Decimal         @default(7) @db.Decimal(5, 2) // VAT %
   vatAmount       Decimal         @default(0) @db.Decimal(14, 2) // VAT เงิน
   totalAmount     Decimal         @default(0) @db.Decimal(14, 2) // ยอดรวมสุทธิ
+  // Billing Nature (ไหลลง SO → Invoice)
+  billingNature   BillingNature   @default(GOODS)
   notes           String?
   internalNotes   String? // โน้ตภายใน (ลูกค้าไม่เห็น)
   createdById     String
@@ -688,6 +690,13 @@ model QuotationLine {
   lineTotal       Decimal   @db.Decimal(14, 2)
   notes           String?
   sortOrder       Int       @default(0)
+  // Drawing source + branding (ใช้ auto-classify billing nature + หลักฐานทางกฎหมาย)
+  drawingSource      DrawingSource  @default(TENANT_OWNED)
+  lineBillingNature  BillingNature?
+  productCode        String?
+  drawingRevision    String?
+  customerDrawingUrl String?
+  customerBranding   Json?
 
   @@index([quotationId])
 }
@@ -745,6 +754,8 @@ model SalesOrder {
   // สถานะชำระเงิน
   paymentStatus    PaymentStatus    @default(UNPAID)
   paymentTerms     String? // e.g. "มัดจำ 50%, ส่วนที่เหลือเครดิต 30 วัน"
+  // Billing Nature (snapshot จาก quotation, ใช้กำกับ invoice ที่ออกจาก SO นี้)
+  billingNature    BillingNature    @default(GOODS)
   // หมายเหตุ
   notes            String?
   internalNotes    String?
@@ -783,6 +794,13 @@ model SalesOrderLine {
   deliveredQty    Decimal    @default(0) @db.Decimal(12, 4) // จำนวนที่ส่งแล้ว
   notes           String?
   sortOrder       Int        @default(0)
+  // Drawing source + branding (inherit จาก quotation line, ไหลลง invoice line)
+  drawingSource      DrawingSource  @default(TENANT_OWNED)
+  lineBillingNature  BillingNature?
+  productCode        String?
+  drawingRevision    String?
+  customerDrawingUrl String?
+  customerBranding   Json?
 
   productionPlanLines ProductionPlanLine[]
   invoiceLines        InvoiceLine[]
