@@ -67,6 +67,20 @@ export function buildWhtCertKey(params: {
   return `tenants/${tenantId}/wht-certs/${receiptId}/${Date.now()}-${rand}${ext}`;
 }
 
+/** Build canonical object key for a PromptPay slip audit-trail file. */
+export function buildSlipKey(params: {
+  tenantId: string;
+  subscriptionId: string;
+  originalFilename?: string;
+  contentType?: string;
+}): string {
+  const { tenantId, subscriptionId, originalFilename, contentType } = params;
+  const ext =
+    (originalFilename ? extractExtension(originalFilename) : "") ||
+    extensionFromMime(contentType);
+  return `slips/${tenantId}/${subscriptionId}-${Date.now()}${ext}`;
+}
+
 function extractExtension(filename: string): string {
   const idx = filename.lastIndexOf(".");
   if (idx < 0) return "";
@@ -74,6 +88,20 @@ function extractExtension(filename: string): string {
   // whitelist
   if ([".pdf", ".jpg", ".jpeg", ".png"].includes(ext)) return ext;
   return "";
+}
+
+function extensionFromMime(contentType?: string): string {
+  switch ((contentType || "").toLowerCase()) {
+    case "application/pdf":
+      return ".pdf";
+    case "image/jpeg":
+    case "image/jpg":
+      return ".jpg";
+    case "image/png":
+      return ".png";
+    default:
+      return "";
+  }
 }
 
 // ───────────────────────────────────────────────────────────
@@ -115,6 +143,23 @@ export async function createSignedDownloadUrl(params: {
 export async function deleteObject(key: string): Promise<void> {
   await getS3Client().send(
     new DeleteObjectCommand({ Bucket: S3_BUCKET, Key: key })
+  );
+}
+
+/** Upload an object directly (server-side) — used for slip audit-trail etc. */
+export async function putObject(params: {
+  key: string;
+  body: Buffer | Uint8Array;
+  contentType: string;
+}): Promise<void> {
+  const { key, body, contentType } = params;
+  await getS3Client().send(
+    new PutObjectCommand({
+      Bucket: S3_BUCKET,
+      Key: key,
+      Body: body,
+      ContentType: contentType,
+    })
   );
 }
 
