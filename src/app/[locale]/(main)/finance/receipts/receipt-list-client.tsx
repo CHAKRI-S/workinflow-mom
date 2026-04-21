@@ -2,6 +2,9 @@
 
 import { useTranslations } from "next-intl";
 import { useRouter } from "@/i18n/navigation";
+import { Link } from "@/i18n/navigation";
+import { Button } from "@/components/ui/button";
+import { Plus } from "lucide-react";
 import { ColumnDef } from "@tanstack/react-table";
 import { DataTable, SortableHeader } from "@/components/data-table/data-table";
 import { StatusBadge } from "@/components/shared/status-badge";
@@ -152,6 +155,12 @@ export function ReceiptListClient({
         <h1 className="text-2xl font-medium tracking-tight">
           {t("receipt.title")}
         </h1>
+        <Link href="/finance/receipts/new">
+          <Button size="sm">
+            <Plus className="h-4 w-4 mr-1" />
+            สร้างใบเสร็จ
+          </Button>
+        </Link>
       </div>
 
       <div className="flex items-center gap-4">

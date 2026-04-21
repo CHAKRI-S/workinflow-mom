@@ -310,6 +310,15 @@ export function InvoiceDetailClient({
         </div>
 
         <div className="flex items-center gap-2">
+          {(invoice.status === "ISSUED" ||
+            invoice.status === "PARTIALLY_PAID") && (
+            <Link href={`/finance/receipts/new?invoiceId=${invoice.id}`}>
+              <Button variant="outline" size="sm">
+                <Receipt className="h-4 w-4 mr-1" />
+                สร้างใบเสร็จ
+              </Button>
+            </Link>
+          )}
           {!isTerminal && nextStatuses.length > 0 && (
             <div className="flex items-center gap-2">
               <Select

@@ -4,6 +4,7 @@ import { redirect, notFound } from "next/navigation";
 import { hasPermission, ROLES } from "@/lib/permissions";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { prisma } from "@/lib/prisma";
+import { isS3Configured } from "@/lib/s3";
 import { ReceiptDetailClient } from "./receipt-detail-client";
 
 export default async function ReceiptDetailPage({
@@ -43,5 +44,10 @@ export default async function ReceiptDetailPage({
 
   if (!receipt) notFound();
 
-  return <ReceiptDetailClient receipt={JSON.parse(JSON.stringify(receipt))} />;
+  return (
+    <ReceiptDetailClient
+      receipt={JSON.parse(JSON.stringify(receipt))}
+      storageEnabled={isS3Configured()}
+    />
+  );
 }

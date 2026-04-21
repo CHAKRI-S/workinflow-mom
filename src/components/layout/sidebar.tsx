@@ -95,6 +95,7 @@ export function Sidebar() {
         { label: t("receipts"), href: "/finance/receipts" },
         { label: t("creditNotes"), href: "/finance/credit-notes" },
         { label: t("taxInvoices"), href: "/finance/tax-invoices" },
+        { label: t("whtTracking"), href: "/finance/wht-tracking" },
       ],
     },
     {

@@ -5,6 +5,11 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, receiptPrefix } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
+import {
+  receiptCreateSchema,
+  computeWht,
+  resolveWhtPolicy,
+} from "@/lib/validators/receipt";
 
 // GET /api/finance/receipts — list all receipts for tenant
 export async function GET(req: NextRequest) {
@@ -14,6 +19,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const status = searchParams.get("status");
+    const whtCertStatus = searchParams.get("whtCertStatus");
 
     const where: Prisma.ReceiptWhereInput = {
       tenantId: session!.user.tenantId,
@@ -21,6 +27,10 @@ export async function GET(req: NextRequest) {
 
     if (status && status !== "ALL") {
       where.status = status as Prisma.ReceiptWhereInput["status"];
+    }
+    if (whtCertStatus && whtCertStatus !== "ALL") {
+      where.whtCertStatus =
+        whtCertStatus as Prisma.ReceiptWhereInput["whtCertStatus"];
     }
 
     const receipts = await prisma.receipt.findMany({
@@ -50,55 +60,84 @@ export async function POST(req: NextRequest) {
     const session = await auth();
     requirePermission(session, ROLES.FINANCE);
 
-    const body = await req.json();
-    const { invoiceId, amount, payerName, payerTaxId, payerAddress, notes } =
-      body;
-
-    if (!invoiceId || !amount || !payerName) {
+    const raw = await req.json();
+    const parsed = receiptCreateSchema.safeParse(raw);
+    if (!parsed.success) {
       return NextResponse.json(
-        { error: "Missing required fields" },
+        { error: "Invalid input", details: parsed.error.flatten() },
         { status: 400 }
       );
     }
-
+    const body = parsed.data;
     const tenantId = session!.user.tenantId;
 
-    // Fetch invoice with customer VAT status
+    // Fetch invoice + customer (for VAT + WHT policy)
     const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, tenantId },
+      where: { id: body.invoiceId, tenantId },
       include: {
-        salesOrder: {
-          include: {
-            customer: { select: { isVatRegistered: true } },
-          },
+        customer: {
+          select: { isVatRegistered: true, withholdsTax: true },
         },
       },
     });
 
-    if (!invoice || !invoice.salesOrder || !invoice.salesOrder.customer) {
+    if (!invoice || !invoice.customer) {
       return NextResponse.json(
-        { error: "Invoice, sales order, or customer not found" },
+        { error: "Invoice or customer not found" },
         { status: 404 }
       );
     }
 
-    const isVat = invoice.salesOrder.customer.isVatRegistered;
+    if (invoice.status === "CANCELLED") {
+      return NextResponse.json(
+        { error: "Cannot create receipt for cancelled invoice" },
+        { status: 400 }
+      );
+    }
+
+    // Resolve WHT policy
+    const hasCert = Boolean(body.whtCertNumber || body.whtCertFileUrl);
+    const { whtRate, certStatus } = resolveWhtPolicy({
+      billingNature: invoice.billingNature,
+      customerWithholdsTax: invoice.customer.withholdsTax,
+      override: body.whtRateOverride,
+      hasCert,
+    });
+
+    const { whtAmount, netAmount } = computeWht({
+      grossAmount: body.grossAmount,
+      whtRate,
+    });
 
     const receipt = await prisma.$transaction(async (tx) => {
-      const prefix = receiptPrefix(isVat);
+      const prefix = receiptPrefix(invoice.customer!.isVatRegistered);
       const receiptNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.receipt.create({
         data: {
           receiptNumber,
-          invoiceId,
+          invoiceId: body.invoiceId,
           status: "DRAFT",
           issueDate: new Date(),
-          amount: Number(amount),
-          payerName,
-          payerTaxId: payerTaxId || null,
-          payerAddress: payerAddress || null,
-          notes: notes || null,
+          // ยอดสุทธิที่รับจริง (net of WHT)
+          amount: new Prisma.Decimal(netAmount),
+          // Snapshot billing nature
+          billingNature: invoice.billingNature,
+          grossAmount: new Prisma.Decimal(body.grossAmount),
+          whtRate: new Prisma.Decimal(whtRate),
+          whtAmount: new Prisma.Decimal(whtAmount),
+          whtCertNumber: body.whtCertNumber || null,
+          whtCertFileUrl: body.whtCertFileUrl || null,
+          whtCertReceivedAt: body.whtCertReceivedAt
+            ? new Date(body.whtCertReceivedAt)
+            : hasCert
+              ? new Date()
+              : null,
+          whtCertStatus: certStatus,
+          payerName: body.payerName,
+          payerTaxId: body.payerTaxId || null,
+          payerAddress: body.payerAddress || null,
+          notes: body.notes || null,
           createdById: session!.user.id,
           tenantId,
         },
@@ -115,6 +154,13 @@ export async function POST(req: NextRequest) {
       entityType: "Receipt",
       entityId: receipt.id,
       entityNumber: receipt.receiptNumber,
+      changes: {
+        grossAmount: { from: null, to: body.grossAmount },
+        whtRate: { from: null, to: whtRate },
+        whtAmount: { from: null, to: whtAmount },
+        netAmount: { from: null, to: netAmount },
+        whtCertStatus: { from: null, to: certStatus },
+      },
       userId: session!.user.id,
       userName: session!.user.name || "",
       tenantId,
