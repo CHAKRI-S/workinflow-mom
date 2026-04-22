@@ -14,15 +14,22 @@ import type { SubscriptionInvoicePdfData } from "../types";
  * tenant for SaaS service fees. This is distinct from tenant-issued invoices
  * (which use tenant's own info as seller).
  *
- * TODO(Phase 6 go-live): move to env vars or Settings model
+ * Values come from env vars (set on Coolify for production):
+ *   platformIssuer_NAME / _TAX_ID / _ADDRESS / _PHONE / _EMAIL
+ *
+ * Fallbacks are safe placeholders — PDFs generated with placeholders will
+ * be visibly marked "[SETUP REQUIRED]" so unfilled production env is obvious.
  */
-const PLATFORM_ISSUER = {
-  name: "WorkinFlow Co., Ltd.",
-  taxId: "0105567xxxxxxxx", // TODO: replace before go-live
-  address: "123 Platform Street, Bangkok 10100",
-  phone: "02-xxx-xxxx",
-  email: "billing@workinflow.cloud",
-};
+function getPlatformIssuer() {
+  const missingTag = "[SETUP REQUIRED]";
+  return {
+    name: process.env.platformIssuer_NAME || `WorkinFlow Co., Ltd. ${missingTag}`,
+    taxId: process.env.platformIssuer_TAX_ID || missingTag,
+    address: process.env.platformIssuer_ADDRESS || missingTag,
+    phone: process.env.platformIssuer_PHONE || missingTag,
+    email: process.env.platformIssuer_EMAIL || "billing@workinflow.cloud",
+  };
+}
 
 const BILLING_CYCLE_LABEL: Record<"MONTHLY" | "YEARLY", string> = {
   MONTHLY: "รายเดือน",
@@ -47,6 +54,8 @@ export function SubscriptionInvoicePdf({
 }) {
   registerPdfFonts();
 
+  const platformIssuer = getPlatformIssuer();
+
   const subtotal = satangToBaht(data.totals.subtotalSatang);
   const discount = satangToBaht(data.totals.discountSatang);
   const vat = satangToBaht(data.totals.vatSatang);
@@ -60,14 +69,14 @@ export function SubscriptionInvoicePdf({
   return (
     <Document
       title={data.doc.number}
-      author={PLATFORM_ISSUER.name}
+      author={platformIssuer.name}
       subject="ใบกำกับภาษี / ใบเสร็จรับเงิน (ค่าบริการ SaaS)"
     >
       <Page size="A4" style={pdfStyles.page}>
         <CancelledWatermark show={data.status === "CANCELLED"} />
 
         <PdfHeader
-          tenant={PLATFORM_ISSUER}
+          tenant={platformIssuer}
           doc={{
             title: "ใบกำกับภาษี / ใบเสร็จรับเงิน (ค่าบริการ SaaS)",
             subtitle: "TAX INVOICE / RECEIPT",
@@ -82,7 +91,7 @@ export function SubscriptionInvoicePdf({
         <View style={pdfStyles.partyRow}>
           <PartyBlock
             label="ผู้ให้บริการ / Service Provider"
-            party={PLATFORM_ISSUER}
+            party={platformIssuer}
           />
           <PartyBlock label="ผู้รับบริการ / Customer" party={data.buyer} />
         </View>
