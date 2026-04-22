@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { hasPermission, ROLES } from "@/lib/permissions";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { prisma } from "@/lib/prisma";
-import { OMISE_CONFIGURED } from "@/lib/omise";
+import { OMISE_CONFIGURED, getPublicKey } from "@/lib/omise";
 import { UpgradeClient } from "./upgrade-client";
 
 export default async function UpgradePage({
@@ -79,6 +79,7 @@ export default async function UpgradePage({
         products: productsCount,
       }}
       omiseReady={OMISE_CONFIGURED}
+      omisePublicKey={getPublicKey()}
     />
   );
 }

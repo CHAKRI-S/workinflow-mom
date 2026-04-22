@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import Image from "next/image";
+import { useEffect, useState } from "react";
 import { Link } from "@/i18n/navigation";
 import {
   CreditCard,
@@ -64,6 +63,59 @@ function computeDowngradeIssues(target: Plan, usage: Usage): LimitIssue[] {
   return issues;
 }
 
+const OMISE_SCRIPT_SRC = "https://cdn.omise.co/omise.js";
+
+/** Inject the Omise.js CDN script once per page, resolving when loaded. */
+function loadOmiseScript(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return reject(new Error("no window"));
+    if (window.Omise) return resolve();
+
+    const existing = document.querySelector<HTMLScriptElement>(
+      `script[src="${OMISE_SCRIPT_SRC}"]`
+    );
+    if (existing) {
+      if (window.Omise) return resolve();
+      existing.addEventListener("load", () => resolve(), { once: true });
+      existing.addEventListener(
+        "error",
+        () => reject(new Error("ไม่สามารถโหลด Omise.js ได้")),
+        { once: true }
+      );
+      return;
+    }
+
+    const s = document.createElement("script");
+    s.src = OMISE_SCRIPT_SRC;
+    s.async = true;
+    s.addEventListener("load", () => resolve(), { once: true });
+    s.addEventListener(
+      "error",
+      () => reject(new Error("ไม่สามารถโหลด Omise.js ได้")),
+      { once: true }
+    );
+    document.head.appendChild(s);
+  });
+}
+
+function createOmiseToken(data: OmiseCardData): Promise<OmiseTokenResponse> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined" || !window.Omise) {
+      return reject(new Error("Omise.js ยังไม่โหลด"));
+    }
+    window.Omise.createToken("card", data, (statusCode, response) => {
+      if (statusCode === 200 && "id" in response) {
+        resolve(response);
+      } else {
+        const msg =
+          (response as { message?: string }).message ||
+          "ไม่สามารถสร้าง token ได้ — ตรวจสอบข้อมูลบัตรอีกครั้ง";
+        reject(new Error(msg));
+      }
+    });
+  });
+}
+
 export function UpgradeClient({
   plans,
   currentPlanId,
@@ -72,6 +124,7 @@ export function UpgradeClient({
   currentPriceMonthly,
   usage,
   omiseReady,
+  omisePublicKey,
 }: {
   plans: Plan[];
   currentPlanId: string | null;
@@ -80,6 +133,7 @@ export function UpgradeClient({
   currentPriceMonthly: number;
   usage: Usage;
   omiseReady: boolean;
+  omisePublicKey: string | null;
 }) {
   const [step, setStep] = useState<Step>("select-plan");
   const [selectedPlan, setSelectedPlan] = useState<Plan | null>(null);
@@ -90,14 +144,48 @@ export function UpgradeClient({
   const [error, setError] = useState("");
   const [checkout, setCheckout] = useState<{
     subscriptionId: string;
-    qrCodeUrl?: string | null;
-    sourceId?: string;
     amountSatang: number;
     configMissing?: boolean;
     instructions?: string;
     downgraded?: boolean;
   } | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
+
+  // ─── Card form state (OMISE) ────────────────────
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpMonth, setCardExpMonth] = useState("");
+  const [cardExpYear, setCardExpYear] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [tokenizing, setTokenizing] = useState(false);
+  const [cardFieldErrors, setCardFieldErrors] = useState<{
+    name?: string;
+    number?: string;
+    exp?: string;
+    cvv?: string;
+  }>({});
+
+  // Lazy-load Omise.js as soon as the user selects the credit-card option,
+  // so tokenization is ready by the time they submit.
+  useEffect(() => {
+    if (!omiseReady || !omisePublicKey) return;
+    if (gateway !== "OMISE") return;
+    let cancelled = false;
+    loadOmiseScript()
+      .then(() => {
+        if (cancelled) return;
+        if (window.Omise) {
+          window.Omise.setPublicKey(omisePublicKey);
+        }
+      })
+      .catch((e: unknown) => {
+        if (cancelled) return;
+        setError(e instanceof Error ? e.message : "โหลด Omise.js ไม่สำเร็จ");
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [gateway, omiseReady, omisePublicKey]);
 
   function formatSat(sat: number) {
     return `฿${(sat / 100).toLocaleString("th-TH")}`;
@@ -123,8 +211,119 @@ export function UpgradeClient({
     setStep("select-method");
   }
 
+  function formatCardNumberDisplay(raw: string): string {
+    const digits = raw.replace(/\D/g, "").slice(0, 19);
+    return digits.replace(/(.{4})/g, "$1 ").trim();
+  }
+
+  function validateCard(): boolean {
+    const errs: typeof cardFieldErrors = {};
+    if (!cardName.trim()) errs.name = "กรุณากรอกชื่อบนบัตร";
+
+    const digits = cardNumber.replace(/\D/g, "");
+    if (digits.length < 13 || digits.length > 19) {
+      errs.number = "หมายเลขบัตรไม่ถูกต้อง";
+    }
+
+    const month = Number(cardExpMonth);
+    const year = Number(cardExpYear);
+    if (!month || month < 1 || month > 12) {
+      errs.exp = "เดือนหมดอายุไม่ถูกต้อง";
+    } else if (!year || year < 2000 || year > 2100) {
+      errs.exp = "ปีหมดอายุไม่ถูกต้อง (เช่น 2028)";
+    } else {
+      const now = new Date();
+      const curYear = now.getFullYear();
+      const curMonth = now.getMonth() + 1;
+      if (year < curYear || (year === curYear && month < curMonth)) {
+        errs.exp = "บัตรหมดอายุแล้ว";
+      }
+    }
+
+    if (!/^\d{3,4}$/.test(cardCvv)) {
+      errs.cvv = "CVV ไม่ถูกต้อง";
+    }
+
+    setCardFieldErrors(errs);
+    return Object.keys(errs).length === 0;
+  }
+
   async function startCheckout(opts?: { downgradeToFree?: boolean }) {
     if (!selectedPlan) return;
+
+    const effectiveGateway: Gateway = opts?.downgradeToFree ? "SLIPOK" : gateway;
+
+    // OMISE path — must tokenize in-browser first
+    if (effectiveGateway === "OMISE" && !opts?.downgradeToFree) {
+      if (!validateCard()) return;
+      if (!omisePublicKey) {
+        setError("ระบบชำระบัตรยังไม่พร้อม — กรุณาลองอีกครั้ง");
+        return;
+      }
+      setTokenizing(true);
+      setError("");
+      let token: OmiseTokenResponse;
+      try {
+        await loadOmiseScript();
+        if (window.Omise) window.Omise.setPublicKey(omisePublicKey);
+        token = await createOmiseToken({
+          name: cardName.trim(),
+          number: cardNumber.replace(/\D/g, ""),
+          expiration_month: Number(cardExpMonth),
+          expiration_year: Number(cardExpYear),
+          security_code: cardCvv,
+        });
+      } catch (e: unknown) {
+        setError(e instanceof Error ? e.message : "ไม่สามารถสร้าง token ได้");
+        setTokenizing(false);
+        return;
+      }
+      setTokenizing(false);
+
+      // Clear sensitive fields immediately after tokenization.
+      setCardNumber("");
+      setCardCvv("");
+
+      setLoading(true);
+      try {
+        const res = await fetch("/api/billing/checkout", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            planId: selectedPlan.id,
+            billingCycle: cycle,
+            paymentGateway: "OMISE",
+            omiseToken: token.id,
+          }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          setError(data.error || "ชำระเงินไม่สำเร็จ กรุณาลองบัตรใหม่");
+          setLoading(false);
+          return;
+        }
+        setCheckout(data);
+        if (data.configMissing) {
+          setStep("pay");
+        } else if (data.redirectUrl) {
+          // 3DS — hard redirect to Omise, then user returns via /admin/billing/return
+          window.location.href = data.redirectUrl;
+          return;
+        } else if (data.activated === true || data.status === "ACTIVE") {
+          setStep("success");
+        } else {
+          // Unexpected shape — fall back to pay step so user sees something
+          setStep("pay");
+        }
+      } catch {
+        setError("Network error");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
+    // SLIPOK / downgrade-to-free path (unchanged)
     setLoading(true);
     setError("");
     try {
@@ -134,7 +333,7 @@ export function UpgradeClient({
         body: JSON.stringify({
           planId: selectedPlan.id,
           billingCycle: cycle,
-          paymentGateway: opts?.downgradeToFree ? "SLIPOK" : gateway,
+          paymentGateway: effectiveGateway,
         }),
       });
       const data = await res.json();
@@ -144,7 +343,6 @@ export function UpgradeClient({
         return;
       }
       setCheckout(data);
-      // Downgrade to free was processed immediately → jump to success
       if (data.downgraded) {
         setStep("success");
       } else {
@@ -358,6 +556,7 @@ export function UpgradeClient({
       cycle === "MONTHLY" ? selectedPlan.priceMonthly : selectedPlan.priceYearly;
     const vat = Math.round(total * 0.07);
     const grand = total + vat;
+    const busy = loading || tokenizing;
 
     return (
       <div className="max-w-2xl">
@@ -397,7 +596,7 @@ export function UpgradeClient({
             title="บัตรเครดิต / เดบิต"
             desc={
               omiseReady
-                ? "ชำระด้วยบัตรผ่าน Omise — ตัดบัตรทันที"
+                ? "ชำระด้วยบัตรผ่าน Omise — รองรับ 3D Secure"
                 : "กำลังเตรียมระบบ — ใช้งานได้เร็วๆ นี้"
             }
             selected={gateway === "OMISE"}
@@ -407,6 +606,107 @@ export function UpgradeClient({
           />
         </div>
 
+        {/* Card form appears only when OMISE is selected */}
+        {gateway === "OMISE" && omiseReady && (
+          <div className="mt-5 rounded-xl border bg-card p-5 space-y-4">
+            <div className="flex items-center gap-2 text-sm font-semibold">
+              <CreditCard className="h-4 w-4" />
+              รายละเอียดบัตร
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                ชื่อบนบัตร
+              </label>
+              <input
+                type="text"
+                value={cardName}
+                onChange={(e) => setCardName(e.target.value)}
+                placeholder="SOMCHAI JAIDEE"
+                autoComplete="cc-name"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+              />
+              {cardFieldErrors.name && (
+                <div className="mt-1 text-xs text-destructive">{cardFieldErrors.name}</div>
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-muted-foreground mb-1">
+                หมายเลขบัตร
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={formatCardNumberDisplay(cardNumber)}
+                onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, "").slice(0, 19))}
+                placeholder="4242 4242 4242 4242"
+                autoComplete="cc-number"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono tracking-wider"
+              />
+              {cardFieldErrors.number && (
+                <div className="mt-1 text-xs text-destructive">{cardFieldErrors.number}</div>
+              )}
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  เดือน
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={cardExpMonth}
+                  onChange={(e) => setCardExpMonth(e.target.value.replace(/\D/g, "").slice(0, 2))}
+                  placeholder="MM"
+                  autoComplete="cc-exp-month"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  ปี
+                </label>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={cardExpYear}
+                  onChange={(e) => setCardExpYear(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="YYYY"
+                  autoComplete="cc-exp-year"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  CVV
+                </label>
+                <input
+                  type="password"
+                  inputMode="numeric"
+                  value={cardCvv}
+                  onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                  placeholder="•••"
+                  autoComplete="cc-csc"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                />
+              </div>
+            </div>
+            {cardFieldErrors.exp && (
+              <div className="text-xs text-destructive -mt-2">{cardFieldErrors.exp}</div>
+            )}
+            {cardFieldErrors.cvv && (
+              <div className="text-xs text-destructive -mt-2">{cardFieldErrors.cvv}</div>
+            )}
+
+            <div className="text-[11px] text-muted-foreground flex items-start gap-1">
+              <AlertCircle className="h-3 w-3 mt-0.5 shrink-0" />
+              ข้อมูลบัตรถูกส่งตรงไปยัง Omise — เซิร์ฟเวอร์ของเราไม่เก็บหมายเลขบัตรใดๆ
+            </div>
+          </div>
+        )}
+
         {error && (
           <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive flex items-start gap-2">
             <AlertCircle className="h-4 w-4 mt-0.5" /> {error}
@@ -415,11 +715,11 @@ export function UpgradeClient({
 
         <button
           onClick={() => startCheckout()}
-          disabled={loading}
+          disabled={busy}
           className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-blue-600 disabled:opacity-60 gap-2"
         >
-          {loading && <Loader2 className="h-4 w-4 animate-spin" />}
-          ดำเนินการ <ArrowRight className="h-4 w-4" />
+          {busy && <Loader2 className="h-4 w-4 animate-spin" />}
+          {tokenizing ? "กำลังยืนยันบัตร..." : <>ดำเนินการ <ArrowRight className="h-4 w-4" /></>}
         </button>
       </div>
     );
@@ -443,29 +743,6 @@ export function UpgradeClient({
               </div>
             </div>
           </div>
-        </div>
-      );
-    }
-
-    if (gateway === "OMISE" && checkout.qrCodeUrl) {
-      return (
-        <div className="max-w-md">
-          <h1 className="text-2xl font-bold mb-2">สแกน QR เพื่อชำระเงิน</h1>
-          <p className="text-sm text-muted-foreground mb-6">
-            ยอด {formatSat(checkout.amountSatang)} • ใช้แอปธนาคารใดก็ได้
-          </p>
-          <div className="rounded-xl border bg-white p-4 flex items-center justify-center">
-            <Image
-              src={checkout.qrCodeUrl}
-              alt="PromptPay QR"
-              width={256}
-              height={256}
-              unoptimized
-            />
-          </div>
-          <p className="mt-4 text-xs text-center text-muted-foreground">
-            รอการยืนยันอัตโนมัติหลังชำระ — หน้านี้จะอัพเดต
-          </p>
         </div>
       );
     }
@@ -522,7 +799,7 @@ export function UpgradeClient({
       );
     }
 
-    // Fallback — should not reach here (MANUAL was removed)
+    // Fallback — should not reach here normally.
     return (
       <div className="max-w-md">
         <h1 className="text-2xl font-bold mb-4">กำลังรอยืนยัน</h1>

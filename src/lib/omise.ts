@@ -50,13 +50,28 @@ export async function createPromptPaySource(params: {
   };
 }
 
-/** Charge a pre-created source (from createPromptPaySource or from browser Omise.js) */
+/**
+ * Create a charge.
+ *
+ * Params:
+ * - `token`    — raw card token produced by Omise.js browser-side tokenization
+ *                (`Omise.createToken`). Use this for the credit-card 3DS flow.
+ * - `sourceId` — id of a pre-created Source (e.g. PromptPay QR returned by
+ *                `createPromptPaySource`). Use this for async source-based flows.
+ * - `returnUri` — URL Omise redirects the customer back to after the 3DS
+ *                challenge completes. Only relevant for card charges — Omise
+ *                populates `charge.authorize_uri` when 3DS is required.
+ *
+ * Returns the raw Omise ICharge response so callers can inspect
+ * `.authorize_uri`, `.id`, `.status`, `.paid`, `.failure_message` etc.
+ */
 export async function createCharge(params: {
   amountSatang: number;
   sourceId?: string;
   token?: string;
   description?: string;
   metadata?: Record<string, string>;
+  returnUri?: string;
 }) {
   const client = getClient();
   const chargeData: {
@@ -66,6 +81,7 @@ export async function createCharge(params: {
     card?: string;
     description?: string;
     metadata?: Record<string, string>;
+    return_uri?: string;
   } = {
     amount: params.amountSatang,
     currency: "THB",
@@ -74,14 +90,20 @@ export async function createCharge(params: {
   };
   if (params.sourceId) chargeData.source = params.sourceId;
   if (params.token) chargeData.card = params.token;
+  if (params.returnUri) chargeData.return_uri = params.returnUri;
   const charge = await client.charges.create(chargeData);
   return charge;
 }
 
-/** Get a charge by ID (useful for webhook verification) */
+/** Get a charge by ID (useful for webhook verification + status polling) */
 export async function getCharge(chargeId: string) {
   const client = getClient();
   return client.charges.retrieve(chargeId);
+}
+
+/** Alias for getCharge — keeps call sites readable for status polling. */
+export async function getChargeById(chargeId: string) {
+  return getCharge(chargeId);
 }
 
 /**

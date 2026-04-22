@@ -68,15 +68,22 @@ export async function POST(req: NextRequest) {
       const status = (charge.status ??
         (charge.paid ? "successful" : event.data.status)) as string | undefined;
 
-      // Resolve subscription via source id → gatewayRef
+      // Resolve subscription:
+      // - PromptPay path: source.id was saved as gatewayRef.
+      // - Card (3DS) path: no source — we saved the charge id as omiseChargeId
+      //   (and gatewayRef) at checkout time.
       const sourceId =
         (charge.source as { id?: string } | null)?.id ?? event.data.source?.id;
-      if (!sourceId) {
-        return NextResponse.json({ ok: true, note: "no source id" });
+      const chargeId = charge.id ?? event.data.id;
+
+      if (!sourceId && !chargeId) {
+        return NextResponse.json({ ok: true, note: "no identifier" });
       }
 
       const sub = await prisma.subscription.findFirst({
-        where: { gatewayRef: sourceId },
+        where: sourceId
+          ? { OR: [{ gatewayRef: sourceId }, { omiseChargeId: chargeId ?? undefined }] }
+          : { omiseChargeId: chargeId ?? undefined },
         include: {
           tenant: {
             include: {

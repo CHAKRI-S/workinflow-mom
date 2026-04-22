@@ -3,15 +3,18 @@ import { z } from "zod";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
-import { calculateAmounts, computePeriod } from "@/lib/subscription";
-import { OMISE_CONFIGURED, createPromptPaySource } from "@/lib/omise";
+import { activateSubscription, calculateAmounts, computePeriod } from "@/lib/subscription";
+import { OMISE_CONFIGURED, createCharge } from "@/lib/omise";
 
 const checkoutSchema = z.object({
   planId: z.string().min(1),
   billingCycle: z.enum(["MONTHLY", "YEARLY"]),
   // MANUAL is intentionally removed — we only support SLIPOK (PromptPay QR + slip)
-  // and OMISE (credit card, coming soon)
+  // and OMISE (credit card via 3DS).
   paymentGateway: z.enum(["OMISE", "SLIPOK"]).default("SLIPOK"),
+  // Raw card token from Omise.js browser-side tokenization.
+  // REQUIRED when paymentGateway === "OMISE".
+  omiseToken: z.string().optional(),
 });
 
 interface LimitIssue {
@@ -80,7 +83,7 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.issues[0]?.message }, { status: 400 });
     }
-    const { planId, billingCycle, paymentGateway } = parsed.data;
+    const { planId, billingCycle, paymentGateway, omiseToken } = parsed.data;
 
     const [plan, tenant] = await Promise.all([
       prisma.plan.findUnique({ where: { id: planId } }),
@@ -209,25 +212,106 @@ export async function POST(req: NextRequest) {
         }, { status: 200 });
       }
 
-      // Note: for credit card we should use Omise.js token flow on the client
-      // and POST the token here. Current scaffold: generate a PromptPay source
-      // as a placeholder — will be replaced when card flow is wired.
-      const source = await createPromptPaySource({
-        amountSatang: amounts.totalSatang,
-        description: `${plan.name} ${billingCycle} — ${sub.id}`,
-      });
+      if (!omiseToken) {
+        return NextResponse.json(
+          { error: "omiseToken required for card payment", subscriptionId: sub.id },
+          { status: 400 },
+        );
+      }
 
+      const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://mom.workinflow.cloud";
+      const returnUri = `${appUrl}/th/admin/billing/return?subscriptionId=${sub.id}`;
+
+      // Omise SDK types surface these fields but are sometimes incomplete.
+      type OmiseChargeLike = {
+        id: string;
+        status?: string;
+        paid?: boolean;
+        authorize_uri?: string;
+        failure_message?: string;
+        failure_code?: string;
+      };
+
+      let charge: OmiseChargeLike;
+      try {
+        const raw = await createCharge({
+          amountSatang: amounts.totalSatang,
+          token: omiseToken,
+          returnUri,
+          description: `${plan.name} ${billingCycle} — ${sub.id}`,
+          metadata: {
+            subscriptionId: sub.id,
+            tenantId,
+            planId: plan.id,
+          },
+        });
+        charge = raw as unknown as OmiseChargeLike;
+      } catch (err) {
+        // Invalid token / expired card / other Omise errors.
+        // Mark this attempt CANCELLED so we don't leave a dangling PENDING row.
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: "CANCELLED", cancelReason: "Omise charge rejected" },
+        });
+        const message =
+          err instanceof Error ? err.message : "ชำระเงินไม่สำเร็จ กรุณาลองใหม่";
+        return NextResponse.json(
+          { error: message, subscriptionId: sub.id },
+          { status: 400 },
+        );
+      }
+
+      // Persist charge id so webhook + status-poll can locate this subscription.
       await prisma.subscription.update({
         where: { id: sub.id },
-        data: { gatewayRef: source.id },
+        data: { omiseChargeId: charge.id, gatewayRef: charge.id },
       });
 
+      // 3DS flow — redirect customer to issuer's challenge page.
+      if (charge.authorize_uri) {
+        return NextResponse.json({
+          subscriptionId: sub.id,
+          status: "PENDING",
+          paymentGateway: "OMISE",
+          redirectUrl: charge.authorize_uri,
+          amountSatang: amounts.totalSatang,
+        });
+      }
+
+      // Immediate success (no 3DS required, rare in TH).
+      if (charge.paid === true && charge.status === "successful") {
+        await activateSubscription({
+          subscriptionId: sub.id,
+          omiseChargeId: charge.id,
+        });
+        return NextResponse.json({
+          subscriptionId: sub.id,
+          status: "ACTIVE",
+          paymentGateway: "OMISE",
+          activated: true,
+          amountSatang: amounts.totalSatang,
+        });
+      }
+
+      // Synchronously rejected (e.g. stolen-card decline on authorization).
+      if (charge.status === "failed") {
+        const reason =
+          charge.failure_message || charge.failure_code || "ธนาคารปฏิเสธรายการ";
+        await prisma.subscription.update({
+          where: { id: sub.id },
+          data: { status: "CANCELLED", cancelReason: reason },
+        });
+        return NextResponse.json(
+          { error: reason, subscriptionId: sub.id },
+          { status: 400 },
+        );
+      }
+
+      // Fallback — charge in an intermediate state; leave PENDING for webhook.
       return NextResponse.json({
         subscriptionId: sub.id,
         status: "PENDING",
         paymentGateway: "OMISE",
-        qrCodeUrl: source.scannable_code?.image?.download_uri ?? null,
-        sourceId: source.id,
         amountSatang: amounts.totalSatang,
       });
     }

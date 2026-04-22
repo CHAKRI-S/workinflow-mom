@@ -97,10 +97,14 @@ new PDF download. Stored in `PlatformSettings` singleton table.
 3. Events to subscribe: `charge.complete`, `charge.create`, `charge.expire`
 4. Save → copy the webhook secret → set `OMISE_WEBHOOK_SECRET` on Coolify
 
-**3d. Test:**
+**3d. Test (real card flow — Phase 6C):**
 - Use Omise test keys (`pkey_test_xxx` / `skey_test_xxx`) first
-- Trigger a test charge from tenant admin → `/admin/billing` → select a plan
-- Verify webhook received at `/api/billing/webhook/omise`
+- Trigger a test charge from tenant admin → `/admin/billing/upgrade` → select a plan
+- Choose "Credit/Debit Card" → fill test card `4242 4242 4242 4242`, any future MM/YYYY, any CVV
+- Expected flows:
+  - **Non-3DS path:** charge completes synchronously → subscription ACTIVE immediately
+  - **3DS path (test card `4000 0000 0000 3220`):** browser redirects to Omise 3DS page → confirm → redirects to `/admin/billing/return?subscriptionId=...` → status poller picks up `ACTIVE` within ~2s
+- Verify webhook received at `/api/billing/webhook/omise` (fallback path if user closes browser mid-3DS)
 - Check logs: `docker logs <container>` on Coolify
 
 **3e. Switch to live:**
@@ -201,16 +205,15 @@ Both are idempotent — safe to re-run anytime.
 
 ---
 
-## Deferred (Phase 6C)
+## Deferred
 
-NOT required for go-live but needed within 1-4 weeks of launch:
+All Phase 6 billing milestones have shipped (6A + 6B + 6C as of 2026-04-22).
 
-- **Phase 6C** — Real Omise.js credit card tokenization + 3DS (currently the
-  OMISE path generates a PromptPay source instead of charging card properly).
-  When 6C ships, extend `/api/cron/renewal-retry` to try saved-card charge
-  first → only expire on failure.
-
-Track in memory: `memory/phase_6a_billing_ops.md` → "What Phase 6A does NOT include" section.
+**Future enhancement idea (not blocking go-live):** Extend
+`/api/cron/renewal-retry` to try a saved-card auto-charge via Omise before
+marking ACTIVE→EXPIRED. Today the cron only flips status + emails the
+tenant with a renewal link. This requires persisting Omise customer/card
+IDs on first checkout and passing them to `createCharge` — small follow-up.
 
 ---
 
