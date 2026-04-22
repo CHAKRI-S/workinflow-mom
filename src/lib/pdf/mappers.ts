@@ -287,10 +287,20 @@ export interface SubscriptionForPdf {
   periodEnd: Date;
 }
 
+/** Platform issuer info — from PlatformSettings singleton (DB-backed) */
+export interface PlatformIssuerForPdf {
+  issuerName: string;
+  issuerTaxId: string;
+  issuerAddress: string;
+  issuerPhone: string;
+  issuerEmail: string;
+}
+
 export function mapSubscriptionInvoiceForPdf(
   invoice: SubscriptionInvoiceForPdf,
   subscription: SubscriptionForPdf,
-  plan: { name: string }
+  plan: { name: string },
+  issuer: PlatformIssuerForPdf
 ): SubscriptionInvoicePdfData {
   return {
     status: null,
@@ -298,6 +308,13 @@ export function mapSubscriptionInvoiceForPdf(
       number: invoice.invoiceNumber,
       issueDate: invoice.issueDate,
       paidAt: invoice.paidAt,
+    },
+    issuer: {
+      name: issuer.issuerName,
+      taxId: issuer.issuerTaxId,
+      address: issuer.issuerAddress,
+      phone: issuer.issuerPhone,
+      email: issuer.issuerEmail,
     },
     buyer: {
       name: invoice.tenantName,

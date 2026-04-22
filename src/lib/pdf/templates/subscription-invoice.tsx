@@ -9,25 +9,23 @@ import { registerPdfFonts } from "../fonts";
 import { formatCurrency, formatDateTh } from "../format";
 import type { SubscriptionInvoicePdfData } from "../types";
 
+const SETUP_REQUIRED = "[SETUP REQUIRED]";
+
 /**
- * Platform issuer info — WorkinFlow itself issues this tax invoice to the
- * tenant for SaaS service fees. This is distinct from tenant-issued invoices
- * (which use tenant's own info as seller).
+ * Build the platform-issuer block used as both the PDF header tenant and
+ * the "ผู้ให้บริการ" PartyBlock. Any blank field becomes "[SETUP REQUIRED]"
+ * so it's visibly obvious when super admin hasn't filled in production data.
  *
- * Values come from env vars (set on Coolify for production):
- *   platformIssuer_NAME / _TAX_ID / _ADDRESS / _PHONE / _EMAIL
- *
- * Fallbacks are safe placeholders — PDFs generated with placeholders will
- * be visibly marked "[SETUP REQUIRED]" so unfilled production env is obvious.
+ * Issuer data comes from the PlatformSettings singleton (DB-backed, managed
+ * at /superadmin/settings — no redeploy needed when issuer info changes).
  */
-function getPlatformIssuer() {
-  const missingTag = "[SETUP REQUIRED]";
+function normalizeIssuer(issuer: SubscriptionInvoicePdfData["issuer"]) {
   return {
-    name: process.env.platformIssuer_NAME || `WorkinFlow Co., Ltd. ${missingTag}`,
-    taxId: process.env.platformIssuer_TAX_ID || missingTag,
-    address: process.env.platformIssuer_ADDRESS || missingTag,
-    phone: process.env.platformIssuer_PHONE || missingTag,
-    email: process.env.platformIssuer_EMAIL || "billing@workinflow.cloud",
+    name: issuer.name?.trim() || `WorkinFlow Co., Ltd. ${SETUP_REQUIRED}`,
+    taxId: issuer.taxId?.trim() || SETUP_REQUIRED,
+    address: issuer.address?.trim() || SETUP_REQUIRED,
+    phone: issuer.phone?.trim() || SETUP_REQUIRED,
+    email: issuer.email?.trim() || "billing@workinflow.cloud",
   };
 }
 
@@ -54,7 +52,7 @@ export function SubscriptionInvoicePdf({
 }) {
   registerPdfFonts();
 
-  const platformIssuer = getPlatformIssuer();
+  const platformIssuer = normalizeIssuer(data.issuer);
 
   const subtotal = satangToBaht(data.totals.subtotalSatang);
   const discount = satangToBaht(data.totals.discountSatang);

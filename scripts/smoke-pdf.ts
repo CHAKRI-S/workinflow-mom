@@ -106,6 +106,15 @@ const mockSubscriptionInvoiceData: SubscriptionInvoicePdfData = {
     issueDate: new Date("2026-04-21"),
     paidAt: new Date("2026-04-21"),
   },
+  issuer: {
+    // Simulate unfilled PlatformSettings — template should render
+    // "[SETUP REQUIRED]" placeholders, not crash.
+    name: "",
+    taxId: "",
+    address: "",
+    phone: "",
+    email: "",
+  },
   buyer: {
     name: "Acme Factory Co., Ltd.",
     taxId: "0105556789012",

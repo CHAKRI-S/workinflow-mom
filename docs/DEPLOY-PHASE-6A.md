@@ -10,7 +10,7 @@ Complete in order — each step is independent but later steps depend on earlier
 - ✅ Code pushed to `origin/main` (commits through `f17b4c3a`)
 - ✅ Coolify auto-deploy triggered via GitHub webhook
 - ✅ Migration file `20260421120000_add_receipt_wht_cert_fields` in repo
-- ✅ `PLATFORM_ISSUER` now reads from env vars (no more hardcoded placeholders in code)
+- ✅ Platform Issuer info stored in DB (`PlatformSettings` singleton) — editable at `/superadmin/settings`, no redeploy to change
 
 ---
 
@@ -49,25 +49,26 @@ DELETE FROM "_prisma_migrations" WHERE migration_name = '20260421120000_add_rece
 
 ---
 
-## ⚠️ Step 2 — Set Platform Issuer env vars on Coolify
+## ⚠️ Step 2 — Fill Platform Issuer info at `/superadmin/settings`
 
 **Why:** Every SubscriptionInvoice PDF will otherwise show `[SETUP REQUIRED]`
 in place of real platform tax ID / address / phone. Tenants will reject these
 as invalid Thai tax invoices.
 
-**Where:** Coolify → Applications → workinflow-mom → Environment Variables tab
+**Where:** `https://admin.workinflow.cloud/superadmin/settings` → Platform Issuer section
 
-**Add these 5 vars** (use real data for the legal entity operating WorkinFlow):
+**Fill these 5 fields** (use real data for the legal entity operating WorkinFlow):
 
-| Env var | Example value |
+| Field | Example value |
 |---|---|
-| `PLATFORM_ISSUER_NAME` | `บริษัท เวิร์คอินโฟลว์ จำกัด` (or your legal name) |
-| `PLATFORM_ISSUER_TAX_ID` | `0105567xxxxxxxx` (13-digit Thai tax ID) |
-| `PLATFORM_ISSUER_ADDRESS` | `xxx ถนน xxx แขวง xxx เขต xxx กรุงเทพฯ 10xxx` |
-| `PLATFORM_ISSUER_PHONE` | `02-xxx-xxxx` or `081-xxx-xxxx` |
-| `PLATFORM_ISSUER_EMAIL` | `billing@workinflow.cloud` |
+| ชื่อนิติบุคคล | `บริษัท เวิร์คอินโฟลว์ จำกัด` (or your legal name) |
+| เลขประจำตัวผู้เสียภาษี | `0105567xxxxxxxx` (13-digit Thai tax ID) |
+| ที่อยู่สำนักงานใหญ่ | `xxx ถนน xxx แขวง xxx เขต xxx กรุงเทพฯ 10xxx` |
+| เบอร์โทรศัพท์ | `02-xxx-xxxx` or `081-xxx-xxxx` |
+| อีเมล | `billing@workinflow.cloud` |
 
-**Then redeploy** — Coolify → Redeploy button (no code change needed, just env reload).
+Click **บันทึก** — no redeploy needed. Values apply instantly to every
+new PDF download. Stored in `PlatformSettings` singleton table.
 
 ---
 
@@ -190,7 +191,8 @@ Track these in memory: `memory/phase_6a_billing_ops.md` → "What Phase 6A does 
    in Resend. Emails are fire-and-forget so payment succeeds even if email fails.
 
 **SubscriptionInvoice PDF shows `[SETUP REQUIRED]`:**
-→ Step 2 not done. Set `PLATFORM_ISSUER_*` env vars on Coolify + redeploy.
+→ Step 2 not done. Fill Platform Issuer form at `/superadmin/settings`
+   (saves to DB — takes effect on next PDF download, no redeploy needed).
 
 **Super admin `/subscriptions` returns 401:**
 → Not logged in as super admin. Visit `admin.workinflow.cloud/login` first.

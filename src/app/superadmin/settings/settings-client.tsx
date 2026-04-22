@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Loader2, CheckCircle2, XCircle, Shield, Mail, CreditCard, Link2, Clock, AlertCircle, KeyRound, Power } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckCircle2, XCircle, Shield, Mail, CreditCard, Link2, Clock, AlertCircle, KeyRound, Power, Building2, Save } from "lucide-react";
 
 interface SaUser {
   id: string;
@@ -23,6 +23,14 @@ interface IntegrationStatus {
   auth: { saJwtSecret: { configured: boolean; fallback: boolean } };
   cron: { configured: boolean };
   urls: { appUrl: string | null; landingUrl: string | null; saUrl: string | null };
+}
+
+interface PlatformIssuer {
+  issuerName: string;
+  issuerTaxId: string;
+  issuerAddress: string;
+  issuerPhone: string;
+  issuerEmail: string;
 }
 
 export function SettingsClient({
@@ -120,6 +128,9 @@ export function SettingsClient({
         <h1 className="text-3xl font-bold mb-1">Settings</h1>
         <p className="text-muted-foreground">Platform configuration และ SA user management</p>
       </div>
+
+      {/* Platform Issuer (WorkinFlow legal entity info for SaaS tax invoices) */}
+      <PlatformIssuerSection />
 
       {/* Integration status */}
       <div className="rounded-xl border bg-card p-5 mb-6">
@@ -323,6 +334,187 @@ export function SettingsClient({
         />
       )}
     </>
+  );
+}
+
+function PlatformIssuerSection() {
+  const [data, setData] = useState<PlatformIssuer | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/sa/platform-settings")
+      .then((r) => (r.ok ? r.json() : Promise.reject(new Error("Load failed"))))
+      .then(setData)
+      .catch(() => setMessage({ type: "err", text: "โหลดข้อมูลไม่สำเร็จ" }));
+  }, []);
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (!data) return;
+    setSaving(true);
+    setMessage(null);
+    try {
+      const res = await fetch("/api/sa/platform-settings", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      const body = await res.json();
+      if (!res.ok) {
+        setMessage({ type: "err", text: body.error || "บันทึกไม่สำเร็จ" });
+        setSaving(false);
+        return;
+      }
+      setData(body);
+      setMessage({ type: "ok", text: "บันทึกแล้ว — ใบกำกับภาษี SaaS จะใช้ข้อมูลใหม่ทันที" });
+    } catch {
+      setMessage({ type: "err", text: "Network error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function update<K extends keyof PlatformIssuer>(key: K, value: PlatformIssuer[K]) {
+    setData((prev) => (prev ? { ...prev, [key]: value } : prev));
+  }
+
+  const allBlank =
+    data !== null &&
+    !data.issuerName &&
+    !data.issuerTaxId &&
+    !data.issuerAddress &&
+    !data.issuerPhone &&
+    !data.issuerEmail;
+
+  return (
+    <div className="rounded-xl border bg-card p-5 mb-6">
+      <h2 className="font-semibold mb-1 flex items-center gap-2">
+        <Building2 className="h-4 w-4" /> Platform Issuer
+        <span className="text-xs font-normal text-muted-foreground">
+          (ผู้ให้บริการ — แสดงบนใบกำกับภาษีค่าบริการ SaaS ที่ออกให้ tenant)
+        </span>
+      </h2>
+      <p className="text-xs text-muted-foreground mb-4">
+        ข้อมูลนิติบุคคลที่ดำเนินการ WorkinFlow ใช้แสดงใน SubscriptionInvoice PDF — เปลี่ยนได้ทันทีไม่ต้อง redeploy
+      </p>
+
+      {data === null ? (
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-3">
+          {allBlank && (
+            <div className="flex items-start gap-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 text-xs text-yellow-700 dark:text-yellow-400">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <div>
+                ยังไม่ได้ตั้งค่า — ใบกำกับภาษี SaaS จะขึ้น <code className="font-mono">[SETUP REQUIRED]</code> จนกว่าจะบันทึกข้อมูลจริง
+              </div>
+            </div>
+          )}
+
+          <div className="grid md:grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                ชื่อนิติบุคคล (Legal name)
+              </label>
+              <input
+                value={data.issuerName}
+                onChange={(e) => update("issuerName", e.target.value)}
+                placeholder="บริษัท เวิร์คอินโฟลว์ จำกัด"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                maxLength={200}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                เลขประจำตัวผู้เสียภาษี (13 หลัก)
+              </label>
+              <input
+                value={data.issuerTaxId}
+                onChange={(e) => update("issuerTaxId", e.target.value)}
+                placeholder="0105567xxxxxxxx"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono"
+                maxLength={20}
+              />
+            </div>
+
+            <div className="md:col-span-2">
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                ที่อยู่สำนักงานใหญ่
+              </label>
+              <textarea
+                value={data.issuerAddress}
+                onChange={(e) => update("issuerAddress", e.target.value)}
+                placeholder="xxx ถนน xxx แขวง xxx เขต xxx กรุงเทพฯ 10xxx"
+                rows={2}
+                className="w-full rounded-lg border bg-background px-3 py-2 text-sm"
+                maxLength={500}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                เบอร์โทรศัพท์
+              </label>
+              <input
+                value={data.issuerPhone}
+                onChange={(e) => update("issuerPhone", e.target.value)}
+                placeholder="02-xxx-xxxx"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                maxLength={50}
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1">
+                อีเมล
+              </label>
+              <input
+                type="email"
+                value={data.issuerEmail}
+                onChange={(e) => update("issuerEmail", e.target.value)}
+                placeholder="billing@workinflow.cloud"
+                className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                maxLength={200}
+              />
+            </div>
+          </div>
+
+          {message && (
+            <div
+              className={`flex items-start gap-2 rounded-lg p-2 text-xs ${
+                message.type === "ok"
+                  ? "bg-green-500/10 text-green-700 dark:text-green-400"
+                  : "bg-destructive/10 text-destructive"
+              }`}
+            >
+              {message.type === "ok" ? (
+                <CheckCircle2 className="h-3.5 w-3.5 mt-0.5" />
+              ) : (
+                <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+              )}
+              {message.text}
+            </div>
+          )}
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              disabled={saving}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-4 py-2 text-xs font-medium text-primary-foreground hover:bg-blue-600 disabled:opacity-60"
+            >
+              {saving ? (
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Save className="h-3.5 w-3.5" />
+              )}
+              บันทึก
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 

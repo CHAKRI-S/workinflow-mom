@@ -68,6 +68,19 @@ export interface SubscriptionInvoicePdfData {
     issueDate: Date | string;
     paidAt?: Date | string | null;
   };
+  /**
+   * Platform issuer info (WorkinFlow itself — ผู้ให้บริการ). Comes from the
+   * PlatformSettings singleton managed by super admin at /superadmin/settings.
+   * Blank strings render as "[SETUP REQUIRED]" so unfilled production data
+   * is visibly obvious on the PDF.
+   */
+  issuer: {
+    name: string;
+    taxId: string;
+    address: string;
+    phone: string;
+    email: string;
+  };
   /** Tenant info (the buyer of the SaaS service) */
   buyer: Party;
   lineItem: {

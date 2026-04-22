@@ -4,6 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { SubscriptionInvoicePdf } from "@/lib/pdf/templates/subscription-invoice";
 import { mapSubscriptionInvoiceForPdf } from "@/lib/pdf/mappers";
+import { getPlatformSettings } from "@/lib/platform-settings";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -41,6 +42,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    const platformSettings = await getPlatformSettings();
+
     const pdfData = mapSubscriptionInvoiceForPdf(
       {
         invoiceNumber: invoice.invoiceNumber,
@@ -56,7 +59,8 @@ export async function GET(_req: NextRequest, { params }: Params) {
         totalSatang: invoice.totalSatang,
       },
       invoice.subscription,
-      { name: invoice.planName }
+      { name: invoice.planName },
+      platformSettings
     );
 
     const buffer = await renderToBuffer(SubscriptionInvoicePdf({ data: pdfData }));
