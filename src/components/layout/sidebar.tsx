@@ -41,10 +41,65 @@ interface NavItem {
   requiresFeature?: NavChild["requiresFeature"];
 }
 
+/** Brand block — shows tenant logo + name, with product byline underneath.
+ *  Falls back to initial-badge when logo not uploaded, or the product mark
+ *  while the tenant fetch is still in flight. */
+function TenantBrand({
+  name,
+  logo,
+  loading,
+}: {
+  name: string | null;
+  logo: string | null;
+  loading: boolean;
+}) {
+  if (loading) {
+    return (
+      <>
+        <div className="h-9 w-9 rounded-lg bg-muted animate-pulse shrink-0" />
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="h-3.5 w-28 rounded bg-muted animate-pulse" />
+          <div className="h-2.5 w-20 rounded bg-muted animate-pulse" />
+        </div>
+      </>
+    );
+  }
+
+  const displayName = name ?? "WorkinFlow MOM";
+  const initial = name?.trim().charAt(0).toUpperCase() || "W";
+
+  return (
+    <>
+      {logo ? (
+        // Use plain <img> — logo is served from R2 (external origin not
+        // registered in next.config remotePatterns).
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logo}
+          alt={displayName}
+          className="h-9 w-9 rounded-lg object-contain bg-white border shrink-0"
+        />
+      ) : (
+        <div className="h-9 w-9 rounded-lg bg-blue-600 text-white flex items-center justify-center font-semibold text-sm shrink-0">
+          {initial}
+        </div>
+      )}
+      <div className="flex-1 min-w-0 leading-tight">
+        <div className="text-sm font-semibold truncate" title={displayName}>
+          {displayName}
+        </div>
+        <div className="text-[10px] text-muted-foreground truncate">
+          powered by WorkinFlow <span className="text-primary">MOM</span>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export function Sidebar() {
   const t = useTranslations("nav");
   const pathname = usePathname();
-  const { hasFeature } = usePlan();
+  const { hasFeature, tenant, loading } = usePlan();
   const [openMenus, setOpenMenus] = useState<string[]>(["sales", "production"]);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -145,12 +200,13 @@ export function Sidebar() {
 
   const navContent = (
     <>
-      {/* Logo */}
-      <div className="p-4 border-b shrink-0">
-        <h1 className="text-lg font-medium tracking-tight">
-          WorkinFlow <span className="text-primary">MOM</span>
-        </h1>
-        <p className="text-xs text-muted-foreground">Manufacturing Operations</p>
+      {/* Tenant brand */}
+      <div className="p-4 border-b shrink-0 flex items-center gap-3">
+        <TenantBrand
+          name={tenant?.name ?? null}
+          logo={tenant?.logo ?? null}
+          loading={loading}
+        />
       </div>
 
       {/* Navigation */}
@@ -228,10 +284,26 @@ export function Sidebar() {
   return (
     <>
       {/* Mobile top bar — only visible below md */}
-      <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden">
-        <span className="text-base font-medium tracking-tight">
-          WorkinFlow <span className="text-primary">MOM</span>
-        </span>
+      <div className="fixed top-0 left-0 right-0 z-40 flex h-14 items-center justify-between border-b bg-background px-4 md:hidden gap-3">
+        <div className="flex items-center gap-2 min-w-0 flex-1">
+          {loading ? (
+            <div className="h-7 w-7 rounded-md bg-muted animate-pulse shrink-0" />
+          ) : tenant?.logo ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={tenant.logo}
+              alt={tenant.name}
+              className="h-7 w-7 rounded-md object-contain bg-white border shrink-0"
+            />
+          ) : (
+            <div className="h-7 w-7 rounded-md bg-blue-600 text-white flex items-center justify-center font-semibold text-xs shrink-0">
+              {tenant?.name?.trim().charAt(0).toUpperCase() || "W"}
+            </div>
+          )}
+          <span className="text-sm font-semibold tracking-tight truncate">
+            {tenant?.name ?? "WorkinFlow MOM"}
+          </span>
+        </div>
         <button
           onClick={() => setMobileOpen((prev) => !prev)}
           className="rounded-md p-1.5 text-muted-foreground hover:bg-muted hover:text-foreground transition"

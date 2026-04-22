@@ -32,6 +32,7 @@ export async function GET() {
         id: tenant.id,
         name: tenant.name,
         slug: tenant.slug,
+        logo: tenant.logo ?? null,
         status: tenant.status,
         trialEndsAt: tenant.trialEndsAt?.toISOString() ?? null,
         trialDaysLeft,

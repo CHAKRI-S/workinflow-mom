@@ -6,6 +6,7 @@ export interface TenantInfo {
   id: string;
   name: string;
   slug: string | null;
+  logo: string | null;
   status: string;
   trialEndsAt: string | null;
   trialDaysLeft: number | null;
