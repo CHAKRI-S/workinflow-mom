@@ -161,19 +161,56 @@ new PDF download. Stored in `PlatformSettings` singleton table.
 
 ---
 
-## Deferred (Phase 6B / 6C)
+## ⚠️ Step 6 — Wire up Phase 6B scheduled tasks
 
-These are NOT required for go-live but needed within 1-4 weeks of launch:
+**Why:** Without these crons, trial accounts + expired paid subscriptions
+stay ACTIVE forever. Manual SA intervention would be needed per tenant.
 
-- **Phase 6B** — Trial expiry cron (currently trial accounts stay active forever
-  after trialEndsAt passes). Manual SA action required per expired tenant.
-- **Phase 6B** — Renewal retry cron (currently paid subscriptions also stay
-  active after periodEnd passes — no auto-suspend). Will need to manually
-  run SQL to mark EXPIRED until 6B ships.
+**6a. Set `CRON_SECRET` on Coolify** (shared secret, ~32 random bytes):
+
+```bash
+openssl rand -base64 32    # run locally, paste value into Coolify env
+```
+
+| Env var | Value |
+|---|---|
+| `CRON_SECRET` | (output of openssl command above — any long random string) |
+
+**6b. Register 2 scheduled tasks in Coolify:**
+
+Coolify → Applications → workinflow-mom → **Scheduled Tasks** tab → **Add**
+
+| Task | Command (Frequency: hourly, `0 * * * *`) |
+|---|---|
+| **Trial expiry** | `curl -fsS -H "x-cron-secret: $CRON_SECRET" https://mom.workinflow.cloud/api/cron/trial-expiry` |
+| **Renewal retry** | `curl -fsS -H "x-cron-secret: $CRON_SECRET" https://mom.workinflow.cloud/api/cron/renewal-retry` |
+
+What they do:
+- **trial-expiry** — suspends tenants past `trialEndsAt`, sends reminders at 7/3/1 days before
+- **renewal-retry** — marks ACTIVE subscriptions past `periodEnd` as EXPIRED, suspends tenant, emails renewal link
+
+**6c. Test (manual trigger):**
+```bash
+curl -fsS -H "x-cron-secret: YOUR_SECRET" https://mom.workinflow.cloud/api/cron/trial-expiry
+# Expected: { "success": true, "suspended": 0, "remindersSent": 0 } (or non-zero counts)
+curl -fsS -H "x-cron-secret: YOUR_SECRET" https://mom.workinflow.cloud/api/cron/renewal-retry
+# Expected: { "success": true, "expired": 0 }
+```
+
+Both are idempotent — safe to re-run anytime.
+
+---
+
+## Deferred (Phase 6C)
+
+NOT required for go-live but needed within 1-4 weeks of launch:
+
 - **Phase 6C** — Real Omise.js credit card tokenization + 3DS (currently the
   OMISE path generates a PromptPay source instead of charging card properly).
+  When 6C ships, extend `/api/cron/renewal-retry` to try saved-card charge
+  first → only expire on failure.
 
-Track these in memory: `memory/phase_6a_billing_ops.md` → "What Phase 6A does NOT include" section.
+Track in memory: `memory/phase_6a_billing_ops.md` → "What Phase 6A does NOT include" section.
 
 ---
 
@@ -201,3 +238,12 @@ Track these in memory: `memory/phase_6a_billing_ops.md` → "What Phase 6A does 
 **Webhook 500 on charge.complete:**
 → `OMISE_WEBHOOK_SECRET` wrong or subscription already activated (idempotent
    failure). Check container logs for exact error.
+
+**Cron endpoints return 401:**
+→ `CRON_SECRET` env var on Coolify does not match the `x-cron-secret` header
+   value in the scheduled task command. Values must be byte-for-byte equal.
+
+**Trials not auto-expiring / subscriptions not expiring:**
+→ Scheduled tasks not registered in Coolify, or failing silently. Hit both
+   endpoints with curl (step 6c above) to check they return `success:true`.
+   Check Coolify scheduled-task logs for exit codes.

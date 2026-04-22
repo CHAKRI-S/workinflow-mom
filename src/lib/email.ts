@@ -162,6 +162,35 @@ export async function sendUserInviteEmail(to: string, params: {
   return sendEmail({ to, subject: `เชิญเข้าใช้งาน ${params.companyName} บน WorkinFlow`, html });
 }
 
+export async function sendSubscriptionExpiredEmail(to: string, params: {
+  name: string;
+  companyName: string;
+  planName: string;
+  periodEnd: Date;
+  renewUrl: string;
+}) {
+  const end = params.periodEnd.toLocaleDateString("th-TH", {
+    year: "numeric", month: "long", day: "numeric",
+  });
+  const html = layout(`
+    <h2 style="margin:0 0 12px">Subscription ${params.planName} หมดอายุแล้ว</h2>
+    <p>สวัสดีคุณ${params.name},</p>
+    <p>รอบการใช้งาน <strong>${params.companyName}</strong> สิ้นสุดเมื่อ <strong>${end}</strong> — บัญชีถูก suspend อัตโนมัติ</p>
+    <p>ต่ออายุเพื่อใช้งานต่อเนื่อง ข้อมูลทั้งหมดยังอยู่ครบ ไม่มีอะไรถูกลบ</p>
+    <p style="margin-top:24px">
+      <a href="${params.renewUrl}" style="display:inline-block;background:#3b82f6;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">ต่ออายุ Subscription</a>
+    </p>
+    <p style="margin-top:24px;font-size:13px;color:#64748b">
+      ติดปัญหาหรือมีคำถาม? ตอบกลับอีเมลนี้ได้เลย
+    </p>
+  `);
+  return sendEmail({
+    to,
+    subject: `Subscription หมดอายุ — ${params.companyName} (${params.planName})`,
+    html,
+  });
+}
+
 export async function sendPaymentSuccessEmail(to: string, params: {
   name: string;
   planName: string;

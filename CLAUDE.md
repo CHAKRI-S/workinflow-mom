@@ -217,7 +217,7 @@ MOM is being converted to a multi-tenant SaaS with 3-domain split:
 | 4 | Super admin panel | ✅ Done |
 | 5 | Plan enforcement | ✅ Done |
 | **6A** | Billing: SA subscriptions view + SubscriptionInvoice PDF + Slip R2 audit + email notifications | ✅ **Done 2026-04-22** |
-| 6B | Billing automation: trial expiry cron + renewal retry cron | ⏳ Pending |
+| **6B** | Billing automation: trial expiry cron + renewal retry cron | ✅ **Done 2026-04-22** |
 | 6C | Omise real credit card flow (Omise.js token + 3DS) | ⏳ Pending |
 | 7 | Password reset + email + audit UI | ✅ Done |
 | **8A** | Billing Nature + WHT schema + Customer tax policy UI | ✅ **Done 2026-04-20** |
