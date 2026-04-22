@@ -282,6 +282,21 @@ model SuperAdmin {
   updatedAt      DateTime  @updatedAt
 }
 
+/// Platform-level settings (singleton — id always "SINGLETON").
+/// Holds info about the entity that operates WorkinFlow itself,
+/// used on SubscriptionInvoice PDFs (ใบกำกับภาษีค่าบริการ SaaS).
+/// Edited by super admin at /superadmin/settings; no redeploy needed.
+model PlatformSettings {
+  id            String   @id @default("SINGLETON")
+  issuerName    String   @default("")
+  issuerTaxId   String   @default("")
+  issuerAddress String   @default("")
+  issuerPhone   String   @default("")
+  issuerEmail   String   @default("")
+  updatedAt     DateTime @updatedAt
+  updatedBy     String? // SuperAdmin.id who last saved
+}
+
 // ══════════════════════════════════════════════════
 // AUTH & RBAC
 // ══════════════════════════════════════════════════
