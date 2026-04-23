@@ -1043,6 +1043,8 @@ model Receipt {
   payerName     String
   payerTaxId    String?
   payerAddress  String?
+  /// ใบเสร็จนี้เป็นเงินมัดจำหรือไม่ (มัดจำไม่หัก WHT เพราะยังไม่ใช่รายได้ค่าบริการ)
+  isDeposit     Boolean       @default(false)
   // ยกเลิก
   cancelledAt   DateTime?
   cancelledById String?
