@@ -49,6 +49,12 @@ model Tenant {
   trialEndsAt  DateTime? // วันที่ทดลองใช้หมด
   planId       String? // FK → Plan
   plan         Plan?         @relation(fields: [planId], references: [id])
+  // Saved-card billing (Phase 6D). Set when tenant completes first real
+  // card charge — reused by renewal-retry cron to auto-charge next period.
+  omiseCustomerId        String? // Omise customer ID (cust_xxx)
+  omiseDefaultCardId     String? // default card token (card_xxx)
+  omiseDefaultCardLast4  String? // for display only ("4242")
+  omiseDefaultCardBrand  String? // "Visa" / "MasterCard" / ...
   // Activity tracking
   lastActiveAt DateTime?
   onboardedAt  DateTime? // เมื่อ tenant ทำ onboarding เสร็จ
@@ -372,6 +378,10 @@ model Customer {
   withholdsTax         Boolean       @default(false)
   /// ประเภทเอกสารเริ่มต้นเวลาออกบิลให้ลูกค้ารายนี้ (GOODS = ขายสินค้า)
   defaultBillingNature BillingNature @default(GOODS)
+  /// OEM branding assets (logo url, default customer mark text, notes).
+  /// Shape: { logoUrl?: string, defaultMark?: string, notes?: string }
+  /// Used by invoice/SO/quotation line items when customer brands our products.
+  brandingAssets       Json?
   // เงื่อนไขการเงิน
   paymentTermDays      Int           @default(30) // เครดิตเทอม (วัน)
   creditLimit          Decimal?      @db.Decimal(14, 2) // วงเงินเครดิต
