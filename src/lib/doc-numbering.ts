@@ -2,8 +2,18 @@ import { prisma } from "@/lib/prisma";
 
 /**
  * Generate ISO-compliant document number
- * Pattern: {PREFIX}-{YEAR}-{SEQ:5}
- * Example: SO-2026-00001, QT-2026-00042, WO-2026-00137
+ * Pattern: {TENANT_CODE}-{PREFIX}-{YEAR}-{SEQ:5}
+ * Example: WF01-SO-2026-00001, ACME-QT-2026-00042
+ *
+ * If the tenant has no code set (legacy / defensive), falls back to the
+ * short form: {PREFIX}-{YEAR}-{SEQ:5} — same as before the code prefix
+ * feature shipped, so existing tenants keep working.
+ *
+ * Doc numbers are immutable per Thai tax rules. If a tenant changes
+ * their code at /admin/settings, already-issued docs keep their old
+ * number; only future docs pick up the new prefix. The internal
+ * DocumentSequence counter is keyed on tenantId+prefix+year (no code
+ * component), so sequence numbers stay gap-free across a code change.
  *
  * Uses atomic upsert to guarantee gap-free sequential numbering
  * even under concurrent access.
@@ -13,6 +23,15 @@ export async function generateDocNumber(
   prefix: string
 ): Promise<string> {
   const year = new Date().getFullYear();
+
+  // Fetch tenant code once, outside the sequence transaction — it almost
+  // never changes and this lookup doesn't need to race with the sequence
+  // increment.
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { code: true },
+  });
+  const tenantCode = tenant?.code?.trim() || null;
 
   const sequence = await prisma.$transaction(async (tx) => {
     // Try to increment existing sequence
@@ -43,7 +62,27 @@ export async function generateDocNumber(
   });
 
   const paddedSeq = String(sequence).padStart(5, "0");
-  return `${prefix}-${year}-${paddedSeq}`;
+  return tenantCode
+    ? `${tenantCode}-${prefix}-${year}-${paddedSeq}`
+    : `${prefix}-${year}-${paddedSeq}`;
+}
+
+/**
+ * Pure helper — build a preview doc number without hitting the DB.
+ * Used by the settings UI to show "next invoice will look like X"
+ * when the tenant is editing their code.
+ */
+export function previewDocNumber(
+  tenantCode: string | null | undefined,
+  prefix: string,
+  seq = 1,
+  year: number = new Date().getFullYear(),
+): string {
+  const paddedSeq = String(seq).padStart(5, "0");
+  const code = tenantCode?.trim() || null;
+  return code
+    ? `${code}-${prefix}-${year}-${paddedSeq}`
+    : `${prefix}-${year}-${paddedSeq}`;
 }
 
 // ─── Document prefix constants ───────────────────

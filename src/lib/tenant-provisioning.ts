@@ -32,20 +32,50 @@ export async function generateUniqueSlug(base: string): Promise<string> {
   return candidate;
 }
 
-/** Ensure tenant code is unique by appending digit if collision */
+/** Max length for tenant code (used as doc number prefix, kept short to
+ * keep invoice numbers readable). Matches the UI validator in settings. */
+export const TENANT_CODE_MAX = 8;
+export const TENANT_CODE_MIN = 2;
+
+/** Random 4-char fallback for tenants whose names strip to empty (e.g.
+ * Thai-only "บริษัท เวิร์คอินโฟลว์") — previously we hard-coded "WF"
+ * which collided almost instantly. `T` prefix + 4 base36 chars gives a
+ * ~1.6M-slot space per prefix, effectively never colliding in practice. */
+function randomCodeFallback(): string {
+  const rand = Math.floor(Math.random() * 36 ** 4)
+    .toString(36)
+    .toUpperCase()
+    .padStart(4, "0");
+  return `T${rand}`;
+}
+
+/** Ensure tenant code is unique. Strips to A-Z/0-9, caps at TENANT_CODE_MAX,
+ * falls back to a random 5-char code when the input has no Latin chars
+ * (e.g. Thai-only company names). Tenants can always edit this later at
+ * /admin/settings. */
 export async function generateUniqueCode(base: string): Promise<string> {
   const normalized = base
     .toUpperCase()
     .replace(/[^A-Z0-9]/g, "")
-    .slice(0, 6);
-  const fallback = normalized || "WF";
-  let candidate = fallback;
-  let counter = 1;
-  while (await prisma.tenant.findUnique({ where: { code: candidate } })) {
-    counter += 1;
-    candidate = `${fallback.slice(0, 5)}${counter}`;
+    .slice(0, TENANT_CODE_MAX);
+
+  let candidate = normalized || randomCodeFallback();
+
+  // Try up to 20 times — for normalized names we append a counter; for
+  // random fallbacks we re-roll. Extremely unlikely to hit 20.
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const clash = await prisma.tenant.findUnique({ where: { code: candidate } });
+    if (!clash) return candidate;
+
+    if (normalized) {
+      const suffix = String(attempt + 2);
+      candidate = `${normalized.slice(0, TENANT_CODE_MAX - suffix.length)}${suffix}`;
+    } else {
+      candidate = randomCodeFallback();
+    }
   }
-  return candidate;
+
+  throw new Error("Could not generate a unique tenant code after 20 attempts");
 }
 
 // ───────────────────────────────────────────────

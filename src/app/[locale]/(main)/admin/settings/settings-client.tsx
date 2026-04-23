@@ -61,12 +61,17 @@ interface SystemCounts {
 
 interface CompanyFormData {
   name: string;
+  code: string;
   taxId: string;
   phone: string;
   email: string;
   address: string;
   vatRate: string;
 }
+
+/** Kept in sync with TENANT_CODE_MIN/MAX on the server. */
+const TENANT_CODE_MIN = 2;
+const TENANT_CODE_MAX = 8;
 
 const DOC_LABELS: Record<string, { th: string; en: string }> = {
   QT: { th: "ใบเสนอราคา", en: "Quotation" },
@@ -110,9 +115,10 @@ export function SettingsClient({
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
   const factoryUrl = `${baseUrl}/${locale}/factory?token=workinflow-factory-2026`;
 
-  const { register, handleSubmit } = useForm<CompanyFormData>({
+  const { register, handleSubmit, watch, setValue } = useForm<CompanyFormData>({
     defaultValues: {
       name: tenant?.name || "",
+      code: tenant?.code || "",
       taxId: tenant?.taxId || "",
       phone: tenant?.phone || "",
       email: tenant?.email || "",
@@ -120,6 +126,19 @@ export function SettingsClient({
       vatRate: String(tenant?.vatRate ?? 7),
     },
   });
+
+  // Watch code for live preview + auto-uppercase
+  const codeValue = watch("code");
+  const previewYear = new Date().getFullYear();
+  const previewCode = (codeValue || "").trim();
+  const previewInvoiceNumber = previewCode
+    ? `${previewCode}-INV-${previewYear}-00001`
+    : `INV-${previewYear}-00001`;
+  const codeChanged = previewCode !== (tenant?.code || "");
+  const codeValid =
+    previewCode.length >= TENANT_CODE_MIN &&
+    previewCode.length <= TENANT_CODE_MAX &&
+    /^[A-Z0-9]+$/.test(previewCode);
 
   if (!tenant) {
     return <p className="text-muted-foreground">{t("common.noData")}</p>;
@@ -316,8 +335,45 @@ export function SettingsClient({
                 <Input {...register("name", { required: true })} />
               </div>
               <div className="space-y-1.5">
-                <Label>{t("settings.companyCode")}</Label>
-                <Input value={tenant.code} disabled className="opacity-60" />
+                <Label>
+                  {t("settings.companyCode")}
+                  {!codeValid && previewCode.length > 0 && (
+                    <span className="text-destructive text-xs ms-2">
+                      ต้องเป็น A-Z / 0-9, ยาว {TENANT_CODE_MIN}-{TENANT_CODE_MAX} ตัว
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  {...register("code", {
+                    onChange: (e) => {
+                      // Auto-uppercase + strip invalid chars so the preview
+                      // below matches exactly what the server will accept.
+                      const normalized = (e.target.value as string)
+                        .toUpperCase()
+                        .replace(/[^A-Z0-9]/g, "")
+                        .slice(0, TENANT_CODE_MAX);
+                      setValue("code", normalized, { shouldDirty: true });
+                    },
+                  })}
+                  maxLength={TENANT_CODE_MAX}
+                  placeholder="เช่น WF01, ACME"
+                  className={
+                    !codeValid && previewCode.length > 0
+                      ? "border-destructive"
+                      : ""
+                  }
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  ใช้เป็นคำนำหน้าเลขเอกสารใหม่ — ตัวอย่าง:{" "}
+                  <span className="font-mono font-medium text-foreground">
+                    {previewInvoiceNumber}
+                  </span>
+                </p>
+                {codeChanged && (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    ⚠️ เลขเอกสารที่ออกไปแล้วจะไม่เปลี่ยน — เฉพาะเอกสารใหม่เท่านั้นที่ใช้รหัสใหม่
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>{t("settings.taxId")}</Label>

@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import { TENANT_CODE_MAX, TENANT_CODE_MIN } from "@/lib/tenant-provisioning";
+
+const TENANT_CODE_RE = new RegExp(`^[A-Z0-9]{${TENANT_CODE_MIN},${TENANT_CODE_MAX}}$`);
 
 // GET /api/admin/settings — get tenant info + document sequences
 export async function GET() {
@@ -38,13 +41,26 @@ export async function PATCH(req: NextRequest) {
     const tenantId = session!.user.tenantId;
 
     const body = await req.json();
-    const allowedFields = ["name", "taxId", "address", "phone", "email", "vatRate", "logo"];
+    const allowedFields = ["name", "code", "taxId", "address", "phone", "email", "vatRate", "logo"];
     const updateData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         if (field === "vatRate") {
           updateData[field] = parseFloat(body[field]) || 7;
+        } else if (field === "code") {
+          // Normalize: uppercase + strip invalid chars before validating.
+          const raw = typeof body.code === "string" ? body.code : "";
+          const normalized = raw.toUpperCase().replace(/[^A-Z0-9]/g, "");
+          if (!TENANT_CODE_RE.test(normalized)) {
+            return NextResponse.json(
+              {
+                error: `รหัสบริษัทต้องเป็น A-Z และ 0-9 เท่านั้น ยาว ${TENANT_CODE_MIN}-${TENANT_CODE_MAX} ตัว`,
+              },
+              { status: 400 },
+            );
+          }
+          updateData.code = normalized;
         } else {
           updateData[field] = body[field] || null;
         }
@@ -56,12 +72,28 @@ export async function PATCH(req: NextRequest) {
       return NextResponse.json({ error: "Company name is required" }, { status: 400 });
     }
 
-    const tenant = await prisma.tenant.update({
-      where: { id: tenantId },
-      data: updateData,
-    });
-
-    return NextResponse.json(JSON.parse(JSON.stringify(tenant)));
+    try {
+      const tenant = await prisma.tenant.update({
+        where: { id: tenantId },
+        data: updateData,
+      });
+      return NextResponse.json(JSON.parse(JSON.stringify(tenant)));
+    } catch (err) {
+      // Prisma unique constraint violation — code already taken by
+      // another tenant.
+      if (
+        err &&
+        typeof err === "object" &&
+        "code" in err &&
+        (err as { code?: string }).code === "P2002"
+      ) {
+        return NextResponse.json(
+          { error: "รหัสบริษัทนี้ถูกใช้แล้ว กรุณาเลือกรหัสอื่น" },
+          { status: 409 },
+        );
+      }
+      throw err;
+    }
   } catch (err) {
     if (err instanceof Error && err.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
