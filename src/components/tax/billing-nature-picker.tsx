@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -105,11 +106,23 @@ export function BillingNaturePicker({
       {!compact && (
         <div className="flex gap-2 p-3 rounded-lg bg-blue-50 dark:bg-blue-950/30 text-xs text-muted-foreground">
           <Info className="h-4 w-4 flex-shrink-0 text-blue-600 mt-0.5" />
-          <p>
-            Default = ขายสินค้า (OEM goods) เพราะถ้าเราออกแบบ + ใช้วัสดุ + tooling ของเรา
-            ถือเป็นขายสินค้าตามคำพิพากษา ฎ.2776/2532 และ ฎ.3849/2546
-            (การติดโลโก้ลูกค้าไม่เปลี่ยน nature)
-          </p>
+          <div className="space-y-1.5">
+            <p>
+              Default = ขายสินค้า (OEM goods) เพราะถ้าเราออกแบบ + ใช้วัสดุ + tooling ของเรา
+              ถือเป็นขายสินค้าตามคำพิพากษา ฎ.2776/2532 และ ฎ.3849/2546
+              (การติดโลโก้ลูกค้าไม่เปลี่ยน nature)
+            </p>
+            <p className="italic">
+              การเลือกประเภทเอกสารมีผลทางกฎหมายและภาษี — ระบบช่วยจัดเก็บเอกสารแต่ไม่รับประกันการตีความของสรรพากร{" "}
+              <Link
+                href="/kb/oem-goods"
+                target="_blank"
+                className="underline font-medium not-italic"
+              >
+                อ่านเพิ่มเติม →
+              </Link>
+            </p>
+          </div>
         </div>
       )}
     </Card>
