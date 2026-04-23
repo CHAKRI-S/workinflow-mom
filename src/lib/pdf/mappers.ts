@@ -14,14 +14,19 @@ function n(x: Dec): number {
 function brandingLabel(json: unknown): string | null {
   if (!json || typeof json !== "object") return null;
   const obj = json as Record<string, unknown>;
-  const name = obj.logoName || obj.name;
-  const method = obj.markingMethod;
+  // Phase 8.9 MVP shape — `mark` is the canonical short label
+  const mark = obj.mark;
+  const method = obj.method || obj.markingMethod;
+  // Back-compat: older Phase 8B rows wrote { logoName|name, markingMethod, position }
+  const legacyName = obj.logoName || obj.name;
   const position = obj.position;
-  if (!name && !method && !position) return null;
+
   const parts: string[] = [];
-  if (name) parts.push(String(name));
+  if (mark) parts.push(String(mark));
+  else if (legacyName) parts.push(String(legacyName));
   if (method) parts.push(String(method));
   if (position) parts.push(String(position));
+  if (parts.length === 0) return null;
   return parts.join(" · ");
 }
 

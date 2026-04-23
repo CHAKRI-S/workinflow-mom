@@ -38,12 +38,33 @@ export async function POST(req: NextRequest) {
     await requireCustomerAvailable(tenantId);
 
     const providedCode = data.code?.trim();
-    const { code: _ignored, juristicType, branchNo, country, ...rest } = data;
+    const {
+      code: _ignored,
+      juristicType,
+      branchNo,
+      country,
+      brandingAssets,
+      ...rest
+    } = data;
+    // Strip empty branding fields and drop the whole key if nothing meaningful is set.
+    const cleanedBranding =
+      brandingAssets && typeof brandingAssets === "object"
+        ? Object.fromEntries(
+            Object.entries(brandingAssets).filter(
+              ([, v]) => typeof v === "string" && v.trim() !== "",
+            ),
+          )
+        : null;
+    const brandingForDb =
+      cleanedBranding && Object.keys(cleanedBranding).length > 0
+        ? (cleanedBranding as Prisma.InputJsonValue)
+        : undefined;
     const cleaned = {
       ...rest,
       juristicType: juristicType || null,
       branchNo: branchNo?.trim() || null,
       country: country?.trim() || "TH",
+      ...(brandingForDb !== undefined ? { brandingAssets: brandingForDb } : {}),
     };
 
     const customer = providedCode

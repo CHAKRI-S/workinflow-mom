@@ -17,6 +17,31 @@ export const drawingSourceEnum = z.enum([
 export type BillingNature = z.infer<typeof billingNatureEnum>;
 export type DrawingSource = z.infer<typeof drawingSourceEnum>;
 
+/// Branding method on OEM goods (engrave / laser / print / other)
+export const brandingMethodEnum = z.enum([
+  "ENGRAVE",
+  "LASER",
+  "PRINT",
+  "OTHER",
+]);
+export type BrandingMethod = z.infer<typeof brandingMethodEnum>;
+
+/// Per-line customer branding JSON shape (Phase 8.9 MVP).
+/// All fields optional — `mark` is the human-readable label shown on PDFs.
+/// Legacy fields (logoUrl / markingMethod / position) remain for back-compat
+/// with Phase 8B data already persisted in the DB.
+export const customerBrandingSchema = z
+  .object({
+    mark: z.string().optional(),
+    logoRef: z.string().optional(),
+    method: brandingMethodEnum.optional(),
+    // Legacy (Phase 8B) — keep so existing rows deserialize cleanly
+    logoUrl: z.string().optional(),
+    markingMethod: z.string().optional(),
+    position: z.string().optional(),
+  })
+  .partial();
+
 /// Common line-level tax/drawing fields — ใช้ร่วมกันใน Quotation/SalesOrder/Invoice line schemas
 export const lineTaxFieldsSchema = z.object({
   drawingSource: drawingSourceEnum.optional().default("TENANT_OWNED"),
@@ -24,14 +49,7 @@ export const lineTaxFieldsSchema = z.object({
   productCode: z.string().optional(),
   drawingRevision: z.string().optional(),
   customerDrawingUrl: z.string().optional(),
-  customerBranding: z
-    .object({
-      logoUrl: z.string().optional(),
-      markingMethod: z.string().optional(),
-      position: z.string().optional(),
-    })
-    .partial()
-    .optional(),
+  customerBranding: customerBrandingSchema.nullable().optional(),
 });
 
 /// Auto-suggest billing nature จาก line drawing sources

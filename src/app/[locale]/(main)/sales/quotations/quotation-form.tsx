@@ -48,6 +48,11 @@ interface Customer {
   isVatRegistered: boolean;
   paymentTermDays?: number;
   defaultBillingNature?: BillingNature;
+  brandingAssets?: {
+    defaultMark?: string;
+    logoUrl?: string;
+    notes?: string;
+  } | null;
 }
 
 interface Product {
@@ -555,6 +560,27 @@ export function QuotationForm({
                           setValue(`lines.${index}.customerDrawingUrl`, v)
                         }
                       />
+                      {/* Phase 8.9 — Customer Mark (OEM branding) */}
+                      <div className="space-y-1">
+                        <Label className="text-xs">Customer Mark</Label>
+                        <Input
+                          value={line?.customerBranding?.mark ?? ""}
+                          onChange={(e) =>
+                            setValue(
+                              `lines.${index}.customerBranding`,
+                              e.target.value
+                                ? { mark: e.target.value }
+                                : undefined,
+                            )
+                          }
+                          placeholder={
+                            selectedCustomer?.brandingAssets?.defaultMark
+                              ? `เช่น ${selectedCustomer.brandingAssets.defaultMark}`
+                              : "เช่น ACME logo"
+                          }
+                          className="h-8 text-sm"
+                        />
+                      </div>
                     </div>
                   );
                 })}

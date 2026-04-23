@@ -47,6 +47,7 @@ interface SOLine {
   productCode?: string | null;
   drawingRevision?: string | null;
   customerDrawingUrl?: string | null;
+  customerBranding?: { mark?: string; logoRef?: string; method?: string } | null;
   product: { id: string; name: string };
 }
 
@@ -67,6 +68,11 @@ interface SalesOrderOption {
     isVatRegistered: boolean;
     withholdsTax?: boolean;
     defaultBillingNature?: BillingNature | null;
+    brandingAssets?: {
+      defaultMark?: string;
+      logoUrl?: string;
+      notes?: string;
+    } | null;
   };
   lines: SOLine[];
 }
@@ -83,6 +89,7 @@ interface InvoiceLineDraft {
   productCode: string;
   drawingRevision: string;
   customerDrawingUrl: string;
+  customerMark: string;
 }
 
 const INVOICE_TYPES = ["DEPOSIT", "FULL", "REMAINING", "PARTIAL"] as const;
@@ -125,6 +132,11 @@ export function InvoiceFormClient({
       productCode: line.productCode ?? "",
       drawingRevision: line.drawingRevision ?? "",
       customerDrawingUrl: line.customerDrawingUrl ?? "",
+      // Inherit mark from SO line, or fall back to customer default
+      customerMark:
+        line.customerBranding?.mark ??
+        selectedSO.customer.brandingAssets?.defaultMark ??
+        "",
     }));
     setLineDrafts(drafts);
 
@@ -210,6 +222,9 @@ export function InvoiceFormClient({
             productCode: l.productCode || undefined,
             drawingRevision: l.drawingRevision || undefined,
             customerDrawingUrl: l.customerDrawingUrl || undefined,
+            customerBranding: l.customerMark.trim()
+              ? { mark: l.customerMark.trim() }
+              : undefined,
           })),
           notes: notes || undefined,
         }),
@@ -410,6 +425,22 @@ export function InvoiceFormClient({
                       updateLineField(index, "customerDrawingUrl", v)
                     }
                   />
+                  {/* Phase 8.9 — Customer Mark (OEM branding) */}
+                  <div className="space-y-1">
+                    <Label className="text-xs">Customer Mark</Label>
+                    <Input
+                      value={line.customerMark}
+                      onChange={(e) =>
+                        updateLineField(index, "customerMark", e.target.value)
+                      }
+                      placeholder={
+                        selectedSO?.customer.brandingAssets?.defaultMark
+                          ? `เช่น ${selectedSO.customer.brandingAssets.defaultMark}`
+                          : "เช่น ACME logo"
+                      }
+                      className="h-8 text-sm"
+                    />
+                  </div>
                 </div>
               ))}
             </div>

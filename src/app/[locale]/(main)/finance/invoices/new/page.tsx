@@ -45,6 +45,7 @@ export default async function NewInvoicePage({
           isVatRegistered: true,
           withholdsTax: true,
           defaultBillingNature: true,
+          brandingAssets: true,
         },
       },
       lines: {

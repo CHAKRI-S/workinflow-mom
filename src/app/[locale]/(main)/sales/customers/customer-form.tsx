@@ -39,6 +39,9 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
   // Tax policy section is collapsed by default — base case (GOODS + no WHT)
   // ไม่ต้องแตะเลย. Expand only for exception customers (contract manufacturing clients).
   const [taxPolicyOpen, setTaxPolicyOpen] = useState(false);
+  // OEM branding section also collapsed by default — only relevant if customer
+  // requires logo/mark on our products (e.g. ACME logo engraved on all units).
+  const [brandingOpen, setBrandingOpen] = useState(false);
 
   const {
     register,
@@ -62,6 +65,12 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
   const isVat = watch("isVatRegistered");
   const withholdsTax = watch("withholdsTax") ?? false;
   const defaultBillingNature = watch("defaultBillingNature") ?? "GOODS";
+  const brandingAssets = watch("brandingAssets") ?? null;
+  const hasBranding = !!(
+    brandingAssets?.defaultMark ||
+    brandingAssets?.logoUrl ||
+    brandingAssets?.notes
+  );
 
   // แสดง warning ถ้า config หลุดจาก base case (ขายสินค้า + ไม่หัก)
   const isNonDefaultTaxPolicy =
@@ -415,6 +424,90 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
                     และต้องตาม WHT Cert ทุกครั้ง — ปรึกษา CPA ก่อนเปลี่ยนนโยบาย
                   </p>
                 </div>
+              </div>
+            </div>
+          )}
+        </Card>
+
+        {/* OEM Branding (Phase 8.9) — optional, collapsed by default.
+            Open only if customer requires us to engrave/print their mark. */}
+        <Card className="p-4 space-y-3">
+          <button
+            type="button"
+            onClick={() => setBrandingOpen((v) => !v)}
+            className="w-full flex items-center justify-between text-left"
+          >
+            <div className="flex items-center gap-2">
+              <h2 className="font-semibold">
+                OEM Branding (ถ้าลูกค้าติดโลโก้บนสินค้า)
+              </h2>
+              {hasBranding ? (
+                <span className="inline-flex items-center rounded-full bg-indigo-100 text-indigo-700 px-2 py-0.5 text-xs font-medium">
+                  มี brand
+                </span>
+              ) : (
+                <span className="inline-flex items-center rounded-full bg-muted text-muted-foreground px-2 py-0.5 text-xs font-medium">
+                  ไม่มี
+                </span>
+              )}
+            </div>
+            {brandingOpen ? (
+              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+            )}
+          </button>
+
+          {!brandingOpen && (
+            <p className="text-xs text-muted-foreground">
+              เปิดเฉพาะลูกค้าที่ต้องการให้เรา&ldquo;ติดโลโก้/Mark&rdquo;
+              บนสินค้า (เช่น ลูกค้า OEM ที่ติดแบรนด์ตัวเองบนของเรา) —
+              ใช้เป็นค่า default ในแต่ละบรรทัดใบเสนอราคา/SO/Invoice
+            </p>
+          )}
+
+          {brandingOpen && (
+            <div className="space-y-4 pt-2">
+              <div className="space-y-1.5">
+                <Label>ชื่อโลโก้ / Mark เริ่มต้น</Label>
+                <Input
+                  {...register("brandingAssets.defaultMark")}
+                  placeholder="เช่น ACME logo, XYZ Brand"
+                />
+                <p className="text-xs text-muted-foreground">
+                  แสดงใน PDF เป็นบรรทัดย่อย &ldquo;Customer Mark: ...&rdquo;
+                </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>URL โลโก้ (ถ้ามี)</Label>
+                <Input
+                  {...register("brandingAssets.logoUrl")}
+                  placeholder="https://..."
+                  type="url"
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>หมายเหตุ brand</Label>
+                <Textarea
+                  {...register("brandingAssets.notes")}
+                  rows={2}
+                  placeholder="รายละเอียดเพิ่มเติม เช่น สี/ตำแหน่งติดโลโก้"
+                />
+              </div>
+
+              <div className="flex items-start gap-2 rounded-md bg-indigo-50 p-3 text-xs text-indigo-900">
+                <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                <p>
+                  การติดโลโก้ลูกค้าบนสินค้าที่เราผลิตเองถือเป็น
+                  &ldquo;ขายสินค้าพร้อม spec&rdquo; ไม่ใช่ &ldquo;รับจ้างทำของ&rdquo;
+                  — ดูอ้างอิงคำพิพากษาและแนวปฏิบัติที่
+                  {" "}
+                  <a href="/kb/oem-goods" target="_blank" className="underline">
+                    /kb/oem-goods
+                  </a>
+                </p>
               </div>
             </div>
           )}

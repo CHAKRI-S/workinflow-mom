@@ -40,6 +40,7 @@ import { Link } from "@/i18n/navigation";
 import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
+import { detectServiceWording } from "@/lib/po-wording-check";
 import type {
   BillingNature,
   DrawingSource,
@@ -53,6 +54,11 @@ interface Customer {
   shippingAddress?: string | null;
   paymentTermDays?: number;
   defaultBillingNature?: BillingNature;
+  brandingAssets?: {
+    defaultMark?: string;
+    logoUrl?: string;
+    notes?: string;
+  } | null;
 }
 
 interface Product {
@@ -114,6 +120,8 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
   const watchCustomerId = watch("customerId");
   const watchDepositPercent = watch("depositPercent");
   const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
+  const watchCustomerPoNumber = watch("customerPoNumber");
+  const poWordingCheck = detectServiceWording(watchCustomerPoNumber);
 
   const suggestedBillingNature = suggestBillingNature(
     (watchLines ?? []).map((l) => ({
@@ -277,6 +285,23 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
             <div className="space-y-1.5">
               <Label>{t("salesOrder.customerPoNumber")}</Label>
               <Input {...register("customerPoNumber")} />
+              {poWordingCheck.flagged && (
+                <div className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-3 py-2 mt-1">
+                  <strong>⚠ ระวัง:</strong> PO มีคำว่า{" "}
+                  <code className="font-mono">
+                    {poWordingCheck.matches.join(", ")}
+                  </code>{" "}
+                  ซึ่งตีความเป็น &quot;รับจ้างทำของ&quot; — แนะนำให้ขอลูกค้าแก้เป็น &quot;สั่งซื้อสินค้า&quot;
+                  เพื่อไม่ให้โดนหัก WHT 3%{" "}
+                  <a
+                    href="/kb/oem-goods"
+                    target="_blank"
+                    className="underline font-medium"
+                  >
+                    อ่านเพิ่มเติม
+                  </a>
+                </div>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -577,6 +602,27 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                           setValue(`lines.${index}.customerDrawingUrl`, v)
                         }
                       />
+                      {/* Phase 8.9 — Customer Mark (OEM branding) */}
+                      <div className="space-y-1">
+                        <Label className="text-xs">Customer Mark</Label>
+                        <Input
+                          value={line?.customerBranding?.mark ?? ""}
+                          onChange={(e) =>
+                            setValue(
+                              `lines.${index}.customerBranding`,
+                              e.target.value
+                                ? { mark: e.target.value }
+                                : undefined,
+                            )
+                          }
+                          placeholder={
+                            selectedCustomer?.brandingAssets?.defaultMark
+                              ? `เช่น ${selectedCustomer.brandingAssets.defaultMark}`
+                              : "เช่น ACME logo"
+                          }
+                          className="h-8 text-sm"
+                        />
+                      </div>
                     </div>
                   );
                 })}

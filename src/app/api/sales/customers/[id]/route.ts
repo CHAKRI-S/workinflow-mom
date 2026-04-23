@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { customerUpdateSchema } from "@/lib/validators/customer";
+import { Prisma } from "@/generated/prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -37,13 +38,26 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const data = customerUpdateSchema.parse(body);
 
   // Normalize empty-string juristicType → null, handle branchNo/country
-  const { juristicType, branchNo, country, ...rest } = data;
+  const { juristicType, branchNo, country, brandingAssets, ...rest } = data;
   const patch: Record<string, unknown> = { ...rest };
   if (juristicType !== undefined) {
     patch.juristicType = juristicType || null;
   }
   if (branchNo !== undefined) patch.branchNo = branchNo?.trim() || null;
   if (country !== undefined) patch.country = country?.trim() || "TH";
+  if (brandingAssets !== undefined) {
+    if (brandingAssets === null) {
+      patch.brandingAssets = Prisma.DbNull;
+    } else {
+      const trimmed = Object.fromEntries(
+        Object.entries(brandingAssets).filter(
+          ([, v]) => typeof v === "string" && v.trim() !== "",
+        ),
+      );
+      patch.brandingAssets =
+        Object.keys(trimmed).length > 0 ? trimmed : Prisma.DbNull;
+    }
+  }
 
   const customer = await prisma.customer.updateMany({
     where: { id, tenantId: session!.user.tenantId },

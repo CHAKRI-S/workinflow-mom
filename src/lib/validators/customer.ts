@@ -42,6 +42,18 @@ export const customerCreateSchema = z.object({
   withholdsTax: z.boolean().optional().default(false),
   /// ประเภทเอกสารเริ่มต้นของลูกค้ารายนี้
   defaultBillingNature: billingNatureEnum.optional().default("GOODS"),
+  /// OEM branding defaults — Phase 8.9
+  /// ถ้า customer ติดโลโก้บนสินค้า เก็บ default ไว้ที่ระดับลูกค้า
+  /// แล้วใช้ auto-fill ในใบเสนอราคา/ใบสั่งซื้อ/Invoice ต่อบรรทัด
+  brandingAssets: z
+    .object({
+      defaultMark: z.string().optional(),
+      logoUrl: z.string().optional(),
+      notes: z.string().optional(),
+    })
+    .partial()
+    .nullable()
+    .optional(),
 });
 
 export const customerUpdateSchema = customerCreateSchema.partial().omit({ code: true });
