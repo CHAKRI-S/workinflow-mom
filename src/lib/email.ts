@@ -191,6 +191,81 @@ export async function sendSubscriptionExpiredEmail(to: string, params: {
   });
 }
 
+/**
+ * Auto-renewal success (Phase 6D). Sent by the renewal-retry cron when a
+ * saved card successfully extends the subscription.
+ */
+export async function sendRenewalSuccessEmail(to: string, params: {
+  name: string;
+  companyName: string;
+  planName: string;
+  amountSatang: number;
+  cardLast4: string | null;
+  periodEnd: Date;
+}) {
+  const amountBaht = `฿${(params.amountSatang / 100).toLocaleString("th-TH")}`;
+  const end = params.periodEnd.toLocaleDateString("th-TH", {
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+  const cardLine = params.cardLast4
+    ? `บัตรลงท้าย <strong>${params.cardLast4}</strong>`
+    : "บัตรที่บันทึกไว้";
+  const html = layout(`
+    <h2 style="margin:0 0 12px">ต่ออายุสำเร็จ ✓</h2>
+    <p>สวัสดีคุณ${params.name},</p>
+    <p>เราได้เรียกเก็บเงินจาก${cardLine} สำหรับ <strong>${params.companyName}</strong> โดยอัตโนมัติเรียบร้อยแล้ว</p>
+    <table style="width:100%;margin-top:16px;border-collapse:collapse">
+      <tr><td style="padding:6px 0;color:#64748b">Plan:</td><td style="text-align:right">${params.planName}</td></tr>
+      <tr><td style="padding:6px 0;color:#64748b">ยอดชำระ:</td><td style="text-align:right"><strong>${amountBaht}</strong></td></tr>
+      <tr><td style="padding:6px 0;color:#64748b">ใช้งานถึง:</td><td style="text-align:right">${end}</td></tr>
+    </table>
+    <p style="margin-top:24px;font-size:13px;color:#64748b">
+      ใบกำกับภาษี/ใบเสร็จจะถูกสร้างให้อัตโนมัติในหน้า Billing
+    </p>
+  `);
+  return sendEmail({
+    to,
+    subject: `ต่ออายุสำเร็จ — ${params.planName} (${params.companyName})`,
+    html,
+  });
+}
+
+/**
+ * Auto-renewal failure (Phase 6D). Sent by the renewal-retry cron when a
+ * saved-card charge is declined — tenant is being suspended and needs to
+ * update the card or re-checkout manually.
+ */
+export async function sendRenewalFailedEmail(to: string, params: {
+  name: string;
+  companyName: string;
+  planName: string;
+  reason: string;
+  billingUrl: string;
+}) {
+  const html = layout(`
+    <h2 style="margin:0 0 12px">ต่ออายุไม่สำเร็จ — กรุณาอัปเดตบัตร</h2>
+    <p>สวัสดีคุณ${params.name},</p>
+    <p>เราไม่สามารถเรียกเก็บเงินจากบัตรที่บันทึกไว้ของ <strong>${params.companyName}</strong> (${params.planName}) ได้</p>
+    <p style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;color:#991b1b;font-size:13px">
+      เหตุผลจากธนาคาร: ${params.reason}
+    </p>
+    <p>กรุณาอัปเดตบัตรหรือชำระเงินใหม่เพื่อใช้งานต่อเนื่อง ข้อมูลทั้งหมดยังอยู่ครบ ไม่มีอะไรถูกลบ</p>
+    <p style="margin-top:24px">
+      <a href="${params.billingUrl}" style="display:inline-block;background:#3b82f6;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">อัปเดตบัตร / ต่ออายุ</a>
+    </p>
+    <p style="margin-top:24px;font-size:13px;color:#64748b">
+      ติดปัญหาหรือมีคำถาม? ตอบกลับอีเมลนี้ได้เลย
+    </p>
+  `);
+  return sendEmail({
+    to,
+    subject: `ต่ออายุไม่สำเร็จ — ${params.companyName} (${params.planName})`,
+    html,
+  });
+}
+
 export async function sendPaymentSuccessEmail(to: string, params: {
   name: string;
   planName: string;

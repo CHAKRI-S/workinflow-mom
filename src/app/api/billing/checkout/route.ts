@@ -4,7 +4,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { activateSubscription, calculateAmounts, computePeriod } from "@/lib/subscription";
-import { OMISE_CONFIGURED, createCharge } from "@/lib/omise";
+import { OMISE_CONFIGURED, createCharge, createCustomerWithCard } from "@/lib/omise";
 
 const checkoutSchema = z.object({
   planId: z.string().min(1),
@@ -91,7 +91,10 @@ export async function POST(req: NextRequest) {
         where: { id: tenantId },
         select: {
           id: true,
+          name: true,
+          email: true,
           planId: true,
+          omiseCustomerId: true,
           plan: { select: { priceMonthly: true, tier: true } },
         },
       }),
@@ -232,19 +235,68 @@ export async function POST(req: NextRequest) {
         failure_code?: string;
       };
 
+      // Phase 6D — opportunistically save the card for future renewal auto-charge.
+      // Omise tokens are single-use, so we attach it to a customer here BEFORE
+      // the charge, then charge the customer instead of the raw token. If the
+      // save fails we fall through to the legacy direct-token charge path —
+      // the checkout must not fail just because saved-card setup broke.
+      let savedCustomerId: string | null = tenant.omiseCustomerId ?? null;
+      const sessionEmail = session!.user.email ?? undefined;
+      if (!savedCustomerId && omiseToken) {
+        const saved = await createCustomerWithCard({
+          email: tenant.email || sessionEmail || `tenant+${tenant.id}@workinflow.cloud`,
+          description: `Tenant ${tenant.name} (${tenant.id})`,
+          cardToken: omiseToken,
+        });
+        if (saved) {
+          savedCustomerId = saved.customerId;
+          try {
+            await prisma.tenant.update({
+              where: { id: tenant.id },
+              data: {
+                omiseCustomerId: saved.customerId,
+                omiseDefaultCardId: saved.cardId,
+                omiseDefaultCardLast4: saved.last4,
+                omiseDefaultCardBrand: saved.brand,
+              },
+            });
+          } catch (e) {
+            // Non-fatal — tenant save failure shouldn't kill the checkout.
+            console.error("[checkout] persist saved-card fields failed:", e);
+          }
+        }
+      }
+
       let charge: OmiseChargeLike;
       try {
-        const raw = await createCharge({
-          amountSatang: amounts.totalSatang,
-          token: omiseToken,
-          returnUri,
-          description: `${plan.name} ${billingCycle} — ${sub.id}`,
-          metadata: {
-            subscriptionId: sub.id,
-            tenantId,
-            planId: plan.id,
-          },
-        });
+        // If we have a customer (either pre-existing or freshly saved via the
+        // token), charge the customer — the token has been consumed by
+        // customers.create and can no longer be used directly.
+        const raw = await createCharge(
+          savedCustomerId && savedCustomerId !== tenant.omiseCustomerId
+            ? {
+                amountSatang: amounts.totalSatang,
+                customerId: savedCustomerId,
+                returnUri,
+                description: `${plan.name} ${billingCycle} — ${sub.id}`,
+                metadata: {
+                  subscriptionId: sub.id,
+                  tenantId,
+                  planId: plan.id,
+                },
+              }
+            : {
+                amountSatang: amounts.totalSatang,
+                token: omiseToken,
+                returnUri,
+                description: `${plan.name} ${billingCycle} — ${sub.id}`,
+                metadata: {
+                  subscriptionId: sub.id,
+                  tenantId,
+                  planId: plan.id,
+                },
+              },
+        );
         charge = raw as unknown as OmiseChargeLike;
       } catch (err) {
         // Invalid token / expired card / other Omise errors.
