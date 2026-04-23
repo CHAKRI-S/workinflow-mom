@@ -46,6 +46,7 @@ export default async function NewReceiptPage({
           billingAddress: true,
           taxId: true,
           withholdsTax: true,
+          country: true,
         },
       },
     },

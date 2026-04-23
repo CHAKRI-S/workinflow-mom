@@ -37,6 +37,7 @@ interface InvoiceOption {
     billingAddress: string | null;
     taxId: string | null;
     withholdsTax: boolean;
+    country: string;
   };
 }
 
@@ -94,6 +95,7 @@ export function ReceiptFormClient({
     () => invoices.find((i) => i.id === invoiceId) ?? null,
     [invoices, invoiceId]
   );
+  const isForeignCustomer = Boolean(selected && selected.customer.country !== "TH");
 
   const [grossAmount, setGrossAmount] = useState<string>(initial.gross);
   const [payerName, setPayerName] = useState(initial.payerName);
@@ -106,6 +108,7 @@ export function ReceiptFormClient({
   const [whtRate, setWhtRate] = useState<string>("3");
   const [whtCertNumber, setWhtCertNumber] = useState("");
   const [whtCertReceivedAt, setWhtCertReceivedAt] = useState<string>("");
+  const [isDeposit, setIsDeposit] = useState(false);
 
   // File upload
   const [certFile, setCertFile] = useState<File | null>(null);
@@ -136,10 +139,15 @@ export function ReceiptFormClient({
         (inv.billingNature === "MANUFACTURING_SERVICE" ||
           inv.billingNature === "MIXED")
     );
+    setIsDeposit(false);
+    // Foreign customer → force WHT off (backend will also strip it, but UI should match)
+    if (inv.customer.country !== "TH") {
+      setApplyWht(false);
+    }
   }
 
   const gross = Number(grossAmount) || 0;
-  const rate = applyWht ? Number(whtRate) || 0 : 0;
+  const rate = applyWht && !isDeposit && !isForeignCustomer ? Number(whtRate) || 0 : 0;
   const whtAmount = Math.round(((gross * rate) / 100) * 100) / 100;
   const netAmount = Math.round((gross - whtAmount) * 100) / 100;
 
@@ -223,7 +231,7 @@ export function ReceiptFormClient({
       setFormError("กรุณากรอกชื่อผู้จ่าย");
       return;
     }
-    if (applyWht) {
+    if (applyWht && !isDeposit && !isForeignCustomer) {
       if (rate <= 0) {
         setFormError("WHT rate ต้องมากกว่า 0");
         return;
@@ -253,7 +261,10 @@ export function ReceiptFormClient({
         payerAddress: payerAddress.trim() || null,
         notes: notes.trim() || undefined,
       };
-      if (applyWht) {
+      if (isDeposit) payload.isDeposit = true;
+      if (isDeposit || isForeignCustomer) {
+        // backend will skip WHT entirely — don't send override
+      } else if (applyWht) {
         payload.whtRateOverride = rate;
         if (whtCertNumber.trim())
           payload.whtCertNumber = whtCertNumber.trim();
@@ -404,26 +415,55 @@ export function ReceiptFormClient({
 
         <div className="flex items-center gap-2 pt-2">
           <input
-            id="apply-wht"
+            id="is-deposit"
             type="checkbox"
-            checked={applyWht}
-            onChange={(e) => setApplyWht(e.target.checked)}
+            checked={isDeposit}
+            onChange={(e) => {
+              setIsDeposit(e.target.checked);
+              if (e.target.checked) setApplyWht(false);
+            }}
             className="h-4 w-4"
           />
-          <label htmlFor="apply-wht" className="text-sm cursor-pointer">
-            ลูกค้าหักภาษี ณ ที่จ่าย
+          <label htmlFor="is-deposit" className="text-sm cursor-pointer">
+            เป็นเงินมัดจำ
           </label>
-          {selected &&
-            selected.customer.withholdsTax &&
-            (selected.billingNature === "MANUFACTURING_SERVICE" ||
-              selected.billingNature === "MIXED") && (
-              <span className="text-xs text-blue-600 ml-2">
-                (แนะนำ: ลูกค้ารายนี้ตั้งค่าหัก WHT)
-              </span>
-            )}
+          <span className="text-xs text-muted-foreground ml-2">
+            (มัดจำไม่หัก ณ ที่จ่าย)
+          </span>
         </div>
 
-        {applyWht && (
+        {isForeignCustomer ? (
+          <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground bg-blue-50 border border-blue-200 rounded-md px-3 py-2">
+            ลูกค้าต่างประเทศ ({selected?.customer.country}) — ไม่หักภาษี ณ ที่จ่ายตามกฎหมายไทย
+          </div>
+        ) : isDeposit ? (
+          <div className="flex items-center gap-2 pt-2 text-sm text-muted-foreground bg-amber-50 border border-amber-200 rounded-md px-3 py-2">
+            เงินมัดจำ — ยังไม่ใช่รายได้ค่าบริการ จึงไม่หัก ณ ที่จ่าย
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 pt-2">
+            <input
+              id="apply-wht"
+              type="checkbox"
+              checked={applyWht}
+              onChange={(e) => setApplyWht(e.target.checked)}
+              className="h-4 w-4"
+            />
+            <label htmlFor="apply-wht" className="text-sm cursor-pointer">
+              ลูกค้าหักภาษี ณ ที่จ่าย
+            </label>
+            {selected &&
+              selected.customer.withholdsTax &&
+              (selected.billingNature === "MANUFACTURING_SERVICE" ||
+                selected.billingNature === "MIXED") && (
+                <span className="text-xs text-blue-600 ml-2">
+                  (แนะนำ: ลูกค้ารายนี้ตั้งค่าหัก WHT)
+                </span>
+              )}
+          </div>
+        )}
+
+        {applyWht && !isDeposit && !isForeignCustomer && (
           <div className="space-y-4 pt-2 border-l-2 border-blue-200 pl-4">
             <div className="grid grid-cols-3 gap-4">
               <div>
@@ -494,7 +534,7 @@ export function ReceiptFormClient({
             <span className="text-muted-foreground">จำนวนเงิน (Gross):</span>
             <span className="font-mono">{formatCurrency(gross)}</span>
           </div>
-          {applyWht && (
+          {applyWht && !isDeposit && !isForeignCustomer && (
             <div className="flex justify-between text-red-600">
               <span>หัก ณ ที่จ่าย {rate}%:</span>
               <span className="font-mono">- {formatCurrency(whtAmount)}</span>

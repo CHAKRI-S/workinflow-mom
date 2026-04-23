@@ -32,6 +32,8 @@ export const receiptCreateSchema = z.object({
   whtCertNumber: z.string().optional(),
   whtCertFileUrl: z.string().optional(), // R2 object key
   whtCertReceivedAt: z.string().optional(), // ISO date
+  /** ใบเสร็จเงินมัดจำ — ข้าม WHT (มัดจำยังไม่ใช่รายได้ค่าบริการ) */
+  isDeposit: z.boolean().optional(),
   notes: z.string().optional(),
 });
 
@@ -70,8 +72,29 @@ export function resolveWhtPolicy(params: {
   customerWithholdsTax: boolean;
   override?: number;
   hasCert: boolean;
+  /** ISO-3166 alpha-2 (เช่น "TH", "US"). ประเทศอื่นไม่หัก WHT ไทย */
+  customerCountry?: string;
+  /** ใบเสร็จเงินมัดจำ — ยังไม่ใช่รายได้ค่าบริการ จึงไม่หัก WHT */
+  isDeposit?: boolean;
 }): { whtRate: number; certStatus: WhtCertStatus } {
-  const { billingNature, customerWithholdsTax, override, hasCert } = params;
+  const {
+    billingNature,
+    customerWithholdsTax,
+    override,
+    hasCert,
+    customerCountry,
+    isDeposit,
+  } = params;
+
+  // Short-circuit: มัดจำไม่หัก WHT (ไม่ว่า override จะเป็นอะไร)
+  if (isDeposit === true) {
+    return { whtRate: 0, certStatus: "NOT_APPLICABLE" };
+  }
+
+  // Short-circuit: ลูกค้าต่างชาติไม่หัก WHT ไทย
+  if (customerCountry && customerCountry !== "TH") {
+    return { whtRate: 0, certStatus: "NOT_APPLICABLE" };
+  }
 
   if (override !== undefined) {
     if (override === 0) {

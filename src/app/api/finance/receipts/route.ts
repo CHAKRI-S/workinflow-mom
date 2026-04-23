@@ -76,7 +76,11 @@ export async function POST(req: NextRequest) {
       where: { id: body.invoiceId, tenantId },
       include: {
         customer: {
-          select: { isVatRegistered: true, withholdsTax: true },
+          select: {
+            isVatRegistered: true,
+            withholdsTax: true,
+            country: true,
+          },
         },
       },
     });
@@ -102,6 +106,8 @@ export async function POST(req: NextRequest) {
       customerWithholdsTax: invoice.customer.withholdsTax,
       override: body.whtRateOverride,
       hasCert,
+      customerCountry: invoice.customer.country,
+      isDeposit: body.isDeposit ?? false,
     });
 
     const { whtAmount, netAmount } = computeWht({
@@ -137,6 +143,7 @@ export async function POST(req: NextRequest) {
           payerName: body.payerName,
           payerTaxId: body.payerTaxId || null,
           payerAddress: body.payerAddress || null,
+          isDeposit: body.isDeposit ?? false,
           notes: body.notes || null,
           createdById: session!.user.id,
           tenantId,
@@ -160,6 +167,7 @@ export async function POST(req: NextRequest) {
         whtAmount: { from: null, to: whtAmount },
         netAmount: { from: null, to: netAmount },
         whtCertStatus: { from: null, to: certStatus },
+        isDeposit: { from: null, to: body.isDeposit ?? false },
       },
       userId: session!.user.id,
       userName: session!.user.name || "",

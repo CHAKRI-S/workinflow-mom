@@ -62,14 +62,21 @@ export async function POST(req: NextRequest) {
 
     const tenantId = session!.user.tenantId;
 
-    // Fetch invoice with customer VAT status
+    // Fetch invoice with customer VAT status + receipts (for WHT reversal proration)
     const invoice = await prisma.invoice.findFirst({
       where: { id: invoiceId, tenantId },
-      include: {
+      select: {
+        id: true,
+        subtotal: true,
+        billingNature: true,
         salesOrder: {
           include: {
             customer: { select: { isVatRegistered: true } },
           },
+        },
+        receipts: {
+          where: { cancelledAt: null },
+          select: { whtAmount: true, grossAmount: true },
         },
       },
     });
@@ -116,6 +123,18 @@ export async function POST(req: NextRequest) {
     const vatAmount = Math.round((subtotal * vatRate) / 100);
     const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
 
+    // WHT reversal: prorate ตาม subtotal CN / subtotal Invoice
+    // ถ้า invoice เคยโดนหัก ณ ที่จ่ายไปแล้ว — CN ต้อง reverse กลับตามสัดส่วน
+    const totalReceiptWht = invoice.receipts.reduce(
+      (sum, r) => sum + Number(r.whtAmount),
+      0,
+    );
+    const invoiceSubtotal = Number(invoice.subtotal);
+    const whtReversalAmount =
+      invoiceSubtotal > 0 && totalReceiptWht > 0
+        ? Math.round((subtotal / invoiceSubtotal) * totalReceiptWht * 100) / 100
+        : 0;
+
     const creditNote = await prisma.$transaction(async (tx) => {
       const prefix = creditNotePrefix(isVat);
       const creditNoteNumber = await generateDocNumber(tenantId, prefix);
@@ -131,6 +150,8 @@ export async function POST(req: NextRequest) {
           vatRate,
           vatAmount,
           totalAmount,
+          billingNature: invoice.billingNature,
+          whtReversalAmount: new Prisma.Decimal(whtReversalAmount),
           description,
           notes: notes || null,
           tenantId,
@@ -152,6 +173,10 @@ export async function POST(req: NextRequest) {
       entityType: "CreditNote",
       entityId: creditNote.id,
       entityNumber: creditNote.creditNoteNumber,
+      changes: {
+        billingNature: { from: null, to: invoice.billingNature },
+        whtReversalAmount: { from: null, to: whtReversalAmount },
+      },
       userId: session!.user.id,
       userName: session!.user.name || "",
       tenantId,
