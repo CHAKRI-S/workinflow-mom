@@ -50,6 +50,7 @@ export async function GET(_req: NextRequest, { params }: Params) {
         address: true,
         phone: true,
         email: true,
+        isVatRegistered: true, // Phase 8.12 — drives PDF title + VAT line
       },
     });
 

@@ -43,11 +43,26 @@ export async function GET(_req: NextRequest, { params }: Params) {
         address: true,
         phone: true,
         email: true,
+        isVatRegistered: true, // Phase 8.12
       },
     });
 
     if (!tenant) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
+    }
+
+    // Phase 8.12 — a non-VAT registered seller cannot legally issue a tax
+    // invoice (ม.86 ประมวลรัษฎากร). Block at the API layer. The tax-invoice
+    // CREATE route should also prevent this; this is belt-and-suspenders
+    // for pre-existing rows.
+    if (!tenant.isVatRegistered) {
+      return NextResponse.json(
+        {
+          error:
+            "ไม่สามารถออกใบกำกับภาษีได้ — บริษัทยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม (ม.86 ประมวลรัษฎากร)",
+        },
+        { status: 422 }
+      );
     }
 
     const pdfData = mapTaxInvoiceToPdfData(taxInvoice, tenant);

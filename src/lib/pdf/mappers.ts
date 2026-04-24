@@ -38,6 +38,12 @@ export interface TenantLike {
   address?: string | null;
   phone?: string | null;
   email?: string | null;
+  /**
+   * Phase 8.12 — if false, PDFs drop "ใบกำกับภาษี" from titles and hide
+   * VAT line in totals. Default true keeps existing behavior for tenants
+   * that haven't explicitly opted out.
+   */
+  isVatRegistered?: boolean;
 }
 
 // ---------- Invoice mapper ----------
@@ -121,8 +127,13 @@ export function mapInvoiceToPdfData(
   );
   const oemDisclaimer = invoice.billingNature === "GOODS" && hasBranding;
 
+  // Default undefined → true (preserves existing behavior for callers
+  // that haven't been updated to pass isVatRegistered yet)
+  const tenantIsVatRegistered = tenant.isVatRegistered ?? true;
+
   return {
     tenant,
+    tenantIsVatRegistered,
     status: invoice.status ?? null,
     seller: {
       name: tenant.name,
@@ -201,6 +212,7 @@ export function mapReceiptToPdfData(
   const gross = n(r.grossAmount) || n(r.amount); // fallback ถ้าไม่มี WHT
   return {
     tenant,
+    tenantIsVatRegistered: tenant.isVatRegistered ?? true,
     status: r.status ?? null,
     seller: {
       name: tenant.name,
@@ -350,6 +362,7 @@ export function mapTaxInvoiceToPdfData(
   );
   return {
     tenant,
+    tenantIsVatRegistered: tenant.isVatRegistered ?? true,
     status: ti.status ?? null,
     seller: {
       name: ti.sellerName,

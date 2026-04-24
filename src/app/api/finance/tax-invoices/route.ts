@@ -90,6 +90,7 @@ export async function POST(req: NextRequest) {
         name: true,
         taxId: true,
         address: true,
+        isVatRegistered: true, // Phase 8.12 — gate tax invoice creation
       },
     });
 
@@ -97,6 +98,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         { error: "Tenant not found" },
         { status: 404 }
+      );
+    }
+
+    // Phase 8.12 — refuse to create a tax invoice for a non-VAT tenant.
+    // Only VAT-registered sellers may issue ใบกำกับภาษี (ม.86 ประมวลรัษฎากร).
+    // User must register for VAT (or toggle the flag in admin settings if
+    // already registered) before issuing this document type.
+    if (!tenant.isVatRegistered) {
+      return NextResponse.json(
+        {
+          error:
+            "บริษัทยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม จึงไม่สามารถออกใบกำกับภาษีได้ — กรุณาไปที่ Settings เพื่อเปิดสถานะ VAT ก่อน",
+        },
+        { status: 422 }
       );
     }
 

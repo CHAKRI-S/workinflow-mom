@@ -101,6 +101,10 @@ export interface ProvisionTenantInput {
    *  "รับจ้างผลิตตามแบบลูกค้า" → MANUFACTURING_SERVICE (ม.3 เตรส) |
    *  "ผสม" → MIXED. Falls back to schema default (GOODS) if omitted. */
   defaultBillingNature?: BillingNature;
+  /** Phase 8.12 — VAT registration status. If true (or omitted, since the
+   *  schema defaults to true), PDFs render "ใบกำกับภาษี / ใบแจ้งหนี้" + 7%
+   *  VAT line. If false, PDFs drop "ใบกำกับภาษี" per ม.86 ประมวลรัษฎากร. */
+  isVatRegistered?: boolean;
   /** Override default plan (defaults to FREE) */
   planSlug?: string;
   /** Override trial days (default 30) */
@@ -144,6 +148,7 @@ export async function provisionTenant(
     branchNo,
     country = "TH",
     defaultBillingNature,
+    isVatRegistered,
     planSlug = "free",
     trialDays = TRIAL_DAYS,
   } = input;
@@ -188,6 +193,9 @@ export async function provisionTenant(
         country,
         // If omitted, schema default (GOODS) applies.
         ...(defaultBillingNature ? { defaultBillingNature } : {}),
+        // Phase 8.12 — if undefined, schema default (true) applies. Only
+        // persist when explicitly set so existing tests / seeders stay stable.
+        ...(isVatRegistered !== undefined ? { isVatRegistered } : {}),
         status: "TRIAL",
         trialEndsAt,
         planId: plan.id,

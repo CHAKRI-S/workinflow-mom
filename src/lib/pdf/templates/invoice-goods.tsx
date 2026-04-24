@@ -21,19 +21,27 @@ import type { InvoicePdfData } from "../types";
  */
 export function InvoiceGoodsPdf({ data }: { data: InvoicePdfData }) {
   registerPdfFonts();
+  // Phase 8.12 — drop "ใบกำกับภาษี" for non-VAT tenants. Only VAT-registered
+  // sellers are legally allowed to issue tax invoices (ม.86 ประมวลรัษฎากร).
+  const title = data.tenantIsVatRegistered
+    ? "ใบกำกับภาษี / ใบแจ้งหนี้"
+    : "ใบแจ้งหนี้ / ใบส่งของ";
+  const subtitle = data.tenantIsVatRegistered
+    ? "TAX INVOICE / INVOICE"
+    : "INVOICE / DELIVERY NOTE";
   return (
     <Document
       title={`${data.doc.number}`}
       author={data.tenant.name}
-      subject="ใบกำกับภาษี / ใบแจ้งหนี้"
+      subject={title}
     >
       <Page size="A4" style={pdfStyles.page}>
         <CancelledWatermark show={data.status === "CANCELLED"} />
         <PdfHeader
           tenant={data.tenant}
           doc={{
-            title: "ใบกำกับภาษี / ใบแจ้งหนี้",
-            subtitle: "TAX INVOICE / INVOICE",
+            title,
+            subtitle,
             number: data.doc.number,
             issueDate: data.doc.issueDate,
             dueDate: data.doc.dueDate,
@@ -56,8 +64,8 @@ export function InvoiceGoodsPdf({ data }: { data: InvoicePdfData }) {
         <TotalsBox
           subtotal={data.totals.subtotal}
           discountAmount={data.totals.discountAmount}
-          vatRate={data.totals.vatRate}
-          vatAmount={data.totals.vatAmount}
+          vatRate={data.tenantIsVatRegistered ? data.totals.vatRate : null}
+          vatAmount={data.tenantIsVatRegistered ? data.totals.vatAmount : null}
           grandTotal={data.totals.totalAmount}
           bahtAmount={data.totals.totalAmount}
         />

@@ -4,6 +4,13 @@ import type { PdfLineItem } from "./components/LineItemsTable";
 
 export interface InvoicePdfData {
   tenant: HeaderTenant;
+  /**
+   * Phase 8.12 — Tenant VAT registration status. Controls:
+   * - PDF title ("ใบกำกับภาษี / ใบแจ้งหนี้" vs plain "ใบแจ้งหนี้")
+   * - Whether VAT line renders in TotalsBox
+   * Defaults to true via schema default; non-VAT tenants flip to false.
+   */
+  tenantIsVatRegistered: boolean;
   buyer: Party;
   seller: Party;
   /** Document status — when "CANCELLED", renders a red diagonal watermark */
@@ -35,6 +42,8 @@ export interface InvoicePdfData {
 
 export interface ReceiptPdfData {
   tenant: HeaderTenant;
+  /** Phase 8.12 — see InvoicePdfData.tenantIsVatRegistered */
+  tenantIsVatRegistered: boolean;
   payer: Party; // ผู้จ่ายเงิน
   seller: Party;
   /** Document status — when "CANCELLED", renders a red diagonal watermark */
@@ -99,6 +108,12 @@ export interface SubscriptionInvoicePdfData {
 
 export interface TaxInvoicePdfData {
   tenant: HeaderTenant;
+  /**
+   * Phase 8.12 — A tax invoice should NEVER be issued by a non-VAT tenant.
+   * API routes must block generation; this flag lets template render a
+   * defensive banner if somehow a non-VAT tenant reaches rendering.
+   */
+  tenantIsVatRegistered: boolean;
   buyer: Party;
   seller: Party;
   /** Document status — when "CANCELLED", renders a red diagonal watermark */

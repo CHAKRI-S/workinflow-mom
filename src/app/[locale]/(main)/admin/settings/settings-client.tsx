@@ -48,6 +48,8 @@ interface Tenant {
   logo: string | null;
   vatRate: string | number;
   defaultBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
+  /** Phase 8.12 — VAT registration status */
+  isVatRegistered?: boolean;
   isActive: boolean;
 }
 
@@ -76,6 +78,9 @@ interface CompanyFormData {
   address: string;
   vatRate: string;
   defaultBillingNature: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
+  /** Phase 8.12 — VAT registration. Stored as string "true"/"false" because
+   * the <Select> component works with strings; converted to boolean on submit. */
+  isVatRegistered: "true" | "false";
 }
 
 /** Kept in sync with TENANT_CODE_MIN/MAX on the server. */
@@ -134,6 +139,7 @@ export function SettingsClient({
       address: tenant?.address || "",
       vatRate: String(tenant?.vatRate ?? 7),
       defaultBillingNature: tenant?.defaultBillingNature ?? "GOODS",
+      isVatRegistered: (tenant?.isVatRegistered ?? true) ? "true" : "false",
     },
   });
 
@@ -159,10 +165,16 @@ export function SettingsClient({
     setError(null);
     setSuccess(false);
     try {
+      // Convert isVatRegistered from "true"/"false" string to boolean so the
+      // server receives the proper type (API accepts both but DB is boolean).
+      const payload = {
+        ...data,
+        isVatRegistered: data.isVatRegistered === "true",
+      };
       const res = await fetch("/api/admin/settings", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const err = await res.json();
@@ -414,6 +426,41 @@ export function SettingsClient({
               <div className="space-y-1.5 md:col-span-2">
                 <Label>{t("settings.address")}</Label>
                 <Textarea {...register("address")} rows={2} />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>สถานะภาษีมูลค่าเพิ่ม (VAT)</Label>
+                <Select
+                  value={watch("isVatRegistered")}
+                  onValueChange={(v) =>
+                    setValue(
+                      "isVatRegistered",
+                      v as CompanyFormData["isVatRegistered"],
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="true">
+                      จดทะเบียน VAT แล้ว — ออก &quot;ใบกำกับภาษี&quot; ได้
+                    </SelectItem>
+                    <SelectItem value="false">
+                      ยังไม่จดทะเบียน VAT — ออก &quot;ใบแจ้งหนี้/ใบส่งของ&quot; เท่านั้น
+                    </SelectItem>
+                  </SelectContent>
+                </Select>
+                {watch("isVatRegistered") === "true" ? (
+                  <p className="text-[11px] text-muted-foreground">
+                    เอกสารจะขึ้นหัวว่า &quot;ใบกำกับภาษี&quot; และมีบรรทัด VAT{" "}
+                    {watch("vatRate") || "7"}%
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400">
+                    ⚠ กิจการที่ไม่ได้จดทะเบียน VAT ห้ามออกใบกำกับภาษี (ม.86
+                    ประมวลรัษฎากร) — มีโทษปรับ 2 เท่าของภาษี + อาญา
+                  </p>
+                )}
               </div>
               <div className="space-y-1.5 md:col-span-2">
                 <Label>นโยบายภาษีเริ่มต้น</Label>

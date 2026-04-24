@@ -37,6 +37,11 @@ export default function SignupPage() {
   const [business, setBusiness] = useState<BusinessInfoValue>(EMPTY_BUSINESS);
   const [billingNature, setBillingNature] =
     useState<BillingNatureChoice>("GOODS");
+  // Phase 8.12 — VAT registration status. Default true since most B2B
+  // manufacturers who make it to this product are already VAT-registered
+  // (revenue > 1.8M/year). Non-VAT tenants flip this to false so their
+  // PDFs drop "ใบกำกับภาษี" from headers.
+  const [isVatRegistered, setIsVatRegistered] = useState<boolean>(true);
 
   const patchBusiness = (patch: Partial<BusinessInfoValue>) =>
     setBusiness((prev) => ({ ...prev, ...patch }));
@@ -62,6 +67,7 @@ export default function SignupPage() {
       adminPassword: String(fd.get("adminPassword") || ""),
       phone: String(fd.get("phone") || "").trim() || undefined,
       defaultBillingNature: billingNature,
+      isVatRegistered,
       acceptTerms: fd.get("acceptTerms") === "on",
     };
 
@@ -195,6 +201,38 @@ export default function SignupPage() {
           </div>
         </div>
 
+        {/* VAT registration — Phase 8.12 */}
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <div className="text-sm font-semibold text-muted-foreground">
+            สถานะภาษีมูลค่าเพิ่ม (VAT)
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-medium">
+              บริษัทจดทะเบียนภาษีมูลค่าเพิ่ม (VAT) แล้วหรือยัง?
+            </div>
+            <div className="text-xs text-muted-foreground">
+              มีผลต่อหัวบิล — ผู้ประกอบการที่จด VAT ต้องออก &quot;ใบกำกับภาษี&quot;
+              ทุกครั้ง (ม.86 ประมวลรัษฎากร)
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <VatOption
+              value={true}
+              current={isVatRegistered}
+              onChange={setIsVatRegistered}
+              title="จด VAT แล้ว (แนะนำสำหรับบริษัทที่มีรายได้ > 1.8 ล้าน/ปี)"
+              desc="เอกสารจะขึ้นหัว &quot;ใบกำกับภาษี / ใบแจ้งหนี้&quot; + คิด VAT 7%"
+            />
+            <VatOption
+              value={false}
+              current={isVatRegistered}
+              onChange={setIsVatRegistered}
+              title="ยังไม่ได้จด VAT"
+              desc="เอกสารจะขึ้นหัว &quot;ใบแจ้งหนี้ / ใบส่งของ&quot; เท่านั้น · ห้ามออกใบกำกับภาษี · เปลี่ยนที่ Settings ได้หลัง register VAT"
+            />
+          </div>
+        </div>
+
         {/* Tax policy — drives default billingNature for customers & documents */}
         <div className="rounded-xl border bg-card p-5 space-y-4">
           <div className="text-sm font-semibold text-muted-foreground">
@@ -320,6 +358,44 @@ export default function SignupPage() {
         </p>
       </form>
     </div>
+  );
+}
+
+function VatOption({
+  value,
+  current,
+  onChange,
+  title,
+  desc,
+}: {
+  value: boolean;
+  current: boolean;
+  onChange: (v: boolean) => void;
+  title: string;
+  desc: string;
+}) {
+  const checked = value === current;
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+        checked
+          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+          : "border-input bg-background hover:bg-muted/50"
+      }`}
+    >
+      <input
+        type="radio"
+        name="isVatRegistered"
+        value={String(value)}
+        checked={checked}
+        onChange={() => onChange(value)}
+        className="mt-0.5 h-4 w-4 accent-primary"
+      />
+      <div className="space-y-0.5">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="text-xs text-muted-foreground">{desc}</div>
+      </div>
+    </label>
   );
 }
 

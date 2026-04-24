@@ -30,6 +30,8 @@ const signupSchema = z.object({
   defaultBillingNature: z
     .enum(["GOODS", "MANUFACTURING_SERVICE", "MIXED"])
     .optional(),
+  // Phase 8.12 — VAT registration status at signup
+  isVatRegistered: z.boolean().optional(),
   acceptTerms: z.boolean().refine((v) => v === true, "กรุณายอมรับเงื่อนไขการใช้งาน"),
 });
 
@@ -60,6 +62,7 @@ export async function POST(req: NextRequest) {
       country,
       billingAddress,
       defaultBillingNature,
+      isVatRegistered,
     } = parsed.data;
 
     const result = await provisionTenant({
@@ -74,6 +77,7 @@ export async function POST(req: NextRequest) {
       branchNo,
       country,
       defaultBillingNature,
+      isVatRegistered,
       planSlug: "free", // new tenants start on FREE trial
     });
 

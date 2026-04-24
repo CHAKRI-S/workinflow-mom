@@ -51,6 +51,7 @@ const mockItem: PdfLineItem = {
 
 const mockInvoiceData: InvoicePdfData = {
   tenant: mockTenant,
+  tenantIsVatRegistered: true,
   seller: mockParty,
   buyer: mockParty,
   doc: {
@@ -79,6 +80,7 @@ const mockInvoiceData: InvoicePdfData = {
 
 const mockReceiptData: ReceiptPdfData = {
   tenant: mockTenant,
+  tenantIsVatRegistered: true,
   seller: mockParty,
   payer: mockParty,
   doc: {
@@ -137,6 +139,7 @@ const mockSubscriptionInvoiceData: SubscriptionInvoicePdfData = {
 
 const mockTaxInvoiceData: TaxInvoicePdfData = {
   tenant: mockTenant,
+  tenantIsVatRegistered: true,
   seller: mockParty,
   buyer: mockParty,
   doc: {

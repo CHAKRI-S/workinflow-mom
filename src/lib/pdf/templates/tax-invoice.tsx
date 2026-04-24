@@ -34,6 +34,19 @@ export function TaxInvoicePdf({ data }: { data: TaxInvoicePdfData }) {
     >
       <Page size="A4" style={pdfStyles.page}>
         <CancelledWatermark show={data.status === "CANCELLED"} />
+        {/*
+          Phase 8.12 — defensive banner. If a non-VAT tenant somehow renders
+          this template (API should block first), print a prominent warning
+          so the invalid document is obviously non-authoritative.
+        */}
+        {!data.tenantIsVatRegistered && (
+          <View style={pdfStyles.noteBox}>
+            <Text style={pdfStyles.bold}>
+              ⚠ เอกสารนี้ออกโดยผู้ประกอบการที่ยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม —
+              ไม่ถือเป็นใบกำกับภาษีตามประมวลรัษฎากร ม.86
+            </Text>
+          </View>
+        )}
         <PdfHeader
           tenant={data.tenant}
           doc={{

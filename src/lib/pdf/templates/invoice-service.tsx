@@ -21,19 +21,26 @@ import type { InvoicePdfData } from "../types";
  */
 export function InvoiceServicePdf({ data }: { data: InvoicePdfData }) {
   registerPdfFonts();
+  // Phase 8.12 — prefix "ใบกำกับภาษี" only when tenant is VAT registered.
+  const title = data.tenantIsVatRegistered
+    ? "ใบกำกับภาษี / ใบแจ้งหนี้ค่าบริการ"
+    : "ใบแจ้งหนี้ค่าบริการ";
+  const subtitle = data.tenantIsVatRegistered
+    ? "TAX INVOICE / SERVICE INVOICE"
+    : "SERVICE INVOICE";
   return (
     <Document
       title={`${data.doc.number}`}
       author={data.tenant.name}
-      subject="ใบแจ้งหนี้ค่าบริการ / รับจ้างทำของ"
+      subject={title}
     >
       <Page size="A4" style={pdfStyles.page}>
         <CancelledWatermark show={data.status === "CANCELLED"} />
         <PdfHeader
           tenant={data.tenant}
           doc={{
-            title: "ใบแจ้งหนี้ค่าบริการ",
-            subtitle: "SERVICE INVOICE",
+            title,
+            subtitle,
             number: data.doc.number,
             issueDate: data.doc.issueDate,
             dueDate: data.doc.dueDate,
@@ -56,8 +63,8 @@ export function InvoiceServicePdf({ data }: { data: InvoicePdfData }) {
         <TotalsBox
           subtotal={data.totals.subtotal}
           discountAmount={data.totals.discountAmount}
-          vatRate={data.totals.vatRate}
-          vatAmount={data.totals.vatAmount}
+          vatRate={data.tenantIsVatRegistered ? data.totals.vatRate : null}
+          vatAmount={data.tenantIsVatRegistered ? data.totals.vatAmount : null}
           grandTotal={data.totals.totalAmount}
           whtRate={data.totals.whtRate}
           whtAmount={data.totals.whtAmount}

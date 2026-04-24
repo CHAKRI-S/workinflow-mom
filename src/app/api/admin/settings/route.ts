@@ -51,6 +51,7 @@ export async function PATCH(req: NextRequest) {
       "vatRate",
       "logo",
       "defaultBillingNature",
+      "isVatRegistered", // Phase 8.12
     ];
     const updateData: Record<string, unknown> = {};
 
@@ -58,6 +59,19 @@ export async function PATCH(req: NextRequest) {
       if (body[field] !== undefined) {
         if (field === "vatRate") {
           updateData[field] = parseFloat(body[field]) || 7;
+        } else if (field === "isVatRegistered") {
+          // Boolean field — accept true/false/"true"/"false"
+          const raw = body[field];
+          if (typeof raw === "boolean") {
+            updateData.isVatRegistered = raw;
+          } else if (raw === "true" || raw === "false") {
+            updateData.isVatRegistered = raw === "true";
+          } else {
+            return NextResponse.json(
+              { error: "isVatRegistered ต้องเป็น true หรือ false" },
+              { status: 400 },
+            );
+          }
         } else if (field === "defaultBillingNature") {
           // Validate enum — reject bad input rather than silently storing.
           const allowed = ["GOODS", "MANUFACTURING_SERVICE", "MIXED"];

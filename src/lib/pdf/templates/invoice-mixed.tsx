@@ -34,19 +34,27 @@ export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
   const hasGoods = goodsItems.length > 0;
   const hasService = serviceItems.length > 0;
 
+  // Phase 8.12 — adjust for non-VAT tenants.
+  const title = data.tenantIsVatRegistered
+    ? "ใบกำกับภาษี / ใบแจ้งหนี้"
+    : "ใบแจ้งหนี้ (สินค้า + บริการ)";
+  const subtitle = data.tenantIsVatRegistered
+    ? "TAX INVOICE (GOODS + SERVICE)"
+    : "INVOICE (GOODS + SERVICE)";
+
   return (
     <Document
       title={`${data.doc.number}`}
       author={data.tenant.name}
-      subject="ใบกำกับภาษี (สินค้า + บริการ)"
+      subject={title}
     >
       <Page size="A4" style={pdfStyles.page}>
         <CancelledWatermark show={data.status === "CANCELLED"} />
         <PdfHeader
           tenant={data.tenant}
           doc={{
-            title: "ใบกำกับภาษี / ใบแจ้งหนี้",
-            subtitle: "TAX INVOICE (GOODS + SERVICE)",
+            title,
+            subtitle,
             number: data.doc.number,
             issueDate: data.doc.issueDate,
             dueDate: data.doc.dueDate,
@@ -87,8 +95,8 @@ export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
         <TotalsBox
           subtotal={data.totals.subtotal}
           discountAmount={data.totals.discountAmount}
-          vatRate={data.totals.vatRate}
-          vatAmount={data.totals.vatAmount}
+          vatRate={data.tenantIsVatRegistered ? data.totals.vatRate : null}
+          vatAmount={data.tenantIsVatRegistered ? data.totals.vatAmount : null}
           grandTotal={data.totals.totalAmount}
           whtRate={data.totals.whtRate}
           whtAmount={data.totals.whtAmount}
