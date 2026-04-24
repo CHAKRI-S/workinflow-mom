@@ -44,6 +44,11 @@ model Tenant {
   email        String?
   logo         String? // URL โลโก้
   vatRate      Decimal       @default(7) @db.Decimal(5, 2) // อัตรา VAT %
+  // VAT registration (Phase 8.12). Controls whether PDFs say "ใบกำกับภาษี"
+  // (VAT registered) or just "ใบแจ้งหนี้" (not registered — cannot issue
+  // tax invoice per ม.86 ประมวลรัษฎากร). Existing tenants default to true
+  // to preserve current behavior. Set at signup or toggled in admin settings.
+  isVatRegistered Boolean    @default(true)
   // Default billing nature for new customers/documents. Asked at signup:
   // "ขายสินค้าที่ออกแบบเอง" → GOODS (OEM goods manufacturer, factor profile
   // default, no 3% WHT). "รับจ้างผลิตตามแบบลูกค้า" → MANUFACTURING_SERVICE
