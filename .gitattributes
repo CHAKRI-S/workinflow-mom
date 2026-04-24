@@ -1,0 +1,20 @@
+# Normalize line endings across platforms. Keeps diffs clean and silences
+# the "LF will be replaced by CRLF" noise that every Windows commit produced.
+* text=auto eol=lf
+
+# Lock-files / generated artifacts stay as-is.
+package-lock.json -text
+pnpm-lock.yaml -text
+yarn.lock -text
+
+# Binary assets.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.pdf binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.otf binary
