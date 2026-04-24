@@ -41,13 +41,33 @@ export async function PATCH(req: NextRequest) {
     const tenantId = session!.user.tenantId;
 
     const body = await req.json();
-    const allowedFields = ["name", "code", "taxId", "address", "phone", "email", "vatRate", "logo"];
+    const allowedFields = [
+      "name",
+      "code",
+      "taxId",
+      "address",
+      "phone",
+      "email",
+      "vatRate",
+      "logo",
+      "defaultBillingNature",
+    ];
     const updateData: Record<string, unknown> = {};
 
     for (const field of allowedFields) {
       if (body[field] !== undefined) {
         if (field === "vatRate") {
           updateData[field] = parseFloat(body[field]) || 7;
+        } else if (field === "defaultBillingNature") {
+          // Validate enum — reject bad input rather than silently storing.
+          const allowed = ["GOODS", "MANUFACTURING_SERVICE", "MIXED"];
+          if (!allowed.includes(body[field])) {
+            return NextResponse.json(
+              { error: "defaultBillingNature ไม่ถูกต้อง" },
+              { status: 400 },
+            );
+          }
+          updateData.defaultBillingNature = body[field];
         } else if (field === "code") {
           // Normalize: uppercase + strip invalid chars before validating.
           const raw = typeof body.code === "string" ? body.code : "";

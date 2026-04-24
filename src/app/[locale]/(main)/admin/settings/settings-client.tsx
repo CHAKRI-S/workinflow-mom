@@ -9,6 +9,13 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useState } from "react";
 import {
   Building2,
@@ -40,6 +47,7 @@ interface Tenant {
   email: string | null;
   logo: string | null;
   vatRate: string | number;
+  defaultBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
   isActive: boolean;
 }
 
@@ -67,6 +75,7 @@ interface CompanyFormData {
   email: string;
   address: string;
   vatRate: string;
+  defaultBillingNature: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
 }
 
 /** Kept in sync with TENANT_CODE_MIN/MAX on the server. */
@@ -124,6 +133,7 @@ export function SettingsClient({
       email: tenant?.email || "",
       address: tenant?.address || "",
       vatRate: String(tenant?.vatRate ?? 7),
+      defaultBillingNature: tenant?.defaultBillingNature ?? "GOODS",
     },
   });
 
@@ -404,6 +414,34 @@ export function SettingsClient({
               <div className="space-y-1.5 md:col-span-2">
                 <Label>{t("settings.address")}</Label>
                 <Textarea {...register("address")} rows={2} />
+              </div>
+              <div className="space-y-1.5 md:col-span-2">
+                <Label>นโยบายภาษีเริ่มต้น</Label>
+                <Select
+                  value={watch("defaultBillingNature")}
+                  onValueChange={(v) =>
+                    setValue(
+                      "defaultBillingNature",
+                      v as CompanyFormData["defaultBillingNature"],
+                    )
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="GOODS">
+                      ขายสินค้า (OEM, ไม่หัก 3%)
+                    </SelectItem>
+                    <SelectItem value="MANUFACTURING_SERVICE">
+                      รับจ้างผลิตตามแบบลูกค้า (หัก 3% ตาม ม.3 เตรส)
+                    </SelectItem>
+                    <SelectItem value="MIXED">ผสม (เลือกต่อเอกสาร)</SelectItem>
+                  </SelectContent>
+                </Select>
+                <p className="text-[11px] text-muted-foreground">
+                  ใช้เป็นค่าเริ่มต้นของลูกค้าใหม่ (ลูกค้าเก่าจะไม่เปลี่ยน)
+                </p>
               </div>
             </div>
             <Button type="submit" disabled={saving}>

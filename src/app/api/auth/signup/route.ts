@@ -27,6 +27,9 @@ const signupSchema = z.object({
   branchNo: z.string().optional(),
   country: z.string().optional(),
   billingAddress: z.string().optional(),
+  defaultBillingNature: z
+    .enum(["GOODS", "MANUFACTURING_SERVICE", "MIXED"])
+    .optional(),
   acceptTerms: z.boolean().refine((v) => v === true, "กรุณายอมรับเงื่อนไขการใช้งาน"),
 });
 
@@ -56,6 +59,7 @@ export async function POST(req: NextRequest) {
       branchNo,
       country,
       billingAddress,
+      defaultBillingNature,
     } = parsed.data;
 
     const result = await provisionTenant({
@@ -69,6 +73,7 @@ export async function POST(req: NextRequest) {
       juristicType,
       branchNo,
       country,
+      defaultBillingNature,
       planSlug: "free", // new tenants start on FREE trial
     });
 

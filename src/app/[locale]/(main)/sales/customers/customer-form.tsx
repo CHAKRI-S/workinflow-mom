@@ -29,9 +29,16 @@ import {
 interface CustomerFormProps {
   defaultValues?: Partial<CustomerCreateInput> & { id?: string };
   isEdit?: boolean;
+  /** Tenant-level default. Falls back to "GOODS" (OEM factor profile).
+   *  Used for NEW customers only — existing customers keep their value. */
+  tenantDefaultBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
 }
 
-export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
+export function CustomerForm({
+  defaultValues,
+  isEdit,
+  tenantDefaultBillingNature,
+}: CustomerFormProps) {
   const t = useTranslations();
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -55,9 +62,11 @@ export function CustomerForm({ defaultValues, isEdit }: CustomerFormProps) {
       customerType: "OTHER",
       isVatRegistered: true,
       paymentTermDays: 30,
-      // Tax policy defaults — reflect reality ของ tenant ส่วนใหญ่ (OEM goods manufacturer)
+      // Tax policy defaults — inherit from Tenant.defaultBillingNature (set at
+      // signup). OEM goods manufacturer tenants stay at GOODS (no WHT);
+      // pure contract-mfg tenants default to MANUFACTURING_SERVICE.
       withholdsTax: false,
-      defaultBillingNature: "GOODS",
+      defaultBillingNature: tenantDefaultBillingNature ?? "GOODS",
       ...defaultValues,
     },
   });

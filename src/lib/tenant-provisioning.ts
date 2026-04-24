@@ -1,6 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-import type { JuristicType } from "@/generated/prisma/client";
+import type { BillingNature, JuristicType } from "@/generated/prisma/client";
 
 /** Default trial length for new SaaS signups */
 export const TRIAL_DAYS = 30;
@@ -96,6 +96,11 @@ export interface ProvisionTenantInput {
   branchNo?: string;
   /** ISO country code (default "TH") */
   country?: string;
+  /** Default billing nature for new customers/documents. Asked at signup:
+   *  "ขายสินค้าออกแบบเอง" → GOODS (default, OEM factor profile) |
+   *  "รับจ้างผลิตตามแบบลูกค้า" → MANUFACTURING_SERVICE (ม.3 เตรส) |
+   *  "ผสม" → MIXED. Falls back to schema default (GOODS) if omitted. */
+  defaultBillingNature?: BillingNature;
   /** Override default plan (defaults to FREE) */
   planSlug?: string;
   /** Override trial days (default 30) */
@@ -138,6 +143,7 @@ export async function provisionTenant(
     juristicType,
     branchNo,
     country = "TH",
+    defaultBillingNature,
     planSlug = "free",
     trialDays = TRIAL_DAYS,
   } = input;
@@ -180,6 +186,8 @@ export async function provisionTenant(
         juristicType: juristicType ?? null,
         branchNo: branchNo || null,
         country,
+        // If omitted, schema default (GOODS) applies.
+        ...(defaultBillingNature ? { defaultBillingNature } : {}),
         status: "TRIAL",
         trialEndsAt,
         planId: plan.id,

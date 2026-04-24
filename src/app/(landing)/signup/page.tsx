@@ -18,6 +18,8 @@ interface SignupResponse {
   trialEndsAt?: string;
 }
 
+type BillingNatureChoice = "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
+
 const EMPTY_BUSINESS: BusinessInfoValue = {
   juristicType: "",
   taxId: "",
@@ -33,6 +35,8 @@ export default function SignupPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<SignupResponse | null>(null);
   const [business, setBusiness] = useState<BusinessInfoValue>(EMPTY_BUSINESS);
+  const [billingNature, setBillingNature] =
+    useState<BillingNatureChoice>("GOODS");
 
   const patchBusiness = (patch: Partial<BusinessInfoValue>) =>
     setBusiness((prev) => ({ ...prev, ...patch }));
@@ -57,6 +61,7 @@ export default function SignupPage() {
         .toLowerCase(),
       adminPassword: String(fd.get("adminPassword") || ""),
       phone: String(fd.get("phone") || "").trim() || undefined,
+      defaultBillingNature: billingNature,
       acceptTerms: fd.get("acceptTerms") === "on",
     };
 
@@ -190,6 +195,44 @@ export default function SignupPage() {
           </div>
         </div>
 
+        {/* Tax policy — drives default billingNature for customers & documents */}
+        <div className="rounded-xl border bg-card p-5 space-y-4">
+          <div className="text-sm font-semibold text-muted-foreground">
+            นโยบายภาษีเริ่มต้น
+          </div>
+          <div className="space-y-1">
+            <div className="text-sm font-medium">
+              ธุรกิจของคุณส่วนใหญ่เป็นแบบไหน?
+            </div>
+            <div className="text-xs text-muted-foreground">
+              ใช้ตั้งค่าเริ่มต้นของเอกสารขาย (เปลี่ยนต่อลูกค้า/บิลได้ภายหลัง)
+            </div>
+          </div>
+          <div className="grid gap-2">
+            <BillingNatureOption
+              value="GOODS"
+              current={billingNature}
+              onChange={setBillingNature}
+              title="ขายสินค้าที่ออกแบบเอง (แนะนำสำหรับ OEM)"
+              desc="ออกแบบ + ใช้วัสดุของโรงงาน + ขายสินค้าตาม catalog/spec ของตัวเอง · ลูกค้าปกติไม่หัก 3%"
+            />
+            <BillingNatureOption
+              value="MANUFACTURING_SERVICE"
+              current={billingNature}
+              onChange={setBillingNature}
+              title="รับจ้างผลิตตามแบบลูกค้า"
+              desc="ลูกค้าเอาแบบมาให้ + คุณรับจ้างผลิต · ลูกค้านิติบุคคลต้องหัก 3% ตาม ม.3 เตรส"
+            />
+            <BillingNatureOption
+              value="MIXED"
+              current={billingNature}
+              onChange={setBillingNature}
+              title="ทั้งสองแบบผสมกัน"
+              desc="เลือกต่อเอกสารเอง"
+            />
+          </div>
+        </div>
+
         {/* Admin */}
         <div className="rounded-xl border bg-card p-5 space-y-4">
           <div className="text-sm font-semibold text-muted-foreground">
@@ -277,6 +320,44 @@ export default function SignupPage() {
         </p>
       </form>
     </div>
+  );
+}
+
+function BillingNatureOption({
+  value,
+  current,
+  onChange,
+  title,
+  desc,
+}: {
+  value: BillingNatureChoice;
+  current: BillingNatureChoice;
+  onChange: (v: BillingNatureChoice) => void;
+  title: string;
+  desc: string;
+}) {
+  const checked = value === current;
+  return (
+    <label
+      className={`flex cursor-pointer items-start gap-3 rounded-lg border p-3 transition ${
+        checked
+          ? "border-primary bg-primary/5 ring-2 ring-primary/20"
+          : "border-input bg-background hover:bg-muted/50"
+      }`}
+    >
+      <input
+        type="radio"
+        name="defaultBillingNature"
+        value={value}
+        checked={checked}
+        onChange={() => onChange(value)}
+        className="mt-0.5 h-4 w-4 accent-primary"
+      />
+      <div className="space-y-0.5">
+        <div className="text-sm font-medium">{title}</div>
+        <div className="text-xs text-muted-foreground">{desc}</div>
+      </div>
+    </label>
   );
 }
 
