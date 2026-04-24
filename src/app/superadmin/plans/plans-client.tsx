@@ -51,7 +51,12 @@ const FEATURE_KEYS: Array<[keyof Plan, string]> = [
 
 export function PlansClient({ initialPlans }: { initialPlans: Plan[] }) {
   const router = useRouter();
-  const [plans] = useState(initialPlans);
+  // BUG FIX: previously `const [plans] = useState(initialPlans)` froze the
+  // list on first mount, so after PATCH succeeded and `router.refresh()`
+  // re-fetched from Prisma, the UI still showed the STALE pre-edit values
+  // — making users think the save failed even though the DB updated. Read
+  // directly from the prop so refresh shows the new data.
+  const plans = initialPlans;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<Plan | null>(null);
   const [saving, setSaving] = useState(false);
