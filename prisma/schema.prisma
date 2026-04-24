@@ -44,6 +44,11 @@ model Tenant {
   email        String?
   logo         String? // URL โลโก้
   vatRate      Decimal       @default(7) @db.Decimal(5, 2) // อัตรา VAT %
+  // Default billing nature for new customers/documents. Asked at signup:
+  // "ขายสินค้าที่ออกแบบเอง" → GOODS (OEM goods manufacturer, factor profile
+  // default, no 3% WHT). "รับจ้างผลิตตามแบบลูกค้า" → MANUFACTURING_SERVICE
+  // (ม.3 เตรส applies). User can override per-customer in Customer form.
+  defaultBillingNature BillingNature @default(GOODS)
   // Subscription state
   status       TenantStatus  @default(TRIAL)
   trialEndsAt  DateTime? // วันที่ทดลองใช้หมด
