@@ -219,12 +219,18 @@ MOM is being converted to a multi-tenant SaaS with 3-domain split:
 | **6A** | Billing: SA subscriptions view + SubscriptionInvoice PDF + Slip R2 audit + email notifications | ✅ **Done 2026-04-22** |
 | **6B** | Billing automation: trial expiry cron + renewal retry cron | ✅ **Done 2026-04-22** |
 | **6C** | Omise real credit card flow (Omise.js token + 3DS + status polling) | ✅ **Done 2026-04-22** |
+| **6D** | Omise saved-card auto-renewal (card-save before charge + cron chargeCustomer + success/fail emails) | ✅ **Done 2026-04-23** |
 | 7 | Password reset + email + audit UI | ✅ Done |
 | **8A** | Billing Nature + WHT schema + Customer tax policy UI | ✅ **Done 2026-04-20** |
 | **8B** | Quotation/SO/Invoice: drawing source + billing nature chain + auto-suggest | ✅ **Done 2026-04-20** |
 | **8C** | WHT workflow on Receipt + cert tracking dashboard + R2 storage | ✅ **Done 2026-04-21** |
 | **8D** | 3 PDF template variants (goods/service/mixed) + Receipt + Tax Invoice | ✅ **Done 2026-04-21** |
 | **8E** | Reports (Revenue by Nature, WHT Ledger, Drawing Source Mix) + CANCELLED watermark + list PDF buttons | ✅ **Done 2026-04-21** |
+| **8.5** | PO wording validator — flag "ว่าจ้าง/จ้างทำ/รับจ้าง/ค่าจ้าง" on SO intake | ✅ **Done 2026-04-23** |
+| **8.7** | Signup tax question → `Tenant.defaultBillingNature` + new-customer inheritance + admin settings picker | ✅ **Done 2026-04-24** |
+| **8.8** | WHT edge cases — Credit Note prorate reverse + Deposit skip + Foreign customer hide UI | ✅ **Done 2026-04-23** |
+| **8.9** | OEM Customer Branding — `Customer.brandingAssets` + per-line Customer Mark in Quotation/SO/Invoice | ✅ **Done 2026-04-23** |
+| **8.11** | Legal disclaimer on billing nature picker + `/kb/oem-goods` Thai KB article with case law | ✅ **Done 2026-04-23** |
 
 ### Key Domain Decision (Phase 8)
 
