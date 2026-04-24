@@ -68,6 +68,18 @@ export function PricingSection({ showFullTable = false }: { showFullTable?: bool
     return n === 0 ? `ไม่จำกัด${unit}` : `${n.toLocaleString()} ${unit}`;
   }
 
+  // Grid column classes adapt to plan count so cards stay centered even when
+  // a plan (e.g. FREE) is hidden. Tailwind JIT needs full literal class names
+  // — that's why this is a lookup map, not a dynamic string.
+  // `max-w-*` + `mx-auto` centers the whole grid in its parent.
+  const gridColsByCount: Record<number, string> = {
+    1: "md:grid-cols-1 lg:grid-cols-1 max-w-sm mx-auto",
+    2: "md:grid-cols-2 lg:grid-cols-2 max-w-3xl mx-auto",
+    3: "md:grid-cols-2 lg:grid-cols-3 max-w-5xl mx-auto",
+    4: "md:grid-cols-2 lg:grid-cols-4",
+  };
+  const gridColsClass = gridColsByCount[Math.min(plans.length, 4)] ?? gridColsByCount[4];
+
   return (
     <div>
       {/* Billing cycle toggle */}
@@ -96,7 +108,7 @@ export function PricingSection({ showFullTable = false }: { showFullTable?: bool
       </div>
 
       {/* Plan cards */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-6">
+      <div className={`grid ${gridColsClass} gap-4 lg:gap-6`}>
         {plans.map((p) => {
           const isPopular = p.slug === "pro";
           const price = cycle === "monthly" ? p.priceMonthly : Math.round(p.priceYearly / 12);
