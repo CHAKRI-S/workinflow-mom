@@ -62,24 +62,30 @@ export async function POST(req: NextRequest) {
 
     const tenantId = session!.user.tenantId;
 
-    // Fetch invoice with customer VAT status + receipts (for WHT reversal proration)
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: invoiceId, tenantId },
-      select: {
-        id: true,
-        subtotal: true,
-        billingNature: true,
-        salesOrder: {
-          include: {
-            customer: { select: { isVatRegistered: true } },
+    // Fetch invoice with customer VAT status + receipts + tenant (Phase 8.12)
+    const [invoice, tenant] = await Promise.all([
+      prisma.invoice.findFirst({
+        where: { id: invoiceId, tenantId },
+        select: {
+          id: true,
+          subtotal: true,
+          billingNature: true,
+          salesOrder: {
+            include: {
+              customer: { select: { isVatRegistered: true } },
+            },
+          },
+          receipts: {
+            where: { cancelledAt: null },
+            select: { whtAmount: true, grossAmount: true },
           },
         },
-        receipts: {
-          where: { cancelledAt: null },
-          select: { whtAmount: true, grossAmount: true },
-        },
-      },
-    });
+      }),
+      prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { isVatRegistered: true },
+      }),
+    ]);
 
     if (!invoice || !invoice.salesOrder || !invoice.salesOrder.customer) {
       return NextResponse.json(
@@ -88,7 +94,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const isVat = invoice.salesOrder.customer.isVatRegistered;
+    // A CN is a VAT doc only if BOTH seller and buyer are VAT-registered.
+    const tenantIsVat = tenant?.isVatRegistered ?? true;
+    const customerIsVat = invoice.salesOrder.customer.isVatRegistered;
+    const isVat = tenantIsVat && customerIsVat;
     const vatRate = isVat ? 7 : 0;
 
     // Calculate line totals
@@ -136,7 +145,7 @@ export async function POST(req: NextRequest) {
         : 0;
 
     const creditNote = await prisma.$transaction(async (tx) => {
-      const prefix = creditNotePrefix(isVat);
+      const prefix = creditNotePrefix(tenantIsVat, customerIsVat);
       const creditNoteNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.creditNote.create({

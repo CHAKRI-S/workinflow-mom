@@ -71,19 +71,25 @@ export async function POST(req: NextRequest) {
     const body = parsed.data;
     const tenantId = session!.user.tenantId;
 
-    // Fetch invoice + customer (for VAT + WHT policy)
-    const invoice = await prisma.invoice.findFirst({
-      where: { id: body.invoiceId, tenantId },
-      include: {
-        customer: {
-          select: {
-            isVatRegistered: true,
-            withholdsTax: true,
-            country: true,
+    // Fetch invoice + customer (for VAT + WHT policy) + tenant (Phase 8.12)
+    const [invoice, tenant] = await Promise.all([
+      prisma.invoice.findFirst({
+        where: { id: body.invoiceId, tenantId },
+        include: {
+          customer: {
+            select: {
+              isVatRegistered: true,
+              withholdsTax: true,
+              country: true,
+            },
           },
         },
-      },
-    });
+      }),
+      prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { isVatRegistered: true },
+      }),
+    ]);
 
     if (!invoice || !invoice.customer) {
       return NextResponse.json(
@@ -91,6 +97,7 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
+    const tenantIsVat = tenant?.isVatRegistered ?? true;
 
     if (invoice.status === "CANCELLED") {
       return NextResponse.json(
@@ -116,7 +123,7 @@ export async function POST(req: NextRequest) {
     });
 
     const receipt = await prisma.$transaction(async (tx) => {
-      const prefix = receiptPrefix(invoice.customer!.isVatRegistered);
+      const prefix = receiptPrefix(tenantIsVat, invoice.customer!.isVatRegistered);
       const receiptNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.receipt.create({

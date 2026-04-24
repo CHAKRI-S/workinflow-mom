@@ -102,17 +102,33 @@ export const DOC_PREFIX = {
   PURCHASE_ORDER: "PO",
 } as const;
 
-/** Pick invoice prefix based on customer VAT status */
-export function invoicePrefix(isVatRegistered: boolean): string {
-  return isVatRegistered ? DOC_PREFIX.INVOICE_VAT : DOC_PREFIX.INVOICE_NON_VAT;
+/**
+ * A document gets the VAT prefix only when BOTH the seller (tenant) and the
+ * buyer (customer) are VAT-registered. A non-VAT seller can never issue
+ * "ใบกำกับภาษี / ใบเสร็จรับเงิน (VAT)" regardless of who the buyer is —
+ * doing so would violate ม.86 ประมวลรัษฎากร (2× tax penalty + criminal).
+ */
+function isVatDoc(tenantIsVat: boolean, customerIsVat: boolean): boolean {
+  return tenantIsVat && customerIsVat;
 }
 
-/** Pick receipt prefix based on customer VAT status */
-export function receiptPrefix(isVatRegistered: boolean): string {
-  return isVatRegistered ? DOC_PREFIX.RECEIPT_VAT : DOC_PREFIX.RECEIPT_NON_VAT;
+/** Pick invoice prefix. Requires seller VAT status (Phase 8.12). */
+export function invoicePrefix(tenantIsVat: boolean, customerIsVat: boolean): string {
+  return isVatDoc(tenantIsVat, customerIsVat)
+    ? DOC_PREFIX.INVOICE_VAT
+    : DOC_PREFIX.INVOICE_NON_VAT;
 }
 
-/** Pick credit note prefix based on customer VAT status */
-export function creditNotePrefix(isVatRegistered: boolean): string {
-  return isVatRegistered ? DOC_PREFIX.CREDIT_NOTE_VAT : DOC_PREFIX.CREDIT_NOTE_NON_VAT;
+/** Pick receipt prefix. Requires seller VAT status (Phase 8.12). */
+export function receiptPrefix(tenantIsVat: boolean, customerIsVat: boolean): string {
+  return isVatDoc(tenantIsVat, customerIsVat)
+    ? DOC_PREFIX.RECEIPT_VAT
+    : DOC_PREFIX.RECEIPT_NON_VAT;
+}
+
+/** Pick credit note prefix. Requires seller VAT status (Phase 8.12). */
+export function creditNotePrefix(tenantIsVat: boolean, customerIsVat: boolean): string {
+  return isVatDoc(tenantIsVat, customerIsVat)
+    ? DOC_PREFIX.CREDIT_NOTE_VAT
+    : DOC_PREFIX.CREDIT_NOTE_NON_VAT;
 }

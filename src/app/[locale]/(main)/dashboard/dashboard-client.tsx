@@ -12,6 +12,7 @@ import {
   AlertTriangle,
   CreditCard,
   CheckCircle,
+  Info,
 } from "lucide-react";
 
 interface KpiData {
@@ -35,9 +36,14 @@ interface RecentOrder {
 export function DashboardClient({
   kpi,
   recentOrders,
+  isVatRegistered,
+  isAdmin,
 }: {
   kpi: KpiData;
   recentOrders: RecentOrder[];
+  /** Phase 8.12 — show warning banner if tenant is not VAT-registered. */
+  isVatRegistered: boolean;
+  isAdmin: boolean;
 }) {
   const t = useTranslations("dashboard");
   const tso = useTranslations("salesOrder");
@@ -45,6 +51,34 @@ export function DashboardClient({
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold tracking-tight">{t("title")}</h1>
+
+      {!isVatRegistered && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-900/20 p-4 flex gap-3">
+          <Info className="h-5 w-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5" />
+          <div className="space-y-1 text-sm">
+            <p className="font-medium text-amber-900 dark:text-amber-200">
+              กิจการนี้ยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม (VAT)
+            </p>
+            <p className="text-amber-800 dark:text-amber-300/90">
+              เอกสารทุกใบจะออกเป็น &quot;ใบแจ้งหนี้ / ใบส่งของ&quot; — ระบบจะไม่ยอมให้ออก
+              ใบกำกับภาษี (ม.86 ประมวลรัษฎากร)
+              {isAdmin && (
+                <>
+                  {" "}
+                  เปลี่ยนได้ที่{" "}
+                  <Link
+                    href="/admin/settings"
+                    className="font-medium underline underline-offset-2"
+                  >
+                    ตั้งค่าบริษัท
+                  </Link>{" "}
+                  เมื่อจด VAT แล้ว
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+      )}
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         <KpiCard

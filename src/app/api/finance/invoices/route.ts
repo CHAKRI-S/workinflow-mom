@@ -72,34 +72,41 @@ export async function POST(req: NextRequest) {
     const tenantId = session!.user.tenantId;
 
     // Fetch sales order with customer + lines (to inherit drawingSource defaults)
-    const salesOrder = await prisma.salesOrder.findFirst({
-      where: { id: salesOrderId, tenantId },
-      include: {
-        customer: {
-          select: {
-            id: true,
-            name: true,
-            isVatRegistered: true,
-            taxId: true,
-            billingAddress: true,
-            shippingAddress: true,
-            defaultBillingNature: true,
-            withholdsTax: true,
+    // + tenant VAT status (Phase 8.12 — a non-VAT seller cannot issue VAT docs)
+    const [salesOrder, tenant] = await Promise.all([
+      prisma.salesOrder.findFirst({
+        where: { id: salesOrderId, tenantId },
+        include: {
+          customer: {
+            select: {
+              id: true,
+              name: true,
+              isVatRegistered: true,
+              taxId: true,
+              billingAddress: true,
+              shippingAddress: true,
+              defaultBillingNature: true,
+              withholdsTax: true,
+            },
+          },
+          lines: {
+            select: {
+              id: true,
+              drawingSource: true,
+              lineBillingNature: true,
+              productCode: true,
+              drawingRevision: true,
+              customerDrawingUrl: true,
+              customerBranding: true,
+            },
           },
         },
-        lines: {
-          select: {
-            id: true,
-            drawingSource: true,
-            lineBillingNature: true,
-            productCode: true,
-            drawingRevision: true,
-            customerDrawingUrl: true,
-            customerBranding: true,
-          },
-        },
-      },
-    });
+      }),
+      prisma.tenant.findUnique({
+        where: { id: tenantId },
+        select: { isVatRegistered: true },
+      }),
+    ]);
 
     if (!salesOrder || !salesOrder.customer) {
       return NextResponse.json(
@@ -109,7 +116,10 @@ export async function POST(req: NextRequest) {
     }
 
     const customer = salesOrder.customer;
-    const vatRate = customer.isVatRegistered ? 7 : 0;
+    // A doc is a VAT doc only if BOTH seller and buyer are VAT-registered.
+    const tenantIsVat = tenant?.isVatRegistered ?? true;
+    const isVatDoc = tenantIsVat && customer.isVatRegistered;
+    const vatRate = isVatDoc ? 7 : 0;
 
     // Map SO lines by id for inheritance lookup
     const soLineById = new Map(salesOrder.lines.map((l) => [l.id, l]));
@@ -192,7 +202,7 @@ export async function POST(req: NextRequest) {
     const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const prefix = invoicePrefix(customer.isVatRegistered);
+      const prefix = invoicePrefix(tenantIsVat, customer.isVatRegistered);
       const invoiceNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.invoice.create({

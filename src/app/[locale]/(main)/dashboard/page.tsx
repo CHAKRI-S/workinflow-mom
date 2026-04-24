@@ -21,12 +21,15 @@ export default async function DashboardPage({
   const tenantId = session.user.tenantId;
   const now = new Date();
 
+  // Fetch tenant info (onboarding redirect + VAT banner).
+  // Read once here so we don't hit the DB twice.
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
+    select: { onboardedAt: true, isVatRegistered: true },
+  });
+
   // First-time admin → redirect to onboarding
   if (session.user.role === "ADMIN") {
-    const tenant = await prisma.tenant.findUnique({
-      where: { id: tenantId },
-      select: { onboardedAt: true },
-    });
     if (tenant && !tenant.onboardedAt) {
       redirect(`/${locale}/onboarding`);
     }
@@ -84,6 +87,8 @@ export default async function DashboardPage({
         completionRate,
       }}
       recentOrders={JSON.parse(JSON.stringify(recentOrders))}
+      isVatRegistered={tenant?.isVatRegistered ?? true}
+      isAdmin={session.user.role === "ADMIN"}
     />
   );
 }
