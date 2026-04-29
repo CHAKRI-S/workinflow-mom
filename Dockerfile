@@ -11,7 +11,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 COPY prisma ./prisma
 COPY prisma.config.ts ./
-RUN npm install
+# --include=dev forces devDependencies even if NODE_ENV=production leaks
+# into the build env (e.g. Coolify auto-injects app-level env vars as
+# build-time ARG, which would otherwise make npm skip @tailwindcss/postcss
+# / vitest / typescript and break `next build`).
+RUN npm install --include=dev
 
 # ── Stage 2: Build ────────────────────────────────
 FROM node:22-alpine AS builder
