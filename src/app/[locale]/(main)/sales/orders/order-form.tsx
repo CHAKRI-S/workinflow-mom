@@ -298,14 +298,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                     {poWordingCheck.matches.join(", ")}
                   </code>{" "}
                   ซึ่งตีความเป็น &quot;รับจ้างทำของ&quot; — แนะนำให้ขอลูกค้าแก้เป็น &quot;สั่งซื้อสินค้า&quot;
-                  เพื่อไม่ให้โดนหัก WHT 3%{" "}
-                  <a
-                    href="/kb/oem-goods"
-                    target="_blank"
-                    className="underline font-medium"
-                  >
-                    อ่านเพิ่มเติม
-                  </a>
+                  เพื่อไม่ให้โดนหัก WHT 3%
                 </div>
               )}
             </div>

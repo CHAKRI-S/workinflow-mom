@@ -509,13 +509,7 @@ export function CustomerForm({
               <div className="flex items-start gap-2 rounded-md bg-indigo-50 p-3 text-xs text-indigo-900">
                 <Info className="h-4 w-4 mt-0.5 flex-shrink-0" />
                 <p>
-                  การติดโลโก้ลูกค้าบนสินค้าที่เราผลิตเองถือเป็น
-                  &ldquo;ขายสินค้าพร้อม spec&rdquo; ไม่ใช่ &ldquo;รับจ้างทำของ&rdquo;
-                  — ดูอ้างอิงคำพิพากษาและแนวปฏิบัติที่
-                  {" "}
-                  <a href="/kb/oem-goods" target="_blank" className="underline">
-                    /kb/oem-goods
-                  </a>
+                  ใช้บันทึกโลโก้หรือ mark ของลูกค้าบนสินค้าเท่านั้น ไม่มีผลเปลี่ยน Billing Nature อัตโนมัติ
                 </p>
               </div>
             </div>
