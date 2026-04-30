@@ -2,7 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import crypto from "node:crypto";
 import { prisma } from "@/lib/prisma";
-import { sendPasswordResetEmail } from "@/lib/email";
+import { sendEmailVerificationEmail, sendPasswordResetEmail } from "@/lib/email";
+import {
+  buildEmailVerificationUrl,
+  EMAIL_VERIFICATION_EXPIRES_HOURS,
+  issueEmailVerificationToken,
+  isEmailVerificationToken,
+} from "@/lib/email-verification";
 
 const schema = z.object({ email: z.email() });
 
@@ -21,10 +27,32 @@ export async function POST(req: NextRequest) {
     }
 
     const email = parsed.data.email.toLowerCase();
-    const user = await prisma.user.findUnique({ where: { email, isActive: true } });
+    const user = await prisma.user.findFirst({
+      where: { email, isActive: true },
+      include: {
+        tenant: {
+          select: { name: true, trialEndsAt: true },
+        },
+      },
+    });
 
     if (!user) {
       // Deliberately return success to avoid email enumeration
+      return NextResponse.json({ success: true });
+    }
+
+    if (!user.emailVerifiedAt && isEmailVerificationToken(user.resetToken)) {
+      const verification = await issueEmailVerificationToken(user.id);
+      const verifyUrl = buildEmailVerificationUrl(verification.rawToken);
+
+      sendEmailVerificationEmail(user.email, {
+        adminName: user.name,
+        companyName: user.tenant.name,
+        trialEndsAt: user.tenant.trialEndsAt ?? new Date(),
+        verifyUrl,
+        expiresInHours: EMAIL_VERIFICATION_EXPIRES_HOURS,
+      }).catch((e) => console.error("verification email error:", e));
+
       return NextResponse.json({ success: true });
     }
 

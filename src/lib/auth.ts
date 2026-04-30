@@ -1,8 +1,13 @@
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { prisma } from "./prisma";
 import type { Role } from "@/generated/prisma/client";
+import { isEmailVerificationToken } from "@/lib/email-verification";
+
+class EmailNotVerifiedError extends CredentialsSignin {
+  code = "email_not_verified";
+}
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: [
@@ -27,6 +32,17 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         );
 
         if (!isValid) return null;
+
+        if (!user.emailVerifiedAt) {
+          if (isEmailVerificationToken(user.resetToken)) {
+            throw new EmailNotVerifiedError();
+          }
+
+          await prisma.user.update({
+            where: { id: user.id },
+            data: { emailVerifiedAt: new Date() },
+          });
+        }
 
         return {
           id: user.id,

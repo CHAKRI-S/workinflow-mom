@@ -85,10 +85,42 @@ export async function sendWelcomeEmail(to: string, params: {
       <a href="${loginUrl}" style="display:inline-block;background:#3b82f6;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">เข้าสู่ระบบ</a>
     </p>
     <p style="margin-top:24px;font-size:13px;color:#64748b">
-      เราสร้าง preset users ไว้ให้แล้ว (manager/planner/sales/operator/qc/accounting) — รหัสผ่านเริ่มต้น: <code style="background:#f1f5f9;padding:2px 6px;border-radius:4px">changeme123</code> กรุณาเปลี่ยนหลัง login
+      หลังเข้าสู่ระบบครั้งแรก คุณสามารถเชิญทีมงานจริงเข้ามาใช้งานได้ที่หน้า User Management
     </p>
   `);
   return sendEmail({ to, subject: `ยินดีต้อนรับสู่ WorkinFlow — ${params.companyName}`, html });
+}
+
+export async function sendEmailVerificationEmail(to: string, params: {
+  adminName: string;
+  companyName: string;
+  trialEndsAt: Date;
+  verifyUrl: string;
+  expiresInHours: number;
+}) {
+  const trial = params.trialEndsAt.toLocaleDateString("th-TH", {
+    year: "numeric", month: "long", day: "numeric",
+  });
+  const html = layout(`
+    <h2 style="margin:0 0 12px">ยืนยันอีเมลเพื่อเริ่มใช้งาน WorkinFlow</h2>
+    <p>สวัสดีคุณ${params.adminName},</p>
+    <p>บัญชี <strong>${params.companyName}</strong> ถูกสร้างเรียบร้อยแล้ว ทดลองใช้ฟรีถึง <strong>${trial}</strong></p>
+    <p>กรุณากดยืนยันอีเมลนี้ก่อนเข้าสู่ระบบ เพื่อป้องกันการสมัครด้วยอีเมลที่ไม่ได้เป็นเจ้าของจริง</p>
+    <p style="margin-top:24px">
+      <a href="${params.verifyUrl}" style="display:inline-block;background:#3b82f6;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-weight:600">ยืนยันอีเมล</a>
+    </p>
+    <p style="margin-top:24px;font-size:13px;color:#64748b">
+      ลิงก์นี้จะหมดอายุใน ${params.expiresInHours} ชั่วโมง หลังยืนยันแล้วจึงจะเข้าสู่ระบบได้
+    </p>
+    <p style="font-size:12px;color:#94a3b8;margin-top:16px;word-break:break-all">
+      หากปุ่มไม่ทำงาน คัดลอกลิงก์นี้ไปเปิดในเบราว์เซอร์: ${params.verifyUrl}
+    </p>
+  `);
+  return sendEmail({
+    to,
+    subject: `ยืนยันอีเมลเพื่อเริ่มใช้งาน WorkinFlow — ${params.companyName}`,
+    html,
+  });
 }
 
 export async function sendPasswordResetEmail(to: string, params: {

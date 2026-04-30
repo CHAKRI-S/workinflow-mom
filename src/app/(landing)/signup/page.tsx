@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { Factory, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
 import {
   BusinessInfoSection,
@@ -14,6 +13,7 @@ interface SignupResponse {
   error?: string;
   message?: string;
   loginUrl?: string;
+  verifyRequired?: boolean;
   tenantId?: string;
   trialEndsAt?: string;
 }
@@ -30,7 +30,6 @@ const EMPTY_BUSINESS: BusinessInfoValue = {
 };
 
 export default function SignupPage() {
-  const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState<SignupResponse | null>(null);
@@ -99,15 +98,6 @@ export default function SignupPage() {
 
       setSuccess(data);
       setLoading(false);
-
-      // Auto-redirect to login after 3 seconds
-      setTimeout(() => {
-        if (data.loginUrl) {
-          window.location.href = data.loginUrl;
-        } else {
-          router.push("/");
-        }
-      }, 3000);
     } catch {
       setError("เกิดข้อผิดพลาดในการเชื่อมต่อ");
       setLoading(false);
@@ -132,7 +122,7 @@ export default function SignupPage() {
           </div>
           <h1 className="text-2xl font-bold mb-2">สมัครสำเร็จ!</h1>
           <p className="text-muted-foreground mb-1">
-            บัญชีของคุณพร้อมใช้งานแล้ว
+            กรุณาตรวจอีเมลและกดยืนยันก่อนเข้าสู่ระบบ
           </p>
           {trialDate && (
             <p className="text-sm text-muted-foreground mb-6">
@@ -146,13 +136,14 @@ export default function SignupPage() {
               <span className="font-mono text-foreground">
                 mom.workinflow.cloud
               </span>
-              <br />• ใช้อีเมลและรหัสผ่านที่สมัครไว้เพื่อ login
+              <br />• ระบบส่งลิงก์ยืนยันไปที่อีเมล Admin ที่สมัครไว้แล้ว
+              <br />• หลังยืนยันอีเมลแล้ว จึงใช้อีเมลและรหัสผ่านที่สมัครไว้เพื่อ login
               <br />• หลังเข้าสู่ระบบครั้งแรก คุณสามารถเชิญทีมงานเพิ่มเติมได้ที่หน้า
               User Management
             </div>
           </div>
           <p className="text-xs text-muted-foreground">
-            กำลังพาไปหน้า Login ใน 3 วินาที...
+            หากไม่พบอีเมล กรุณาตรวจ spam หรือกดส่งลิงก์ยืนยันใหม่จากหน้า Login
           </p>
           {success.loginUrl && (
             <a

@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "@/i18n/navigation";
+import { useSearchParams } from "next/navigation";
+import { Link, useRouter } from "@/i18n/navigation";
 import { useTranslations } from "next-intl";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -20,29 +20,73 @@ import { Factory } from "lucide-react";
 export default function LoginPage() {
   const t = useTranslations("auth");
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [error, setError] = useState("");
+  const [info, setInfo] = useState("");
+  const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
+  const [needsVerification, setNeedsVerification] = useState(false);
+  const [resending, setResending] = useState(false);
+
+  useEffect(() => {
+    const verified = searchParams.get("verified");
+    if (verified === "success") {
+      setInfo(t("verifiedSuccess"));
+    } else if (verified === "expired") {
+      setError(t("verificationExpired"));
+      setNeedsVerification(true);
+    } else if (verified === "invalid") {
+      setError(t("verificationInvalid"));
+      setNeedsVerification(true);
+    }
+  }, [searchParams, t]);
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setError("");
+    setInfo("");
+    setNeedsVerification(false);
     setLoading(true);
 
     const formData = new FormData(e.currentTarget);
-    const email = formData.get("email") as string;
+    const submittedEmail = String(formData.get("email") || "").trim();
     const password = formData.get("password") as string;
 
     const result = await signIn("credentials", {
-      email,
+      email: submittedEmail,
       password,
       redirect: false,
     });
 
     if (result?.error) {
-      setError(t("invalidCredentials"));
+      if (result.code === "email_not_verified") {
+        setError(t("emailNotVerified"));
+        setNeedsVerification(true);
+      } else {
+        setError(t("invalidCredentials"));
+      }
       setLoading(false);
     } else {
       router.push("/dashboard");
+    }
+  }
+
+  async function resendVerification() {
+    if (!email) return;
+    setResending(true);
+    setError("");
+    setInfo("");
+
+    try {
+      await fetch("/api/auth/resend-verification", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email }),
+      });
+      setInfo(t("verificationSent"));
+      setNeedsVerification(false);
+    } finally {
+      setResending(false);
     }
   }
 
@@ -69,6 +113,8 @@ export default function LoginPage() {
                 name="email"
                 type="email"
                 placeholder="admin@workinflow.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
                 required
                 autoComplete="email"
               />
@@ -84,8 +130,24 @@ export default function LoginPage() {
               />
             </div>
 
+            {info && (
+              <p className="text-sm text-green-600 text-center">{info}</p>
+            )}
+
             {error && (
-              <p className="text-sm text-destructive text-center">{error}</p>
+              <div className="space-y-2 text-center">
+                <p className="text-sm text-destructive">{error}</p>
+                {needsVerification && (
+                  <button
+                    type="button"
+                    onClick={resendVerification}
+                    disabled={resending || !email}
+                    className="text-xs font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
+                  >
+                    {resending ? "..." : t("resendVerification")}
+                  </button>
+                )}
+              </div>
             )}
 
             <button
@@ -97,9 +159,9 @@ export default function LoginPage() {
             </button>
 
             <div className="text-center">
-              <a href="/th/forgot-password" className="text-xs text-muted-foreground hover:text-foreground underline">
+              <Link href="/forgot-password" className="text-xs text-muted-foreground hover:text-foreground underline">
                 ลืมรหัสผ่าน?
-              </a>
+              </Link>
             </div>
           </form>
         </CardContent>

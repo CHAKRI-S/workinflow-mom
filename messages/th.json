@@ -75,7 +75,13 @@
     "password": "รหัสผ่าน",
     "loginTitle": "เข้าสู่ระบบ WorkinFlow MOM",
     "loginSubtitle": "ระบบจัดการการผลิต",
-    "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง"
+    "invalidCredentials": "อีเมลหรือรหัสผ่านไม่ถูกต้อง",
+    "emailNotVerified": "กรุณายืนยันอีเมลก่อนเข้าสู่ระบบ หากยังไม่ได้รับอีเมล สามารถส่งลิงก์ยืนยันใหม่ได้",
+    "verificationSent": "ส่งลิงก์ยืนยันอีเมลให้แล้ว กรุณาตรวจ inbox หรือ spam",
+    "verifiedSuccess": "ยืนยันอีเมลสำเร็จแล้ว กรุณาเข้าสู่ระบบ",
+    "verificationExpired": "ลิงก์ยืนยันอีเมลหมดอายุแล้ว กรุณาส่งลิงก์ใหม่",
+    "verificationInvalid": "ลิงก์ยืนยันอีเมลไม่ถูกต้อง กรุณาส่งลิงก์ใหม่",
+    "resendVerification": "ส่งลิงก์ยืนยันอีกครั้ง"
   },
   "dashboard": {
     "title": "แดชบอร์ด",

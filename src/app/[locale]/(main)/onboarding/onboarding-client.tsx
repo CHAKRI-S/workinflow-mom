@@ -147,19 +147,16 @@ export function OnboardingClient({
         ))}
       </div>
 
-      {/* Preset users info */}
+      {/* Team invitation info */}
       <div className="mb-6 rounded-xl border-2 border-dashed border-primary/20 bg-primary/5 p-4">
         <div className="flex items-center gap-2 mb-2">
           <Users className="h-4 w-4 text-primary" />
-          <div className="font-medium text-sm">ผู้ใช้งานถูกสร้างไว้ล่วงหน้าแล้ว</div>
+          <div className="font-medium text-sm">เชิญทีมงานจริงเข้ามาใช้งาน</div>
         </div>
         <p className="text-sm text-muted-foreground mb-3">
-          เราสร้างบัญชีสำหรับทุกตำแหน่งไว้ให้แล้ว — manager, planner, sales, operator, qc, accounting
-          <br />
-          <span className="text-xs">
-            รหัสผ่านเริ่มต้น: <code className="rounded bg-background px-1.5 py-0.5 font-mono">changeme123</code>
-            {" "}— ให้ admin เข้าไปเปลี่ยนอีเมล/รหัสแล้วส่งให้ทีมงาน
-          </span>
+          ระบบไม่ได้สร้างบัญชี preset หรือรหัสผ่านเริ่มต้นให้อัตโนมัติแล้ว
+          เพื่อความปลอดภัยและไม่กิน seat quota โดยไม่จำเป็น ให้ Admin เชิญทีมงาน
+          ด้วยอีเมลจริงจากหน้า User Management
         </p>
         <Link
           href="/admin/users"

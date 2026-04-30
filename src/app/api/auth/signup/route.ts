@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { provisionTenant } from "@/lib/tenant-provisioning";
-import { sendWelcomeEmail } from "@/lib/email";
+import { sendEmailVerificationEmail } from "@/lib/email";
+import {
+  buildEmailVerificationUrl,
+  EMAIL_VERIFICATION_EXPIRES_HOURS,
+  issueEmailVerificationToken,
+} from "@/lib/email-verification";
 
 const signupSchema = z.object({
   companyName: z.string().min(2, "ชื่อบริษัทต้องมีอย่างน้อย 2 ตัวอักษร").max(100),
@@ -35,7 +40,7 @@ const signupSchema = z.object({
   acceptTerms: z.boolean().refine((v) => v === true, "กรุณายอมรับเงื่อนไขการใช้งาน"),
 });
 
-// POST /api/auth/signup — สร้าง tenant ใหม่ + admin user + preset users
+// POST /api/auth/signup — สร้าง tenant ใหม่ + admin user
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
@@ -81,12 +86,17 @@ export async function POST(req: NextRequest) {
       planSlug: "free", // new tenants start on FREE trial
     });
 
-    // Fire-and-forget welcome email
-    sendWelcomeEmail(adminEmail, {
+    const verification = await issueEmailVerificationToken(result.adminUserId);
+    const verifyUrl = buildEmailVerificationUrl(verification.rawToken);
+
+    // Fire-and-forget verification email
+    sendEmailVerificationEmail(adminEmail, {
       adminName,
       companyName,
       trialEndsAt: result.trialEndsAt,
-    }).catch((e) => console.error("welcome email error:", e));
+      verifyUrl,
+      expiresInHours: EMAIL_VERIFICATION_EXPIRES_HOURS,
+    }).catch((e) => console.error("verification email error:", e));
 
     // Determine login URL based on environment
     const isProd = process.env.NODE_ENV === "production";
@@ -102,7 +112,8 @@ export async function POST(req: NextRequest) {
         code: result.code,
         trialEndsAt: result.trialEndsAt.toISOString(),
         loginUrl,
-        message: "สมัครสมาชิกสำเร็จ! กรุณาเข้าสู่ระบบที่ mom.workinflow.cloud",
+        verifyRequired: true,
+        message: "สมัครสมาชิกสำเร็จ! กรุณาตรวจอีเมลและกดยืนยันก่อนเข้าสู่ระบบ",
       },
       { status: 201 },
     );

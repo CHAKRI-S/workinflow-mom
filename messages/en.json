@@ -75,7 +75,13 @@
     "password": "Password",
     "loginTitle": "Sign in to WorkinFlow MOM",
     "loginSubtitle": "Manufacturing Operations Management",
-    "invalidCredentials": "Invalid email or password"
+    "invalidCredentials": "Invalid email or password",
+    "emailNotVerified": "Please verify your email before signing in. If you did not receive the email, send a new verification link.",
+    "verificationSent": "Verification link sent. Please check your inbox or spam folder.",
+    "verifiedSuccess": "Email verified. You can now sign in.",
+    "verificationExpired": "The verification link has expired. Please send a new link.",
+    "verificationInvalid": "The verification link is invalid. Please send a new link.",
+    "resendVerification": "Send verification link again"
   },
   "dashboard": {
     "title": "Dashboard",
