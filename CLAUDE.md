@@ -194,7 +194,8 @@ ALWAYS follow this 7-step flow in order:
 | Frontend | React, Next.js 16, Tailwind CSS, shadcn/ui v4, next-intl |
 | Backend | Next.js API Routes, Auth.js v5 |
 | Database | PostgreSQL 16, Prisma 7 |
-| Infrastructure | Docker, Coolify (auto-deploy via GitHub webhook) |
+| Testing | Vitest 4.1.5 (42 tests — doc-numbering, wht-policy, billing-nature) |
+| Infrastructure | Docker, Coolify on 72.62.194.67 (shared VPS, separate Project from CheckinFlow) |
 | Email | Resend (domain `workinflow.cloud` verified) |
 | Design | CheckinFlow-inspired, blue accent (#3b82f6) |
 
@@ -207,7 +208,7 @@ MOM is being converted to a multi-tenant SaaS with 3-domain split:
 - `mom.workinflow.cloud` — tenant app (live, auto-deploy)
 - `admin.workinflow.cloud` — Super Admin
 
-### Phase Progress
+### Phase Progress (ALL PLANNED PHASES COMPLETE as of 2026-04-29)
 
 | Phase | Scope | Status |
 |---|---|---|
@@ -216,27 +217,38 @@ MOM is being converted to a multi-tenant SaaS with 3-domain split:
 | 3 | Landing page | ✅ Done |
 | 4 | Super admin panel | ✅ Done |
 | 5 | Plan enforcement | ✅ Done |
-| **6A** | Billing: SA subscriptions view + SubscriptionInvoice PDF + Slip R2 audit + email notifications | ✅ **Done 2026-04-22** |
-| **6B** | Billing automation: trial expiry cron + renewal retry cron | ✅ **Done 2026-04-22** |
-| **6C** | Omise real credit card flow (Omise.js token + 3DS + status polling) | ✅ **Done 2026-04-22** |
-| **6D** | Omise saved-card auto-renewal (card-save before charge + cron chargeCustomer + success/fail emails) | ✅ **Done 2026-04-23** |
+| 6A | Billing: SA subscriptions view + SubscriptionInvoice PDF + Slip R2 audit + email | ✅ Done 2026-04-22 |
+| 6B | Billing automation: trial expiry cron + renewal retry cron | ✅ Done 2026-04-22 |
+| 6C | Omise real credit card flow (Omise.js token + 3DS + status polling) | ✅ Done 2026-04-22 |
+| 6D | Omise saved-card auto-renewal | ✅ Done 2026-04-23 |
 | 7 | Password reset + email + audit UI | ✅ Done |
-| **8A** | Billing Nature + WHT schema + Customer tax policy UI | ✅ **Done 2026-04-20** |
-| **8B** | Quotation/SO/Invoice: drawing source + billing nature chain + auto-suggest | ✅ **Done 2026-04-20** |
-| **8C** | WHT workflow on Receipt + cert tracking dashboard + R2 storage | ✅ **Done 2026-04-21** |
-| **8D** | 3 PDF template variants (goods/service/mixed) + Receipt + Tax Invoice | ✅ **Done 2026-04-21** |
-| **8E** | Reports (Revenue by Nature, WHT Ledger, Drawing Source Mix) + CANCELLED watermark + list PDF buttons | ✅ **Done 2026-04-21** |
-| **8.5** | PO wording validator — flag "ว่าจ้าง/จ้างทำ/รับจ้าง/ค่าจ้าง" on SO intake | ✅ **Done 2026-04-23** |
-| **8.7** | Signup tax question → `Tenant.defaultBillingNature` + new-customer inheritance + admin settings picker | ✅ **Done 2026-04-24** |
-| **8.8** | WHT edge cases — Credit Note prorate reverse + Deposit skip + Foreign customer hide UI | ✅ **Done 2026-04-23** |
-| **8.9** | OEM Customer Branding — `Customer.brandingAssets` + per-line Customer Mark in Quotation/SO/Invoice | ✅ **Done 2026-04-23** |
-| **8.11** | Legal disclaimer on billing nature picker + `/kb/oem-goods` Thai KB article with case law | ✅ **Done 2026-04-23** |
+| 8A | Billing Nature + WHT schema + Customer tax policy UI | ✅ Done 2026-04-20 |
+| 8B | Quotation/SO/Invoice: drawing source + billing nature chain | ✅ Done 2026-04-20 |
+| 8C | WHT workflow on Receipt + cert tracking + R2 storage | ✅ Done 2026-04-21 |
+| 8D | 3 PDF template variants (goods/service/mixed) + Receipt + Tax Invoice | ✅ Done 2026-04-21 |
+| 8E | Reports + CANCELLED watermark + list PDF buttons | ✅ Done 2026-04-21 |
+| 8.5 | PO wording validator on SO intake | ✅ Done 2026-04-23 |
+| 8.7 | Signup tax question + `Tenant.defaultBillingNature` | ✅ Done 2026-04-24 |
+| 8.8 | WHT edge cases — CN prorate + Deposit skip + Foreign customer | ✅ Done 2026-04-23 |
+| 8.9 | OEM Customer Branding — per-line Customer Mark | ✅ Done 2026-04-23 |
+| 8.11 | Legal disclaimer + `/kb/oem-goods` Thai KB | ✅ Done 2026-04-23 |
+| **8.12** | **VAT registration awareness — PDF title switch + seller VAT gate + dashboard banner** | ✅ **Done 2026-04-29** |
+
+**Deferred:** ภ.ง.ด.53 export — needs AP module (no Supplier/Bill model yet). See `memory/pnd53_out_of_scope.md`.
 
 ### Key Domain Decision (Phase 8)
 
 User's factory is an **OEM Goods Manufacturer** (not contract service provider):
 - Own material + own design + own IP + could sell elsewhere
 - Customers usually do NOT withhold 3% WHT
-- Customer logo engraving = product spec, not service (Thai court precedents ฎ.2776/2532, ฎ.3849/2546)
+- Customer logo engraving = product spec, not service (Thai court precedents)
 
-**System defaults everywhere = `billingNature=GOODS` + `withholdsTax=false`.** WHT management is an optional exception layer. See `memory/tax_classification_decisions.md` for full legal analysis.
+**System defaults everywhere = `billingNature=GOODS` + `withholdsTax=false`.** WHT management is an optional exception layer.
+
+### VPS & Infrastructure (migrated 2026-04-29)
+
+- **Server:** 72.62.194.67 (shared with CheckinFlow, separate Coolify Project)
+- **Domains:** workinflow.cloud + www + mom + admin (all HTTPS)
+- **Auto-deploy:** GitHub webhook → Coolify → Docker build → zero-downtime swap
+- **Tests:** 42 Vitest tests all passing (`npm test`)
+- **Current pending/verification plan:** See `docs/CODEX-CURRENT-PLAN.md`.

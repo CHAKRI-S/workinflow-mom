@@ -5,6 +5,7 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, creditNotePrefix } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
+import { calculateVatTotals, normalizeVatModePolicy } from "@/lib/vat";
 
 // GET /api/finance/credit-notes — list all credit notes for tenant
 export async function GET(req: NextRequest) {
@@ -52,6 +53,7 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { invoiceId, reason, description, lines, notes } = body;
+    const vatModePolicy = normalizeVatModePolicy(body.vatModePolicy);
 
     if (!invoiceId || !reason || !description || !lines?.length) {
       return NextResponse.json(
@@ -100,37 +102,38 @@ export async function POST(req: NextRequest) {
     const isVat = tenantIsVat && customerIsVat;
     const vatRate = isVat ? 7 : 0;
 
+    const totals = calculateVatTotals(lines, {
+      vatRate,
+      vatModePolicy,
+    });
+
     // Calculate line totals
     const linesWithTotals = lines.map(
       (
         line: {
           description: string;
           quantity: number;
+          enteredUnitPrice?: number;
           unitPrice: number;
+          vatPriceMode?: "EXCLUSIVE" | "INCLUSIVE";
           sortOrder?: number;
         },
         idx: number
       ) => {
+        const calculated = totals.lines[idx];
         const qty = Number(line.quantity);
-        const price = Number(line.unitPrice);
-        const lineTotal = Math.round(qty * price * 100) / 100;
 
         return {
           description: line.description,
           quantity: qty,
-          unitPrice: price,
-          lineTotal,
+          enteredUnitPrice: calculated.enteredUnitPrice,
+          unitPrice: calculated.unitPrice,
+          vatPriceMode: calculated.vatPriceMode,
+          lineTotal: calculated.lineTotal,
           sortOrder: line.sortOrder ?? idx,
         };
       }
     );
-
-    const subtotal = linesWithTotals.reduce(
-      (sum: number, l: { lineTotal: number }) => sum + l.lineTotal,
-      0
-    );
-    const vatAmount = Math.round((subtotal * vatRate) / 100);
-    const totalAmount = Math.round((subtotal + vatAmount) * 100) / 100;
 
     // WHT reversal: prorate ตาม subtotal CN / subtotal Invoice
     // ถ้า invoice เคยโดนหัก ณ ที่จ่ายไปแล้ว — CN ต้อง reverse กลับตามสัดส่วน
@@ -141,7 +144,7 @@ export async function POST(req: NextRequest) {
     const invoiceSubtotal = Number(invoice.subtotal);
     const whtReversalAmount =
       invoiceSubtotal > 0 && totalReceiptWht > 0
-        ? Math.round((subtotal / invoiceSubtotal) * totalReceiptWht * 100) / 100
+        ? Math.round((totals.subtotal / invoiceSubtotal) * totalReceiptWht * 100) / 100
         : 0;
 
     const creditNote = await prisma.$transaction(async (tx) => {
@@ -155,10 +158,11 @@ export async function POST(req: NextRequest) {
           status: "DRAFT",
           reason,
           issueDate: new Date(),
-          subtotal,
+          subtotal: totals.subtotal,
           vatRate,
-          vatAmount,
-          totalAmount,
+          vatAmount: totals.vatAmount,
+          totalAmount: totals.totalAmount,
+          vatModePolicy,
           billingNature: invoice.billingNature,
           whtReversalAmount: new Prisma.Decimal(whtReversalAmount),
           description,

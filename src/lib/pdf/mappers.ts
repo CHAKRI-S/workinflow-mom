@@ -83,7 +83,9 @@ export interface InvoiceWithLines {
     customerBranding: unknown;
     lineBillingNature: string | null;
     quantity: Dec;
+    enteredUnitPrice?: Dec;
     unitPrice: Dec;
+    vatPriceMode?: string | null;
     lineTotal: Dec;
   }>;
 }
@@ -104,6 +106,7 @@ export function mapInvoiceToPdfData(
     customerBranding: brandingLabel(l.customerBranding),
     quantity: n(l.quantity),
     unitPrice: n(l.unitPrice),
+    vatPriceMode: l.vatPriceMode,
     lineTotal: n(l.lineTotal),
   }));
 
@@ -276,7 +279,9 @@ export interface TaxInvoiceForPdf {
       drawingRevision: string | null;
       customerBranding: unknown;
       quantity: Dec;
+      enteredUnitPrice?: Dec;
       unitPrice: Dec;
+      vatPriceMode?: string | null;
       lineTotal: Dec;
     }>;
   };
@@ -389,6 +394,7 @@ export function mapTaxInvoiceToPdfData(
       customerBranding: brandingLabel(l.customerBranding),
       quantity: n(l.quantity),
       unitPrice: n(l.unitPrice),
+      vatPriceMode: l.vatPriceMode,
       lineTotal: n(l.lineTotal),
     })),
     totals: {

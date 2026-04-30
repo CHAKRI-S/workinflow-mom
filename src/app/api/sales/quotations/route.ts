@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { quotationCreateSchema } from "@/lib/validators/quotation";
+import { calculateVatTotals } from "@/lib/vat";
 // GET /api/sales/quotations — list all quotations for tenant
 export async function GET() {
   try {
@@ -58,21 +59,15 @@ export async function POST(req: NextRequest) {
 
     const vatRate = customer.isVatRegistered ? 7 : 0;
 
-    // Calculate line totals
-    const linesWithTotals = data.lines.map((line) => {
-      const lineSubtotal = line.quantity * line.unitPrice;
-      const lineDiscount = lineSubtotal * line.discountPercent / 100;
-      const lineTotal = Math.round((lineSubtotal - lineDiscount) * 100) / 100;
-      return { ...line, lineTotal };
+    const totals = calculateVatTotals(data.lines, {
+      vatRate,
+      vatModePolicy: data.vatModePolicy,
+      discountPercent: data.discountPercent,
     });
-
-    // Calculate totals
-    const subtotal = linesWithTotals.reduce((sum, l) => sum + l.lineTotal, 0);
-    const discountPercent = data.discountPercent;
-    const discountAmount = Math.round((subtotal * discountPercent) / 100);
-    const afterDiscount = subtotal - discountAmount;
-    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
-    const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
+    const linesWithTotals = data.lines.map((line, idx) => ({
+      ...line,
+      ...totals.lines[idx],
+    }));
 
     // Create quotation in a transaction
     const quotation = await prisma.$transaction(async (tx) => {
@@ -89,12 +84,13 @@ export async function POST(req: NextRequest) {
           paymentTerms: data.paymentTerms,
           deliveryTerms: data.deliveryTerms,
           leadTimeDays: data.leadTimeDays,
-          discountPercent,
-          discountAmount,
-          subtotal,
+          discountPercent: totals.discountPercent,
+          discountAmount: totals.discountAmount,
+          subtotal: totals.subtotal,
           vatRate,
-          vatAmount,
-          totalAmount,
+          vatAmount: totals.vatAmount,
+          totalAmount: totals.totalAmount,
+          vatModePolicy: data.vatModePolicy ?? "PER_LINE",
           billingNature: data.billingNature ?? "GOODS",
           notes: data.notes,
           internalNotes: data.internalNotes,
@@ -108,7 +104,9 @@ export async function POST(req: NextRequest) {
               color: line.color,
               surfaceFinish: line.surfaceFinish,
               materialSpec: line.materialSpec,
+              enteredUnitPrice: line.enteredUnitPrice,
               unitPrice: line.unitPrice,
+              vatPriceMode: line.vatPriceMode,
               discountPercent: line.discountPercent,
               lineTotal: line.lineTotal,
               notes: line.notes,

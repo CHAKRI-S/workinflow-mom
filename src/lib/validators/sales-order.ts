@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { billingNatureEnum, lineTaxFieldsSchema } from "./billing-nature";
+import { VAT_MODE_POLICIES, VAT_PRICE_MODES } from "@/lib/vat";
 
 export const salesOrderLineSchema = z
   .object({
@@ -9,7 +10,9 @@ export const salesOrderLineSchema = z
     color: z.string().optional(),
     surfaceFinish: z.string().optional(),
     materialSpec: z.string().optional(),
+    enteredUnitPrice: z.number().min(0).optional(),
     unitPrice: z.number().min(0),
+    vatPriceMode: z.enum(VAT_PRICE_MODES).optional().default("EXCLUSIVE"),
     discountPercent: z.number().min(0).max(100),
     notes: z.string().optional(),
     sortOrder: z.number().int(),
@@ -25,6 +28,7 @@ export const salesOrderCreateSchema = z.object({
   shippingAddress: z.string().optional(),
   depositPercent: z.number().min(0).max(100),
   paymentTerms: z.string().optional(),
+  vatModePolicy: z.enum(VAT_MODE_POLICIES).optional().default("PER_LINE"),
   billingNature: billingNatureEnum.optional().default("GOODS"),
   notes: z.string().optional(),
   internalNotes: z.string().optional(),

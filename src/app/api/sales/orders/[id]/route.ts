@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { salesOrderUpdateSchema } from "@/lib/validators/sales-order";
 import { Prisma } from "@/generated/prisma/client";
+import { calculateVatTotals } from "@/lib/vat";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -108,13 +109,15 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           where: { salesOrderId: id },
         });
 
+        const totals = calculateVatTotals(data.lines, {
+          vatRate,
+          vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
+        });
+
         const linesWithTotals = data.lines.map((line, idx) => {
+          const calculated = totals.lines[idx];
           const qty = Number(line.quantity);
-          const price = Number(line.unitPrice);
           const discPct = Number(line.discountPercent);
-          const lineSubtotal = qty * price;
-          const lineDiscount = Math.round((lineSubtotal * discPct) / 100);
-          const lineTotal = Math.round((lineSubtotal - lineDiscount) * 100) / 100;
 
           return {
             salesOrderId: id,
@@ -124,9 +127,11 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             color: line.color || null,
             surfaceFinish: line.surfaceFinish || null,
             materialSpec: line.materialSpec || null,
-            unitPrice: price,
+            enteredUnitPrice: calculated.enteredUnitPrice,
+            unitPrice: calculated.unitPrice,
+            vatPriceMode: calculated.vatPriceMode,
             discountPercent: discPct,
-            lineTotal,
+            lineTotal: calculated.lineTotal,
             notes: line.notes || null,
             sortOrder: line.sortOrder ?? idx,
             drawingSource: line.drawingSource ?? "TENANT_OWNED",
@@ -140,22 +145,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
         await tx.salesOrderLine.createMany({ data: linesWithTotals });
 
-        // Recalculate totals
-        const subtotal = linesWithTotals.reduce(
-          (sum, l) => sum + l.lineTotal,
-          0
-        );
-
-        const discountPercent = 0;
-        const discountAmount = Math.round((subtotal * discountPercent) / 100);
-        const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-        const vatAmount = Math.round((afterDiscount * vatRate) / 100);
-        const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
-
         const depositPercent = data.depositPercent !== undefined
           ? Number(data.depositPercent)
           : Number(existing.depositPercent);
-        const depositAmount = Math.round((totalAmount * depositPercent) / 100);
+        const depositAmount = Math.round((totals.totalAmount * depositPercent) / 100);
 
         const updated = await tx.salesOrder.update({
           where: { id },
@@ -168,12 +161,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             shippingAddress: data.shippingAddress ?? existing.shippingAddress,
             depositPercent,
             depositAmount,
-            subtotal,
-            discountPercent,
-            discountAmount,
+            subtotal: totals.subtotal,
+            discountPercent: totals.discountPercent,
+            discountAmount: totals.discountAmount,
             vatRate,
-            vatAmount,
-            totalAmount,
+            vatAmount: totals.vatAmount,
+            totalAmount: totals.totalAmount,
+            vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
             paymentTerms: data.paymentTerms ?? existing.paymentTerms,
             billingNature: data.billingNature ?? existing.billingNature,
             notes: data.notes ?? existing.notes,
@@ -212,6 +206,10 @@ export async function PATCH(req: NextRequest, { params }: Params) {
 
       if (data.billingNature !== undefined) {
         updateData.billingNature = data.billingNature;
+      }
+
+      if (data.vatModePolicy !== undefined) {
+        updateData.vatModePolicy = data.vatModePolicy;
       }
 
       updateData.vatRate = vatRate;

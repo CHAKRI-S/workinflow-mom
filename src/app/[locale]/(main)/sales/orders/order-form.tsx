@@ -41,10 +41,12 @@ import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { detectServiceWording } from "@/lib/po-wording-check";
+import { calculateVatTotals } from "@/lib/vat";
 import type {
   BillingNature,
   DrawingSource,
 } from "@/lib/validators/billing-nature";
+import type { VatModePolicy, VatPriceMode } from "@/lib/vat";
 
 interface Customer {
   id: string;
@@ -66,6 +68,7 @@ interface Product {
   code: string;
   name: string;
   unitPrice?: string | number;
+  defaultVatPriceMode?: VatPriceMode;
   defaultColor?: string | null;
   defaultSurfaceFinish?: string | null;
 }
@@ -96,12 +99,14 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
       customerId: "",
       depositPercent: 0,
       requestedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
+      vatModePolicy: "PER_LINE",
       billingNature: "GOODS",
       lines: [
         {
           productId: "",
           quantity: 1,
           unitPrice: 0,
+          vatPriceMode: "EXCLUSIVE",
           discountPercent: 0,
           sortOrder: 0,
           drawingSource: "TENANT_OWNED",
@@ -119,6 +124,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
   const watchLines = watch("lines");
   const watchCustomerId = watch("customerId");
   const watchDepositPercent = watch("depositPercent");
+  const watchVatModePolicy = (watch("vatModePolicy") ?? "PER_LINE") as VatModePolicy;
   const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
   const watchCustomerPoNumber = watch("customerPoNumber");
   const poWordingCheck = detectServiceWording(watchCustomerPoNumber);
@@ -146,23 +152,19 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
   const selectedCustomer = customers.find((c) => c.id === watchCustomerId);
   const isVat = selectedCustomer?.isVatRegistered ?? true;
   const vatRate = isVat ? 7 : 0;
+  const vatTotals = calculateVatTotals(watchLines || [], {
+    vatRate,
+    vatModePolicy: watchVatModePolicy,
+  });
 
   const calculateTotals = useCallback(() => {
-    const subtotal = (watchLines || []).reduce((sum, line) => {
-      const qty = Number(line.quantity) || 0;
-      const price = Number(line.unitPrice) || 0;
-      const disc = Number(line.discountPercent) || 0;
-      const lineSubtotal = qty * price;
-      const lineDiscount = lineSubtotal * (disc / 100);
-      return sum + (lineSubtotal - lineDiscount);
-    }, 0);
-
-    const vatAmount = subtotal * (vatRate / 100);
-    const total = subtotal + vatAmount;
+    const subtotal = vatTotals.subtotal;
+    const vatAmount = vatTotals.vatAmount;
+    const total = vatTotals.totalAmount;
     const depositAmount = total * ((Number(watchDepositPercent) || 0) / 100);
 
     return { subtotal, vatAmount, total, depositAmount };
-  }, [watchLines, vatRate, watchDepositPercent]);
+  }, [vatTotals, watchDepositPercent]);
 
   const totals = calculateTotals();
 
@@ -224,6 +226,10 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
     const product = products.find((p) => p.id === productId);
     if (product) {
       setValue(`lines.${index}.unitPrice`, Number(product.unitPrice) || 0);
+      setValue(
+        `lines.${index}.vatPriceMode`,
+        product.defaultVatPriceMode ?? "EXCLUSIVE",
+      );
       if (product.defaultColor) {
         setValue(`lines.${index}.color`, product.defaultColor);
       }
@@ -355,6 +361,39 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
           onChange={(v) => setValue("billingNature", v)}
         />
 
+        <Card className="p-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label>VAT ของบิลนี้</Label>
+              <Select
+                value={watchVatModePolicy}
+                onValueChange={(v) =>
+                  setValue("vatModePolicy", v as VatModePolicy)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PER_LINE">ตามสินค้าแต่ละรายการ</SelectItem>
+                  <SelectItem value="FORCE_EXCLUSIVE">บังคับ VAT นอกทั้งบิล</SelectItem>
+                  <SelectItem value="FORCE_INCLUSIVE">บังคับ VAT ในทั้งบิล</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+              <div className="flex justify-between">
+                <span>รายการ VAT นอก</span>
+                <span>{vatTotals.modeSummary.EXCLUSIVE.count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>รายการ VAT ใน</span>
+                <span>{vatTotals.modeSummary.INCLUSIVE.count}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+
         {/* Line Items */}
         <Card className="p-4 space-y-4">
           <div className="flex items-center justify-between">
@@ -368,6 +407,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                   productId: "",
                   quantity: 1,
                   unitPrice: 0,
+                  vatPriceMode: "EXCLUSIVE",
                   discountPercent: 0,
                   sortOrder: fields.length,
                   drawingSource: "TENANT_OWNED",
@@ -399,6 +439,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                     <TableHead className="w-28">
                       {t("salesOrder.unitPrice")}
                     </TableHead>
+                    <TableHead className="w-32">VAT</TableHead>
                     <TableHead className="w-20">
                       {t("salesOrder.discountPercent")}
                     </TableHead>
@@ -410,13 +451,13 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                 </TableHeader>
                 <TableBody>
                   {fields.map((field, index) => {
-                    const qty = Number(watchLines?.[index]?.quantity) || 0;
-                    const price = Number(watchLines?.[index]?.unitPrice) || 0;
-                    const disc =
-                      Number(watchLines?.[index]?.discountPercent) || 0;
-                    const lineSubtotal = qty * price;
-                    const lineTotal =
-                      lineSubtotal - lineSubtotal * (disc / 100);
+                    const line = watchLines?.[index];
+                    const calculatedLine = vatTotals.lines[index];
+                    const lineTotal = calculatedLine?.lineTotal ?? 0;
+                    const effectiveMode =
+                      calculatedLine?.vatPriceMode ??
+                      line?.vatPriceMode ??
+                      "EXCLUSIVE";
 
                     return (
                       <TableRow key={field.id}>
@@ -477,6 +518,31 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                             min={0}
                             step="0.01"
                           />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={line?.vatPriceMode ?? "EXCLUSIVE"}
+                            onValueChange={(v) =>
+                              setValue(
+                                `lines.${index}.vatPriceMode`,
+                                v as VatPriceMode,
+                              )
+                            }
+                            disabled={watchVatModePolicy !== "PER_LINE"}
+                          >
+                            <SelectTrigger className="w-[120px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="EXCLUSIVE">VAT นอก</SelectItem>
+                              <SelectItem value="INCLUSIVE">VAT ใน</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {watchVatModePolicy !== "PER_LINE" && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              ใช้ {effectiveMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Input

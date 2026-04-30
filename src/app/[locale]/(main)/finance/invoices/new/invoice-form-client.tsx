@@ -29,16 +29,20 @@ import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
+import { calculateVatTotals } from "@/lib/vat";
 import type {
   BillingNature,
   DrawingSource,
 } from "@/lib/validators/billing-nature";
+import type { VatModePolicy, VatPriceMode } from "@/lib/vat";
 
 interface SOLine {
   id: string;
   description: string | null;
   quantity: string;
+  enteredUnitPrice?: string | null;
   unitPrice: string;
+  vatPriceMode?: VatPriceMode | null;
   lineTotal: string;
   notes: string | null;
   sortOrder: number;
@@ -60,6 +64,7 @@ interface SalesOrderOption {
   vatAmount: string;
   discountAmount: string;
   depositAmount: string;
+  vatModePolicy?: VatModePolicy | null;
   billingNature?: BillingNature | null;
   customer: {
     id: string;
@@ -81,7 +86,9 @@ interface InvoiceLineDraft {
   salesOrderLineId: string;
   description: string;
   quantity: number;
+  enteredUnitPrice: number;
   unitPrice: number;
+  vatPriceMode: VatPriceMode;
   lineTotal: number;
   notes: string | null;
   sortOrder: number;
@@ -108,6 +115,8 @@ export function InvoiceFormClient({
   const [notes, setNotes] = useState<string>("");
   const [saving, setSaving] = useState(false);
   const [billingNature, setBillingNature] = useState<BillingNature>("GOODS");
+  const [vatModePolicy, setVatModePolicy] =
+    useState<VatModePolicy>("PER_LINE");
   const [lineDrafts, setLineDrafts] = useState<InvoiceLineDraft[]>([]);
 
   const selectedSO = useMemo(() => {
@@ -124,7 +133,9 @@ export function InvoiceFormClient({
       salesOrderLineId: line.id,
       description: line.description || line.product.name,
       quantity: Number(line.quantity),
-      unitPrice: Number(line.unitPrice),
+      enteredUnitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+      unitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+      vatPriceMode: line.vatPriceMode ?? "EXCLUSIVE",
       lineTotal: Number(line.lineTotal),
       notes: line.notes,
       sortOrder: line.sortOrder,
@@ -139,6 +150,7 @@ export function InvoiceFormClient({
         "",
     }));
     setLineDrafts(drafts);
+    setVatModePolicy(selectedSO.vatModePolicy ?? "PER_LINE");
 
     // Resolve initial billingNature: SO snapshot > customer default > GOODS
     const initial =
@@ -158,18 +170,36 @@ export function InvoiceFormClient({
   );
 
   // Calculate totals
-  const { subtotal, vatRate, vatAmount, totalAmount } = useMemo(() => {
+  const { subtotal, vatRate, vatAmount, totalAmount, vatSummary, calculatedLines } = useMemo(() => {
     if (!selectedSO || lineDrafts.length === 0) {
-      return { subtotal: 0, vatRate: 0, vatAmount: 0, totalAmount: 0 };
+      return {
+        subtotal: 0,
+        vatRate: 0,
+        vatAmount: 0,
+        totalAmount: 0,
+        vatSummary: {
+          EXCLUSIVE: { count: 0, subtotal: 0 },
+          INCLUSIVE: { count: 0, subtotal: 0 },
+        },
+        calculatedLines: [],
+      };
     }
 
-    const sub = lineDrafts.reduce((sum, l) => sum + l.lineTotal, 0);
     const vr = selectedSO.customer.isVatRegistered ? 7 : 0;
-    const vat = Math.round(sub * vr) / 100;
-    const total = Math.round((sub + vat) * 100) / 100;
+    const totals = calculateVatTotals(lineDrafts, {
+      vatRate: vr,
+      vatModePolicy,
+    });
 
-    return { subtotal: sub, vatRate: vr, vatAmount: vat, totalAmount: total };
-  }, [selectedSO, lineDrafts]);
+    return {
+      subtotal: totals.subtotal,
+      vatRate: vr,
+      vatAmount: totals.vatAmount,
+      totalAmount: totals.totalAmount,
+      vatSummary: totals.modeSummary,
+      calculatedLines: totals.lines,
+    };
+  }, [selectedSO, lineDrafts, vatModePolicy]);
 
   const formatCurrency = (amount: number) => {
     return amount.toLocaleString(undefined, {
@@ -210,12 +240,15 @@ export function InvoiceFormClient({
           salesOrderId: selectedSOId,
           invoiceType,
           dueDate,
+          vatModePolicy,
           billingNature,
           lines: lineDrafts.map((l) => ({
             salesOrderLineId: l.salesOrderLineId,
             description: l.description,
             quantity: l.quantity,
-            unitPrice: l.unitPrice,
+            enteredUnitPrice: l.enteredUnitPrice,
+            unitPrice: l.enteredUnitPrice,
+            vatPriceMode: l.vatPriceMode,
             notes: l.notes,
             sortOrder: l.sortOrder,
             drawingSource: l.drawingSource,
@@ -350,6 +383,39 @@ export function InvoiceFormClient({
         />
       )}
 
+      {selectedSO && (
+        <Card className="p-4">
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <div className="space-y-2">
+              <Label>VAT ของบิลนี้</Label>
+              <Select
+                value={vatModePolicy}
+                onValueChange={(v) => setVatModePolicy(v as VatModePolicy)}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="PER_LINE">ตามสินค้าแต่ละรายการ</SelectItem>
+                  <SelectItem value="FORCE_EXCLUSIVE">บังคับ VAT นอกทั้งบิล</SelectItem>
+                  <SelectItem value="FORCE_INCLUSIVE">บังคับ VAT ในทั้งบิล</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="rounded-md border p-3 text-sm text-muted-foreground">
+              <div className="flex justify-between">
+                <span>รายการ VAT นอก</span>
+                <span>{vatSummary.EXCLUSIVE.count}</span>
+              </div>
+              <div className="flex justify-between">
+                <span>รายการ VAT ใน</span>
+                <span>{vatSummary.INCLUSIVE.count}</span>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
       {/* Lines from SO */}
       {selectedSO && lineDrafts.length > 0 && (
         <Card className="p-4 space-y-3">
@@ -368,29 +434,57 @@ export function InvoiceFormClient({
                   <TableHead className="text-right">
                     {t("invoice.totalAmount")}
                   </TableHead>
+                  <TableHead className="w-32">VAT</TableHead>
                   <TableHead className="text-right">
                     {t("common.total")}
                   </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {lineDrafts.map((line, index) => (
-                  <TableRow key={line.salesOrderLineId}>
-                    <TableCell className="text-muted-foreground">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell>{line.description}</TableCell>
-                    <TableCell className="text-right font-mono">
-                      {line.quantity.toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-right font-mono">
-                      {formatCurrency(line.unitPrice)}
-                    </TableCell>
-                    <TableCell className="text-right font-mono font-medium">
-                      {formatCurrency(line.lineTotal)}
-                    </TableCell>
-                  </TableRow>
-                ))}
+                {lineDrafts.map((line, index) => {
+                  const calculatedLine = calculatedLines[index];
+                  const effectiveMode =
+                    calculatedLine?.vatPriceMode ?? line.vatPriceMode;
+                  return (
+                    <TableRow key={line.salesOrderLineId}>
+                      <TableCell className="text-muted-foreground">
+                        {index + 1}
+                      </TableCell>
+                      <TableCell>{line.description}</TableCell>
+                      <TableCell className="text-right font-mono">
+                        {line.quantity.toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-right font-mono">
+                        {formatCurrency(line.enteredUnitPrice)}
+                      </TableCell>
+                      <TableCell>
+                        <Select
+                          value={line.vatPriceMode}
+                          onValueChange={(v) =>
+                            updateLineField(index, "vatPriceMode", v as VatPriceMode)
+                          }
+                          disabled={vatModePolicy !== "PER_LINE"}
+                        >
+                          <SelectTrigger className="w-[120px]">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="EXCLUSIVE">VAT นอก</SelectItem>
+                            <SelectItem value="INCLUSIVE">VAT ใน</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        {vatModePolicy !== "PER_LINE" && (
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            ใช้ {effectiveMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
+                          </p>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-right font-mono font-medium">
+                        {formatCurrency(calculatedLine?.lineTotal ?? 0)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>

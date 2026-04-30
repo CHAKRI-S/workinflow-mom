@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useTranslations } from "next-intl";
@@ -36,10 +36,12 @@ import { Plus, Trash2, Loader2 } from "lucide-react";
 import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
+import { calculateVatTotals } from "@/lib/vat";
 import type {
   BillingNature,
   DrawingSource,
 } from "@/lib/validators/billing-nature";
+import type { VatModePolicy, VatPriceMode } from "@/lib/vat";
 
 interface Customer {
   id: string;
@@ -61,6 +63,7 @@ interface Product {
   name: string;
   unitPrice?: string;
   unit?: string;
+  defaultVatPriceMode?: VatPriceMode;
 }
 
 interface QuotationFormProps {
@@ -100,6 +103,7 @@ export function QuotationForm({
       deliveryTerms: "",
       leadTimeDays: undefined,
       discountPercent: 0,
+      vatModePolicy: "PER_LINE",
       billingNature: "GOODS",
       notes: "",
       internalNotes: "",
@@ -112,6 +116,7 @@ export function QuotationForm({
           surfaceFinish: "",
           materialSpec: "",
           unitPrice: 0,
+          vatPriceMode: "EXCLUSIVE",
           discountPercent: 0,
           notes: "",
           sortOrder: 0,
@@ -129,7 +134,14 @@ export function QuotationForm({
 
   const watchLines = watch("lines");
   const watchDiscountPercent = watch("discountPercent");
+  const watchVatModePolicy = (watch("vatModePolicy") ?? "PER_LINE") as VatModePolicy;
   const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
+  const vatRate = selectedCustomer?.isVatRegistered ? 7 : 0;
+  const totals = calculateVatTotals(watchLines || [], {
+    vatRate,
+    vatModePolicy: watchVatModePolicy,
+    discountPercent: watchDiscountPercent || 0,
+  });
 
   // Auto-suggest billing nature from line drawing sources
   const suggestedBillingNature = suggestBillingNature(
@@ -164,25 +176,11 @@ export function QuotationForm({
     }
   }, [watchedCustomerId, customers, mode, setValue]);
 
-  // Calculate line total
-  const calcLineTotal = useCallback(
-    (line: { quantity: number; unitPrice: number; discountPercent: number }) => {
-      const sub = line.quantity * line.unitPrice;
-      return sub - sub * (line.discountPercent / 100);
-    },
-    []
-  );
-
   // Calculate summary
-  const subtotal = (watchLines || []).reduce(
-    (sum, line) => sum + calcLineTotal(line),
-    0
-  );
-  const discountAmount = subtotal * ((watchDiscountPercent || 0) / 100);
-  const afterDiscount = subtotal - discountAmount;
-  const vatRate = selectedCustomer?.isVatRegistered ? 7 : 0;
-  const vatAmount = afterDiscount * (vatRate / 100);
-  const totalAmount = afterDiscount + vatAmount;
+  const subtotal = totals.subtotal;
+  const discountAmount = totals.discountAmount;
+  const vatAmount = totals.vatAmount;
+  const totalAmount = totals.totalAmount;
 
   const onSubmit = async (data: QuotationCreateInput) => {
     setSubmitting(true);
@@ -220,6 +218,10 @@ export function QuotationForm({
     if (product?.unitPrice) {
       setValue(`lines.${index}.unitPrice`, Number(product.unitPrice));
     }
+    setValue(
+      `lines.${index}.vatPriceMode`,
+      product?.defaultVatPriceMode ?? "EXCLUSIVE",
+    );
   };
 
   return (
@@ -331,6 +333,37 @@ export function QuotationForm({
         onChange={(v) => setValue("billingNature", v)}
       />
 
+      <Card>
+        <CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-2">
+          <div className="space-y-2">
+            <Label>VAT ของบิลนี้</Label>
+            <Select
+              value={watchVatModePolicy}
+              onValueChange={(v) => setValue("vatModePolicy", v as VatModePolicy)}
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="PER_LINE">ตามสินค้าแต่ละรายการ</SelectItem>
+                <SelectItem value="FORCE_EXCLUSIVE">บังคับ VAT นอกทั้งบิล</SelectItem>
+                <SelectItem value="FORCE_INCLUSIVE">บังคับ VAT ในทั้งบิล</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="rounded-md border p-3 text-sm text-muted-foreground">
+            <div className="flex justify-between">
+              <span>รายการ VAT นอก</span>
+              <span>{totals.modeSummary.EXCLUSIVE.count}</span>
+            </div>
+            <div className="flex justify-between">
+              <span>รายการ VAT ใน</span>
+              <span>{totals.modeSummary.INCLUSIVE.count}</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
       {/* Line Items */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -348,6 +381,7 @@ export function QuotationForm({
                 surfaceFinish: "",
                 materialSpec: "",
                 unitPrice: 0,
+                vatPriceMode: "EXCLUSIVE",
                 discountPercent: 0,
                 notes: "",
                 sortOrder: fields.length,
@@ -386,6 +420,7 @@ export function QuotationForm({
                     <TableHead className="w-[120px]">
                       {t("unitPrice")}
                     </TableHead>
+                    <TableHead className="w-[130px]">VAT</TableHead>
                     <TableHead className="w-[80px]">
                       {t("discountPercent")}
                     </TableHead>
@@ -398,7 +433,12 @@ export function QuotationForm({
                 <TableBody>
                   {fields.map((field, index) => {
                     const line = watchLines?.[index];
-                    const lineTotal = line ? calcLineTotal(line) : 0;
+                    const calculatedLine = totals.lines[index];
+                    const lineTotal = calculatedLine?.lineTotal ?? 0;
+                    const effectiveMode =
+                      calculatedLine?.vatPriceMode ??
+                      line?.vatPriceMode ??
+                      "EXCLUSIVE";
                     return (
                       <TableRow key={field.id}>
                         <TableCell className="text-muted-foreground">
@@ -458,6 +498,31 @@ export function QuotationForm({
                             {...register(`lines.${index}.surfaceFinish`)}
                             className="w-[100px]"
                           />
+                        </TableCell>
+                        <TableCell>
+                          <Select
+                            value={line?.vatPriceMode ?? "EXCLUSIVE"}
+                            onValueChange={(v) =>
+                              setValue(
+                                `lines.${index}.vatPriceMode`,
+                                v as VatPriceMode,
+                              )
+                            }
+                            disabled={watchVatModePolicy !== "PER_LINE"}
+                          >
+                            <SelectTrigger className="w-[120px]">
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="EXCLUSIVE">VAT นอก</SelectItem>
+                              <SelectItem value="INCLUSIVE">VAT ใน</SelectItem>
+                            </SelectContent>
+                          </Select>
+                          {watchVatModePolicy !== "PER_LINE" && (
+                            <p className="mt-1 text-[11px] text-muted-foreground">
+                              ใช้ {effectiveMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
+                            </p>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Input

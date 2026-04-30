@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
+import { Prisma } from "@/generated/prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -55,11 +56,20 @@ export async function POST(req: NextRequest, { params }: Params) {
       color: line.color,
       surfaceFinish: line.surfaceFinish,
       materialSpec: line.materialSpec,
+      enteredUnitPrice: line.enteredUnitPrice ?? line.unitPrice,
       unitPrice: line.unitPrice,
+      vatPriceMode: line.vatPriceMode,
       discountPercent: line.discountPercent,
       lineTotal: line.lineTotal,
       notes: line.notes,
       sortOrder: line.sortOrder ?? idx,
+      drawingSource: line.drawingSource,
+      lineBillingNature: line.lineBillingNature,
+      productCode: line.productCode,
+      drawingRevision: line.drawingRevision,
+      customerDrawingUrl: line.customerDrawingUrl,
+      customerBranding:
+        (line.customerBranding ?? undefined) as Prisma.InputJsonValue | undefined,
     }));
 
     const subtotal = soLines.reduce(
@@ -95,7 +105,9 @@ export async function POST(req: NextRequest, { params }: Params) {
           vatRate,
           vatAmount,
           totalAmount,
+          vatModePolicy: quotation.vatModePolicy,
           paymentTerms: quotation.paymentTerms || null,
+          billingNature: quotation.billingNature,
           notes: quotation.notes || null,
           createdById: session!.user.id,
           status: "CONFIRMED",

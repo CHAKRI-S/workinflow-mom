@@ -70,6 +70,7 @@ interface Product {
   defaultColor: string | null;
   defaultSurfaceFinish: string | null;
   unitPrice: string | number | null;
+  defaultVatPriceMode?: "EXCLUSIVE" | "INCLUSIVE" | null;
   leadTimeDays: number;
   cycleTimeMinutes: string | number | null;
   bomLines: BomLine[];
@@ -253,6 +254,12 @@ export function ProductDetailClient({
           <div>
             <p className="text-muted-foreground">{t("product.leadTimeDays")}</p>
             <p className="font-medium">{product.leadTimeDays} {t("product.days")}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">รูปแบบ VAT</p>
+            <p className="font-medium">
+              {product.defaultVatPriceMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
+            </p>
           </div>
           <div>
             <p className="text-muted-foreground">{t("product.cycleTime")}</p>

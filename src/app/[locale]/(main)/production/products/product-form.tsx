@@ -154,12 +154,15 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<ProductCreateInput>({
     resolver: zodResolver(productCreateSchema),
     defaultValues: {
       requiresPainting: false,
       requiresLogoEngraving: false,
+      defaultVatPriceMode: "EXCLUSIVE",
       leadTimeDays: 0,
       ...defaultValues,
     },
@@ -300,6 +303,27 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
                 min={0}
                 step="0.01"
               />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>รูปแบบ VAT เริ่มต้น</Label>
+              <Select
+                value={watch("defaultVatPriceMode") ?? "EXCLUSIVE"}
+                onValueChange={(v) =>
+                  setValue(
+                    "defaultVatPriceMode",
+                    v as ProductCreateInput["defaultVatPriceMode"],
+                  )
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="EXCLUSIVE">VAT นอก</SelectItem>
+                  <SelectItem value="INCLUSIVE">VAT ใน</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
 
             <div className="space-y-1.5">

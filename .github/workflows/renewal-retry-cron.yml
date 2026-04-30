@@ -1,0 +1,18 @@
+name: Renewal Retry Cron
+
+on:
+  schedule:
+    # Every hour. The endpoint is idempotent and handles saved-card retry,
+    # expiry, suspension, and renewal/failure emails.
+    - cron: '0 * * * *'
+  workflow_dispatch:
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call renewal retry endpoint
+        run: |
+          curl -sS --fail --max-time 60 --retry 2 --retry-delay 5 \
+            -H "x-cron-secret: ${{ secrets.CRON_SECRET }}" \
+            "https://mom.workinflow.cloud/api/cron/renewal-retry"

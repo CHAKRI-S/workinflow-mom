@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { quotationUpdateSchema } from "@/lib/validators/quotation";
+import { calculateVatTotals } from "@/lib/vat";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -102,27 +103,24 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Recalculate if lines are provided
     let calculatedFields = {};
     if (data.lines && data.lines.length > 0) {
-      const linesWithTotals = data.lines.map((line) => {
-        const lineSubtotal = line.quantity * line.unitPrice;
-        const lineDiscount = lineSubtotal * line.discountPercent / 100;
-        const lineTotal = Math.round((lineSubtotal - lineDiscount) * 100) / 100;
-        return { ...line, lineTotal };
+      const totals = calculateVatTotals(data.lines, {
+        vatRate,
+        vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
+        discountPercent: data.discountPercent ?? Number(existing.discountPercent),
       });
-
-      const subtotal = linesWithTotals.reduce((sum, l) => sum + l.lineTotal, 0);
-      const discountPercent = data.discountPercent ?? 0;
-      const discountAmount = Math.round((subtotal * discountPercent) / 100);
-      const afterDiscount = subtotal - discountAmount;
-      const vatAmount = Math.round((afterDiscount * vatRate) / 100);
-      const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
+      const linesWithTotals = data.lines.map((line, idx) => ({
+        ...line,
+        ...totals.lines[idx],
+      }));
 
       calculatedFields = {
-        subtotal,
-        discountPercent,
-        discountAmount,
+        subtotal: totals.subtotal,
+        discountPercent: totals.discountPercent,
+        discountAmount: totals.discountAmount,
         vatRate,
-        vatAmount,
-        totalAmount,
+        vatAmount: totals.vatAmount,
+        totalAmount: totals.totalAmount,
+        vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
       };
 
       // Update in transaction: delete old lines, create new
@@ -139,6 +137,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             paymentTerms: data.paymentTerms,
             deliveryTerms: data.deliveryTerms,
             leadTimeDays: data.leadTimeDays,
+            vatModePolicy: data.vatModePolicy,
             billingNature: data.billingNature,
             notes: data.notes,
             internalNotes: data.internalNotes,
@@ -151,7 +150,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                 color: line.color,
                 surfaceFinish: line.surfaceFinish,
                 materialSpec: line.materialSpec,
+                enteredUnitPrice: line.enteredUnitPrice,
                 unitPrice: line.unitPrice,
+                vatPriceMode: line.vatPriceMode,
                 discountPercent: line.discountPercent,
                 lineTotal: line.lineTotal,
                 notes: line.notes,
@@ -189,6 +190,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         paymentTerms: data.paymentTerms,
         deliveryTerms: data.deliveryTerms,
         leadTimeDays: data.leadTimeDays,
+        vatModePolicy: data.vatModePolicy,
         billingNature: data.billingNature,
         notes: data.notes,
         internalNotes: data.internalNotes,

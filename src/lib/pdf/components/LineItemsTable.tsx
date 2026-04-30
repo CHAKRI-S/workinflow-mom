@@ -11,6 +11,7 @@ export interface PdfLineItem {
   quantity: number | string;
   unit?: string | null;
   unitPrice: number | string;
+  vatPriceMode?: "EXCLUSIVE" | "INCLUSIVE" | string | null;
   lineTotal: number | string;
 }
 
@@ -56,6 +57,11 @@ export function LineItemsTable({
             {it.customerBranding && (
               <Text style={pdfStyles.mutedText}>
                 Customer Mark: {it.customerBranding}
+              </Text>
+            )}
+            {it.vatPriceMode && (
+              <Text style={pdfStyles.mutedText}>
+                VAT: {it.vatPriceMode === "INCLUSIVE" ? "ใน" : "นอก"}
               </Text>
             )}
           </View>

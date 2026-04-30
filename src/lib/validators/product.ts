@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { VAT_PRICE_MODES } from "@/lib/vat";
 
 export const productCreateSchema = z.object({
   code: z.string().min(1, "Required"),
@@ -13,6 +14,7 @@ export const productCreateSchema = z.object({
   defaultColor: z.string().optional(),
   defaultSurfaceFinish: z.string().optional(),
   unitPrice: z.number().min(0).optional(),
+  defaultVatPriceMode: z.enum(VAT_PRICE_MODES).optional().default("EXCLUSIVE"),
   cycleTimeMinutes: z.number().min(0).optional(),
   leadTimeDays: z.number().int().min(0),
 });
@@ -29,6 +31,6 @@ export const bomLineSchema = z.object({
   sortOrder: z.number().int(),
 });
 
-export type ProductCreateInput = z.infer<typeof productCreateSchema>;
-export type ProductUpdateInput = z.infer<typeof productUpdateSchema>;
-export type BomLineInput = z.infer<typeof bomLineSchema>;
+export type ProductCreateInput = z.input<typeof productCreateSchema>;
+export type ProductUpdateInput = z.input<typeof productUpdateSchema>;
+export type BomLineInput = z.input<typeof bomLineSchema>;

@@ -36,6 +36,7 @@ export default async function NewInvoicePage({
       vatAmount: true,
       discountAmount: true,
       depositAmount: true,
+      vatModePolicy: true,
       billingNature: true,
       customer: {
         select: {
@@ -54,7 +55,9 @@ export default async function NewInvoicePage({
           id: true,
           description: true,
           quantity: true,
+          enteredUnitPrice: true,
           unitPrice: true,
+          vatPriceMode: true,
           lineTotal: true,
           notes: true,
           sortOrder: true,

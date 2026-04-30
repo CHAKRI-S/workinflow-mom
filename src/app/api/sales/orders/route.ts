@@ -5,6 +5,7 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { salesOrderCreateSchema } from "@/lib/validators/sales-order";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { Prisma } from "@/generated/prisma/client";
+import { calculateVatTotals } from "@/lib/vat";
 
 // GET /api/sales/orders — list all sales orders for tenant
 export async function GET(req: NextRequest) {
@@ -63,14 +64,16 @@ export async function POST(req: NextRequest) {
 
     const vatRate = customer.isVatRegistered ? 7 : 0;
 
+    const totals = calculateVatTotals(data.lines, {
+      vatRate,
+      vatModePolicy: data.vatModePolicy,
+    });
+
     // Calculate line totals
     const linesWithTotals = data.lines.map((line, idx) => {
+      const calculated = totals.lines[idx];
       const qty = Number(line.quantity);
-      const price = Number(line.unitPrice);
       const discPct = Number(line.discountPercent);
-      const lineSubtotal = qty * price;
-      const lineDiscount = Math.round((lineSubtotal * discPct) / 100);
-      const lineTotal = Math.round((lineSubtotal - lineDiscount) * 100) / 100;
 
       return {
         productId: line.productId,
@@ -79,9 +82,11 @@ export async function POST(req: NextRequest) {
         color: line.color || null,
         surfaceFinish: line.surfaceFinish || null,
         materialSpec: line.materialSpec || null,
-        unitPrice: price,
+        enteredUnitPrice: calculated.enteredUnitPrice,
+        unitPrice: calculated.unitPrice,
+        vatPriceMode: calculated.vatPriceMode,
         discountPercent: discPct,
-        lineTotal,
+        lineTotal: calculated.lineTotal,
         notes: line.notes || null,
         sortOrder: line.sortOrder ?? idx,
         drawingSource: line.drawingSource ?? "TENANT_OWNED",
@@ -93,20 +98,8 @@ export async function POST(req: NextRequest) {
       };
     });
 
-    // Calculate order totals
-    const subtotal = linesWithTotals.reduce(
-      (sum, l) => sum + l.lineTotal,
-      0
-    );
-
-    const discountPercent = 0;
-    const discountAmount = Math.round((subtotal * discountPercent) / 100);
-    const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
-    const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
-
     const depositPercent = Number(data.depositPercent);
-    const depositAmount = Math.round((totalAmount * depositPercent) / 100);
+    const depositAmount = Math.round((totals.totalAmount * depositPercent) / 100);
 
     // Create within transaction
     const order = await prisma.$transaction(async (tx) => {
@@ -124,12 +117,13 @@ export async function POST(req: NextRequest) {
           shippingAddress: data.shippingAddress || null,
           depositPercent,
           depositAmount,
-          subtotal,
-          discountPercent,
-          discountAmount,
+          subtotal: totals.subtotal,
+          discountPercent: totals.discountPercent,
+          discountAmount: totals.discountAmount,
           vatRate,
-          vatAmount,
-          totalAmount,
+          vatAmount: totals.vatAmount,
+          totalAmount: totals.totalAmount,
+          vatModePolicy: data.vatModePolicy ?? "PER_LINE",
           paymentTerms: data.paymentTerms || null,
           billingNature: data.billingNature ?? "GOODS",
           notes: data.notes || null,

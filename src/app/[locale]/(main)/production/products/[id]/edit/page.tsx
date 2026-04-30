@@ -60,6 +60,7 @@ export default async function EditProductPage({
         defaultColor: serialized.defaultColor || undefined,
         defaultSurfaceFinish: serialized.defaultSurfaceFinish || undefined,
         unitPrice: serialized.unitPrice ? Number(serialized.unitPrice) : undefined,
+        defaultVatPriceMode: serialized.defaultVatPriceMode || "EXCLUSIVE",
         leadTimeDays: serialized.leadTimeDays,
         cycleTimeMinutes: serialized.cycleTimeMinutes ? Number(serialized.cycleTimeMinutes) : undefined,
       }}

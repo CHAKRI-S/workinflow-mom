@@ -51,6 +51,7 @@ export default async function EditQuotationPage({
     deliveryTerms: serialized.deliveryTerms || "",
     leadTimeDays: serialized.leadTimeDays ?? undefined,
     discountPercent: Number(serialized.discountPercent),
+    vatModePolicy: serialized.vatModePolicy || "PER_LINE",
     notes: serialized.notes || "",
     internalNotes: serialized.internalNotes || "",
     lines: serialized.lines.map(
@@ -61,7 +62,9 @@ export default async function EditQuotationPage({
         color?: string;
         surfaceFinish?: string;
         materialSpec?: string;
+        enteredUnitPrice?: string | null;
         unitPrice: string;
+        vatPriceMode?: "EXCLUSIVE" | "INCLUSIVE";
         discountPercent: string;
         notes?: string;
         sortOrder: number;
@@ -72,7 +75,9 @@ export default async function EditQuotationPage({
         color: line.color || "",
         surfaceFinish: line.surfaceFinish || "",
         materialSpec: line.materialSpec || "",
-        unitPrice: Number(line.unitPrice),
+        enteredUnitPrice: line.enteredUnitPrice ? Number(line.enteredUnitPrice) : undefined,
+        unitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+        vatPriceMode: line.vatPriceMode ?? "EXCLUSIVE",
         discountPercent: Number(line.discountPercent),
         notes: line.notes || "",
         sortOrder: line.sortOrder,

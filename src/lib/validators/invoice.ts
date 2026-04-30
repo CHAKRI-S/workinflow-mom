@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { billingNatureEnum, lineTaxFieldsSchema } from "./billing-nature";
+import { VAT_MODE_POLICIES, VAT_PRICE_MODES } from "@/lib/vat";
 
 export const invoiceTypeEnum = z.enum([
   "DEPOSIT",
@@ -13,7 +14,9 @@ export const invoiceLineSchema = z
     salesOrderLineId: z.string().nullable().optional(),
     description: z.string().min(1, "Required"),
     quantity: z.number().positive(),
+    enteredUnitPrice: z.number().min(0).optional(),
     unitPrice: z.number().min(0),
+    vatPriceMode: z.enum(VAT_PRICE_MODES).optional().default("EXCLUSIVE"),
     notes: z.string().nullable().optional(),
     sortOrder: z.number().int(),
   })
@@ -23,6 +26,7 @@ export const invoiceCreateSchema = z.object({
   salesOrderId: z.string().min(1, "Required"),
   invoiceType: invoiceTypeEnum,
   dueDate: z.string().min(1, "Required"),
+  vatModePolicy: z.enum(VAT_MODE_POLICIES).optional().default("PER_LINE"),
   billingNature: billingNatureEnum.optional().default("GOODS"),
   notes: z.string().optional(),
   lines: z.array(invoiceLineSchema).min(1, "At least one line required"),

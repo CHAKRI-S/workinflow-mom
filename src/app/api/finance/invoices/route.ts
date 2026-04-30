@@ -6,6 +6,8 @@ import { generateDocNumber, invoicePrefix } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
+import { invoiceCreateSchema } from "@/lib/validators/invoice";
+import { calculateVatTotals } from "@/lib/vat";
 
 // GET /api/finance/invoices — list all invoices for tenant
 export async function GET(req: NextRequest) {
@@ -53,21 +55,16 @@ export async function POST(req: NextRequest) {
     requirePermission(session, ROLES.FINANCE);
 
     const body = await req.json();
+    const data = invoiceCreateSchema.parse(body);
     const {
       salesOrderId,
       invoiceType,
       dueDate,
       lines,
       notes,
+      vatModePolicy,
       billingNature: headerBillingNature,
-    } = body;
-
-    if (!salesOrderId || !invoiceType || !dueDate || !lines?.length) {
-      return NextResponse.json(
-        { error: "Missing required fields" },
-        { status: 400 }
-      );
-    }
+    } = data;
 
     const tenantId = session!.user.tenantId;
 
@@ -98,6 +95,8 @@ export async function POST(req: NextRequest) {
               drawingRevision: true,
               customerDrawingUrl: true,
               customerBranding: true,
+              enteredUnitPrice: true,
+              vatPriceMode: true,
             },
           },
         },
@@ -124,15 +123,33 @@ export async function POST(req: NextRequest) {
     // Map SO lines by id for inheritance lookup
     const soLineById = new Map(salesOrder.lines.map((l) => [l.id, l]));
 
+    const lineInputs = lines.map((line) => {
+      const soLine = line.salesOrderLineId
+        ? soLineById.get(line.salesOrderLineId)
+        : undefined;
+
+      return {
+        ...line,
+        enteredUnitPrice: line.enteredUnitPrice ?? line.unitPrice,
+        vatPriceMode: line.vatPriceMode ?? soLine?.vatPriceMode ?? "EXCLUSIVE",
+      };
+    });
+    const totals = calculateVatTotals(lineInputs, {
+      vatRate,
+      vatModePolicy,
+    });
+
     // Calculate line totals + inherit drawing/branding from SO line (body overrides inheritance)
-    const linesWithTotals = lines.map(
+    const linesWithTotals = lineInputs.map(
       (
         line: {
-          salesOrderLineId?: string;
+          salesOrderLineId?: string | null;
           description: string;
           quantity: number;
+          enteredUnitPrice?: number;
           unitPrice: number;
-          notes?: string;
+          vatPriceMode?: "EXCLUSIVE" | "INCLUSIVE";
+          notes?: string | null;
           sortOrder?: number;
           drawingSource?: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT";
           lineBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED" | null;
@@ -143,9 +160,8 @@ export async function POST(req: NextRequest) {
         },
         idx: number
       ) => {
+        const calculated = totals.lines[idx];
         const qty = Number(line.quantity);
-        const price = Number(line.unitPrice);
-        const lineTotal = Math.round(qty * price * 100) / 100;
 
         const soLine = line.salesOrderLineId
           ? soLineById.get(line.salesOrderLineId)
@@ -155,8 +171,10 @@ export async function POST(req: NextRequest) {
           salesOrderLineId: line.salesOrderLineId || null,
           description: line.description,
           quantity: qty,
-          unitPrice: price,
-          lineTotal,
+          enteredUnitPrice: calculated.enteredUnitPrice,
+          unitPrice: calculated.unitPrice,
+          vatPriceMode: calculated.vatPriceMode,
+          lineTotal: calculated.lineTotal,
           notes: line.notes || null,
           sortOrder: line.sortOrder ?? idx,
           drawingSource: line.drawingSource ?? soLine?.drawingSource ?? "TENANT_OWNED",
@@ -191,16 +209,6 @@ export async function POST(req: NextRequest) {
     const whtRate = isService && customer.withholdsTax ? 3 : 0;
     const whtCertStatus = whtRate > 0 ? "PENDING" : "NOT_APPLICABLE";
 
-    // Calculate totals
-    const subtotal = linesWithTotals.reduce(
-      (sum: number, l: { lineTotal: number }) => sum + l.lineTotal,
-      0
-    );
-    const discountAmount = 0;
-    const afterDiscount = subtotal - discountAmount;
-    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
-    const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
-
     const invoice = await prisma.$transaction(async (tx) => {
       const prefix = invoicePrefix(tenantIsVat, customer.isVatRegistered);
       const invoiceNumber = await generateDocNumber(tenantId, prefix);
@@ -214,11 +222,12 @@ export async function POST(req: NextRequest) {
           status: "DRAFT",
           issueDate: new Date(),
           dueDate: new Date(dueDate),
-          subtotal,
-          discountAmount,
+          subtotal: totals.subtotal,
+          discountAmount: totals.discountAmount,
           vatRate,
-          vatAmount,
-          totalAmount,
+          vatAmount: totals.vatAmount,
+          totalAmount: totals.totalAmount,
+          vatModePolicy,
           paidAmount: 0,
           billingNature,
           whtRate,
@@ -259,6 +268,9 @@ export async function POST(req: NextRequest) {
   } catch (err) {
     if (err instanceof Error && err.message === "Unauthorized") {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+    if (err instanceof Error && err.name === "ZodError") {
+      return NextResponse.json({ error: "Validation failed", details: err }, { status: 400 });
     }
     console.error("POST /api/finance/invoices error:", err);
     return NextResponse.json(

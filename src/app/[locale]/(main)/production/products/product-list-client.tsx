@@ -19,6 +19,7 @@ interface Product {
   requiresPainting: boolean;
   requiresLogoEngraving: boolean;
   unitPrice: string | number | null;
+  defaultVatPriceMode?: "EXCLUSIVE" | "INCLUSIVE" | null;
   leadTimeDays: number;
   _count: { bomLines: number; workOrders: number };
 }
@@ -96,6 +97,15 @@ export function ProductListClient({ products }: { products: Product[] }) {
             })
           : "—";
       },
+    },
+    {
+      accessorKey: "defaultVatPriceMode",
+      header: "VAT",
+      cell: ({ row }) => (
+        <Badge variant="outline">
+          {row.original.defaultVatPriceMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
+        </Badge>
+      ),
     },
     {
       id: "bom",
