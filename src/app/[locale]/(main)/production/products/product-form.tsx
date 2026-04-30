@@ -285,6 +285,11 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
             <div className="space-y-1.5">
               <Label>{t("product.name")} *</Label>
               <Input {...register("name")} />
+              {isEdit && (
+                <p className="text-xs text-muted-foreground">
+                  {t("product.nameEditHint")}
+                </p>
+              )}
               {errors.name && (
                 <p className="text-xs text-destructive">{errors.name.message}</p>
               )}

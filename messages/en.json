@@ -313,6 +313,7 @@
     "edit": "Edit Product",
     "code": "Product Code",
     "name": "Product Name",
+    "nameEditHint": "You can rename this product while keeping the same ID/code. Issued invoices keep their existing line text; new invoices created from this product use the new name.",
     "description": "Description",
     "category": "Category",
     "unitPrice": "Unit Price",
