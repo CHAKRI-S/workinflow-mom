@@ -3,6 +3,7 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { TENANT_CODE_MAX, TENANT_CODE_MIN } from "@/lib/tenant-provisioning";
+import { isValidFactoryBoardToken } from "@/lib/factory-board";
 
 const TENANT_CODE_RE = new RegExp(`^[A-Z0-9]{${TENANT_CODE_MIN},${TENANT_CODE_MAX}}$`);
 
@@ -52,6 +53,8 @@ export async function PATCH(req: NextRequest) {
       "logo",
       "defaultBillingNature",
       "isVatRegistered", // Phase 8.12
+      "factoryBoardEnabled",
+      "factoryBoardToken",
     ];
     const updateData: Record<string, unknown> = {};
 
@@ -72,6 +75,30 @@ export async function PATCH(req: NextRequest) {
               { status: 400 },
             );
           }
+        } else if (field === "factoryBoardEnabled") {
+          const raw = body[field];
+          if (typeof raw === "boolean") {
+            updateData.factoryBoardEnabled = raw;
+          } else if (raw === "true" || raw === "false") {
+            updateData.factoryBoardEnabled = raw === "true";
+          } else {
+            return NextResponse.json(
+              { error: "factoryBoardEnabled ต้องเป็น true หรือ false" },
+              { status: 400 },
+            );
+          }
+        } else if (field === "factoryBoardToken") {
+          const token = typeof body[field] === "string" ? body[field].trim() : "";
+          if (!isValidFactoryBoardToken(token)) {
+            return NextResponse.json(
+              {
+                error:
+                  "Factory Board token ต้องยาว 8-128 ตัว และใช้ได้เฉพาะ A-Z, a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง หรือ ~",
+              },
+              { status: 400 },
+            );
+          }
+          updateData.factoryBoardToken = token;
         } else if (field === "defaultBillingNature") {
           // Validate enum — reject bad input rather than silently storing.
           const allowed = ["GOODS", "MANUFACTURING_SERVICE", "MIXED"];
@@ -121,6 +148,13 @@ export async function PATCH(req: NextRequest) {
         "code" in err &&
         (err as { code?: string }).code === "P2002"
       ) {
+        const target = (err as { meta?: { target?: string[] } }).meta?.target ?? [];
+        if (target.includes("factoryBoardToken")) {
+          return NextResponse.json(
+            { error: "Factory Board token นี้ถูกใช้แล้ว กรุณาสร้างใหม่" },
+            { status: 409 },
+          );
+        }
         return NextResponse.json(
           { error: "รหัสบริษัทนี้ถูกใช้แล้ว กรุณาเลือกรหัสอื่น" },
           { status: 409 },

@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { hasPermission, ROLES } from "@/lib/permissions";
 import { AccessDenied } from "@/components/shared/access-denied";
 import { SettingsClient } from "./settings-client";
+import { DEFAULT_FACTORY_BOARD_TOKEN } from "@/lib/factory-board";
 
 export default async function SettingsPage({
   params,
@@ -36,10 +37,19 @@ export default async function SettingsPage({
       prisma.consumable.count({ where: { tenantId, isActive: true } }),
     ]),
   ]);
+  const tenantForClient = tenant
+    ? {
+        ...tenant,
+        factoryBoardToken:
+          tenant.factoryBoardToken ??
+          process.env.FACTORY_BOARD_TOKEN ??
+          DEFAULT_FACTORY_BOARD_TOKEN,
+      }
+    : null;
 
   return (
     <SettingsClient
-      tenant={JSON.parse(JSON.stringify(tenant))}
+      tenant={JSON.parse(JSON.stringify(tenantForClient))}
       sequences={JSON.parse(JSON.stringify(sequences))}
       systemCounts={{
         users: counts[0],

@@ -69,6 +69,10 @@ model Tenant {
   lastActiveAt DateTime?
   onboardedAt  DateTime? // เมื่อ tenant ทำ onboarding เสร็จ
   isActive     Boolean       @default(true) // เก็บไว้เพื่อ backward compat
+  // Public factory dashboard access. Token is tenant-editable in admin
+  // settings; enabled controls whether the unauthenticated TV board can load.
+  factoryBoardEnabled Boolean @default(true)
+  factoryBoardToken   String? @unique
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 

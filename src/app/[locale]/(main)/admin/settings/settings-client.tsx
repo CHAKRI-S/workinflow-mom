@@ -30,12 +30,14 @@ import {
   Database,
   Upload,
   Trash2,
-  Image,
+  Image as ImageIcon,
   Monitor,
   Copy,
   Check,
   ExternalLink,
+  RefreshCw,
 } from "lucide-react";
+import { isValidFactoryBoardToken } from "@/lib/factory-board";
 
 interface Tenant {
   id: string;
@@ -50,6 +52,8 @@ interface Tenant {
   defaultBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED";
   /** Phase 8.12 — VAT registration status */
   isVatRegistered?: boolean;
+  factoryBoardEnabled?: boolean;
+  factoryBoardToken?: string | null;
   isActive: boolean;
 }
 
@@ -119,7 +123,14 @@ export function SettingsClient({
   const [error, setError] = useState<string | null>(null);
   const [logoUrl, setLogoUrl] = useState<string | null>(tenant?.logo ?? null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [copied, setCopied] = useState(false);
+  const [factorySaving, setFactorySaving] = useState(false);
+  const [factoryCopied, setFactoryCopied] = useState(false);
+  const [factoryBoardEnabled, setFactoryBoardEnabled] = useState(
+    tenant?.factoryBoardEnabled ?? true
+  );
+  const [factoryBoardToken, setFactoryBoardToken] = useState(
+    tenant?.factoryBoardToken ?? ""
+  );
 
   const locale =
     typeof window !== "undefined"
@@ -127,7 +138,7 @@ export function SettingsClient({
       : "th";
 
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-  const factoryUrl = `${baseUrl}/${locale}/factory?token=workinflow-factory-2026`;
+  const factoryUrl = `${baseUrl}/${locale}/factory?token=${encodeURIComponent(factoryBoardToken)}`;
 
   const { register, handleSubmit, watch, setValue } = useForm<CompanyFormData>({
     defaultValues: {
@@ -254,6 +265,51 @@ export function SettingsClient({
     }
   };
 
+  const generateFactoryBoardToken = () => {
+    const bytes = new Uint8Array(16);
+    crypto.getRandomValues(bytes);
+    setFactoryBoardToken(
+      `factory-${Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("")}`
+    );
+  };
+
+  const handleSaveFactoryBoard = async () => {
+    const token = factoryBoardToken.trim();
+    if (!isValidFactoryBoardToken(token)) {
+      setError(
+        locale === "th"
+          ? "Factory Board token ต้องยาว 8-128 ตัว และใช้ได้เฉพาะ A-Z, a-z, 0-9, จุด, ขีดกลาง, ขีดล่าง หรือ ~"
+          : "Factory Board token must be 8-128 characters and use only A-Z, a-z, 0-9, dot, dash, underscore, or ~"
+      );
+      return;
+    }
+
+    setFactorySaving(true);
+    setError(null);
+    setSuccess(false);
+    try {
+      const res = await fetch("/api/admin/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          factoryBoardEnabled,
+          factoryBoardToken: token,
+        }),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Failed to save factory board settings");
+      }
+      setFactoryBoardToken(token);
+      setSuccess(true);
+      router.refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Error");
+    } finally {
+      setFactorySaving(false);
+    }
+  };
+
   // Group sequences by prefix, show latest year
   const currentYear = new Date().getFullYear();
   const seqByPrefix: Record<string, DocSequence> = {};
@@ -304,7 +360,7 @@ export function SettingsClient({
                   </div>
                 ) : (
                   <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-6 flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-                    <Image className="h-10 w-10 text-gray-300 dark:text-gray-600" />
+                    <ImageIcon className="h-10 w-10 text-gray-300 dark:text-gray-600" />
                   </div>
                 )}
                 <div className="flex flex-col gap-2">
@@ -585,10 +641,59 @@ export function SettingsClient({
               ? "ลิงก์สำหรับแสดงสถานะการผลิตบนจอ TV ในโรงงาน — ไม่ต้อง login, auto-refresh ทุก 30 วินาที"
               : "Link for displaying production status on factory TV — no login required, auto-refreshes every 30 seconds"}
           </p>
+          <label className="flex items-start gap-3 rounded-lg border px-3 py-2 text-sm">
+            <input
+              type="checkbox"
+              checked={factoryBoardEnabled}
+              onChange={(e) => setFactoryBoardEnabled(e.target.checked)}
+              className="mt-1 h-4 w-4 rounded"
+            />
+            <span>
+              <span className="block font-medium">
+                {locale === "th"
+                  ? "เปิดใช้งานลิงก์สาธารณะสำหรับหน้าจอโรงงาน"
+                  : "Enable public Factory Dashboard link"}
+              </span>
+              <span className="block text-xs text-muted-foreground">
+                {factoryBoardEnabled
+                  ? locale === "th"
+                    ? "เปิดอยู่: คนที่มี token นี้สามารถดูหน้าจอโรงงานได้โดยไม่ต้อง login"
+                    : "Enabled: anyone with this token can view the factory dashboard without login"
+                  : locale === "th"
+                    ? "ปิดอยู่: ลิงก์นี้จะเข้าไม่ได้ แม้มี token ถูกต้อง"
+                    : "Disabled: this link cannot be opened even with the correct token"}
+              </span>
+            </span>
+          </label>
+          <div className="space-y-1.5">
+            <Label>{locale === "th" ? "Token หน้าจอโรงงาน" : "Factory Dashboard Token"}</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                value={factoryBoardToken}
+                onChange={(e) => setFactoryBoardToken(e.target.value.trim())}
+                className="font-mono text-xs"
+                placeholder="factory-..."
+              />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={generateFactoryBoardToken}
+              >
+                <RefreshCw className="h-4 w-4" />
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {locale === "th"
+                ? "เปลี่ยน token แล้วกดบันทึก ลิงก์เก่าจะใช้ไม่ได้ทันที"
+                : "Change the token and save. The old link stops working immediately."}
+            </p>
+          </div>
           <div className="flex items-center gap-2">
             <Input
               value={factoryUrl}
               readOnly
+              disabled={!factoryBoardEnabled}
               className="font-mono text-xs"
               onClick={(e) => (e.target as HTMLInputElement).select()}
             />
@@ -596,31 +701,46 @@ export function SettingsClient({
               type="button"
               variant="outline"
               size="sm"
+              disabled={!factoryBoardEnabled}
               onClick={() => {
                 navigator.clipboard.writeText(factoryUrl);
-                setCopied(true);
-                setTimeout(() => setCopied(false), 2000);
+                setFactoryCopied(true);
+                setTimeout(() => setFactoryCopied(false), 2000);
               }}
             >
-              {copied ? (
+              {factoryCopied ? (
                 <Check className="h-4 w-4 text-green-600" />
               ) : (
                 <Copy className="h-4 w-4" />
               )}
             </Button>
-            <a href={factoryUrl} target="_blank" rel="noopener noreferrer">
-              <Button type="button" variant="outline" size="sm">
+            <a
+              href={factoryBoardEnabled ? factoryUrl : undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!factoryBoardEnabled}
+              >
                 <ExternalLink className="h-4 w-4" />
               </Button>
             </a>
           </div>
-          <p className="text-xs text-muted-foreground">
-            Token: <code className="bg-gray-100 dark:bg-gray-800 px-1 rounded">workinflow-factory-2026</code>
-            {" — "}
-            {locale === "th"
-              ? "เปลี่ยนได้ที่ ENV: FACTORY_BOARD_TOKEN"
-              : "Change via ENV: FACTORY_BOARD_TOKEN"}
-          </p>
+          <Button
+            type="button"
+            onClick={handleSaveFactoryBoard}
+            disabled={factorySaving || !isValidFactoryBoardToken(factoryBoardToken.trim())}
+          >
+            {factorySaving ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Save className="h-4 w-4 mr-1" />
+            )}
+            {locale === "th" ? "บันทึกหน้าจอโรงงาน" : "Save Factory Dashboard"}
+          </Button>
         </CardContent>
       </Card>
 

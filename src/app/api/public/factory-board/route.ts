@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-
-const DEFAULT_TOKEN = "workinflow-factory-2026";
+import { DEFAULT_FACTORY_BOARD_TOKEN } from "@/lib/factory-board";
 
 // GET /api/public/factory-board?token=xxx
 // Public API for factory floor TV display — no auth, token-based access
@@ -9,19 +8,36 @@ export async function GET(req: NextRequest) {
   try {
     const { searchParams } = req.nextUrl;
     const token = searchParams.get("token");
-    const expectedToken = process.env.FACTORY_BOARD_TOKEN || DEFAULT_TOKEN;
 
-    if (!token || token !== expectedToken) {
+    if (!token) {
       return NextResponse.json({ error: "Invalid token" }, { status: 401 });
     }
 
-    // Get the first active tenant (single-tenant deployment)
-    const tenant = await prisma.tenant.findFirst({
-      where: { isActive: true },
+    const envToken = process.env.FACTORY_BOARD_TOKEN || DEFAULT_FACTORY_BOARD_TOKEN;
+
+    // Prefer tenant-managed token. Keep ENV/default fallback so existing TV
+    // links continue to work until the tenant saves a custom token.
+    let tenant = await prisma.tenant.findFirst({
+      where: { isActive: true, factoryBoardToken: token },
     });
 
+    if (!tenant && token === envToken) {
+      const fallbackTenant = await prisma.tenant.findFirst({
+        where: { isActive: true },
+        orderBy: { createdAt: "asc" },
+      });
+      tenant = fallbackTenant?.factoryBoardToken ? null : fallbackTenant;
+    }
+
     if (!tenant) {
-      return NextResponse.json({ error: "No active tenant" }, { status: 404 });
+      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+    }
+
+    if (!tenant.factoryBoardEnabled) {
+      return NextResponse.json(
+        { error: "Factory board is disabled" },
+        { status: 403 }
+      );
     }
 
     const tenantId = tenant.id;
