@@ -1,9 +1,8 @@
 name: Trial Expiry Cron
 
 on:
-  schedule:
-    # Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC = 07:00, 13:00, 19:00, 01:00 Bangkok)
-    - cron: '0 */6 * * *'
+  # Production schedule moved to Coolify Scheduled Tasks.
+  # Keep this workflow as a manual fallback only.
   workflow_dispatch:
 
 jobs:

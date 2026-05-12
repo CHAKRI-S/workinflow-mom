@@ -5,7 +5,7 @@ import { sendTrialEndingEmail } from "@/lib/email";
 /**
  * GET /api/cron/trial-expiry
  *
- * Run hourly via GitHub Actions or external cron. Responsibilities:
+ * Run every 6 hours via Coolify scheduled task (or external cron). Responsibilities:
  * 1. Suspend tenants whose trial has expired (status: TRIAL → SUSPENDED)
  * 2. Send reminder emails at 7/3/1 days before expiry
  *

@@ -1,10 +1,8 @@
 name: Renewal Retry Cron
 
 on:
-  schedule:
-    # Every hour. The endpoint is idempotent and handles saved-card retry,
-    # expiry, suspension, and renewal/failure emails.
-    - cron: '0 * * * *'
+  # Production schedule moved to Coolify Scheduled Tasks.
+  # Keep this workflow as a manual fallback only.
   workflow_dispatch:
 
 jobs:

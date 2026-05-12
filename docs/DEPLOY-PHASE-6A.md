@@ -184,10 +184,16 @@ openssl rand -base64 32    # run locally, paste value into Coolify env
 
 Coolify → Applications → workinflow-mom → **Scheduled Tasks** tab → **Add**
 
-| Task | Command (Frequency: hourly, `0 * * * *`) |
-|---|---|
-| **Trial expiry** | `curl -fsS -H "x-cron-secret: $CRON_SECRET" https://mom.workinflow.cloud/api/cron/trial-expiry` |
-| **Renewal retry** | `curl -fsS -H "x-cron-secret: $CRON_SECRET" https://mom.workinflow.cloud/api/cron/renewal-retry` |
+> Production cron source of truth is Coolify Scheduled Tasks. GitHub Actions
+> keeps manual `workflow_dispatch` fallback only; scheduled triggers are disabled.
+
+| Task | Frequency | Command |
+|---|---:|---|
+| **Trial expiry** | `0 */6 * * *` | `for i in 1 2 3; do wget -qO- -T 120 --header="x-cron-secret: $CRON_SECRET" "https://mom.workinflow.cloud/api/cron/trial-expiry" && exit 0; sleep 5; done; exit 1` |
+| **Renewal retry** | `0 * * * *` | `for i in 1 2 3; do wget -qO- -T 120 --header="x-cron-secret: $CRON_SECRET" "https://mom.workinflow.cloud/api/cron/renewal-retry" && exit 0; sleep 5; done; exit 1` |
+
+The production container currently includes BusyBox `wget`; if the runtime image
+later adds `curl`, the commands can be swapped back to `curl -fsS` equivalents.
 
 What they do:
 - **trial-expiry** — suspends tenants past `trialEndsAt`, sends reminders at 7/3/1 days before
@@ -195,9 +201,9 @@ What they do:
 
 **6c. Test (manual trigger):**
 ```bash
-curl -fsS -H "x-cron-secret: YOUR_SECRET" https://mom.workinflow.cloud/api/cron/trial-expiry
+wget -qO- -T 120 --header="x-cron-secret: YOUR_SECRET" https://mom.workinflow.cloud/api/cron/trial-expiry
 # Expected: { "success": true, "suspended": 0, "remindersSent": 0 } (or non-zero counts)
-curl -fsS -H "x-cron-secret: YOUR_SECRET" https://mom.workinflow.cloud/api/cron/renewal-retry
+wget -qO- -T 120 --header="x-cron-secret: YOUR_SECRET" https://mom.workinflow.cloud/api/cron/renewal-retry
 # Expected: { "success": true, "expired": 0 }
 ```
 
