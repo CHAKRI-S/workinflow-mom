@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { documentTaxAndCurrencySchema } from "./document-fields";
+
 /** WHT certificate status (matches Prisma enum). */
 export const whtCertStatusEnum = z.enum([
   "NOT_APPLICABLE",
@@ -19,7 +21,8 @@ export type WhtCertStatus = z.infer<typeof whtCertStatusEnum>;
  * customer.withholdsTax AND billingNature (MANUFACTURING_SERVICE / MIXED).
  * Net amount (what tenant actually receives) = gross − whtAmount.
  */
-export const receiptCreateSchema = z.object({
+export const receiptCreateSchema = z
+  .object({
   invoiceId: z.string().min(1),
   /** Gross amount ก่อนหัก ณ ที่จ่าย (ปกติ = invoice.totalAmount หรือ partial) */
   grossAmount: z.number().positive(),
@@ -35,7 +38,8 @@ export const receiptCreateSchema = z.object({
   /** ใบเสร็จเงินมัดจำ — ข้าม WHT (มัดจำยังไม่ใช่รายได้ค่าบริการ) */
   isDeposit: z.boolean().optional(),
   notes: z.string().optional(),
-});
+})
+  .merge(documentTaxAndCurrencySchema);
 
 export type ReceiptCreateInput = z.input<typeof receiptCreateSchema>;
 

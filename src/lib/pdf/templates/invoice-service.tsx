@@ -21,7 +21,8 @@ import type { InvoicePdfData } from "../types";
  */
 export function InvoiceServicePdf({ data }: { data: InvoicePdfData }) {
   registerPdfFonts();
-  // Phase 8.12 — prefix "ใบกำกับภาษี" only when tenant is VAT registered.
+  // The legacy flag name is derived from document taxType, not tenant settings.
+  // NO_VAT documents must not print "ใบกำกับภาษี"; VAT_* documents keep tax wording.
   const title = data.tenantIsVatRegistered
     ? "ใบกำกับภาษี / ใบแจ้งหนี้ค่าบริการ"
     : "ใบแจ้งหนี้ค่าบริการ";
@@ -58,6 +59,7 @@ export function InvoiceServicePdf({ data }: { data: InvoicePdfData }) {
           items={data.items}
           showCodeColumn={false}
           descColLabel="รายการบริการ / รับจ้างทำของ"
+          currencyCode={data.currencyCode}
         />
 
         <TotalsBox
@@ -69,6 +71,7 @@ export function InvoiceServicePdf({ data }: { data: InvoicePdfData }) {
           whtRate={data.totals.whtRate}
           whtAmount={data.totals.whtAmount}
           bahtAmount={data.totals.totalAmount}
+          currencyCode={data.currencyCode}
         />
 
         <View style={pdfStyles.whtNotice}>

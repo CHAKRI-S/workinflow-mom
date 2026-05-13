@@ -51,7 +51,10 @@ export default async function EditQuotationPage({
     deliveryTerms: serialized.deliveryTerms || "",
     leadTimeDays: serialized.leadTimeDays ?? undefined,
     discountPercent: Number(serialized.discountPercent),
-    vatModePolicy: serialized.vatModePolicy || "PER_LINE",
+    vatModePolicy: serialized.vatModePolicy || "FORCE_EXCLUSIVE",
+    taxType: serialized.taxType,
+    currencyCode: serialized.currencyCode,
+    billingNature: serialized.billingNature || "GOODS",
     notes: serialized.notes || "",
     internalNotes: serialized.internalNotes || "",
     lines: serialized.lines.map(

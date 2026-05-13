@@ -4,7 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { salesOrderUpdateSchema } from "@/lib/validators/sales-order";
 import { Prisma } from "@/generated/prisma/client";
-import { calculateVatTotals } from "@/lib/vat";
+import {
+  calculateDocumentTotals,
+  inheritDocumentTaxAndCurrency,
+} from "@/lib/document-tax-propagation";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -67,10 +70,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const { id } = await params;
     const tenantId = session!.user.tenantId;
 
-    // Check current status
+    // Check current status and load lines when document tax/currency changes require recalculation.
     const existing = await prisma.salesOrder.findFirst({
       where: { id, tenantId },
-      include: { customer: true },
+      include: {
+        customer: true,
+        lines: { orderBy: { sortOrder: "asc" } },
+      },
     });
 
     if (!existing) {
@@ -87,8 +93,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json();
     const data = salesOrderUpdateSchema.parse(body);
 
-    // If customer changed, look up new customer for VAT
-    let customer = existing.customer;
+    // If customer changed, only verify tenant ownership. VAT is selected per document.
     if (data.customerId && data.customerId !== existing.customerId) {
       const newCustomer = await prisma.customer.findFirst({
         where: { id: data.customerId, tenantId },
@@ -96,25 +101,52 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       if (!newCustomer) {
         return NextResponse.json({ error: "Customer not found" }, { status: 404 });
       }
-      customer = newCustomer;
     }
 
-    const vatRate = customer.isVatRegistered ? 7 : 0;
+    const inherited = inheritDocumentTaxAndCurrency({
+      source: existing,
+      override: data,
+    });
+    const recalculationLines = data.lines ?? existing.lines.map((line) => ({
+      productId: line.productId,
+      description: line.description ?? undefined,
+      quantity: Number(line.quantity),
+      color: line.color ?? undefined,
+      surfaceFinish: line.surfaceFinish ?? undefined,
+      materialSpec: line.materialSpec ?? undefined,
+      enteredUnitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+      unitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+      vatPriceMode: line.vatPriceMode,
+      discountPercent: Number(line.discountPercent),
+      notes: line.notes ?? undefined,
+      sortOrder: line.sortOrder,
+      drawingSource: line.drawingSource,
+      lineBillingNature: line.lineBillingNature,
+      productCode: line.productCode,
+      drawingRevision: line.drawingRevision,
+      customerDrawingUrl: line.customerDrawingUrl,
+      customerBranding: line.customerBranding as Record<string, unknown> | null | undefined,
+    }));
+    const shouldRecalculate =
+      Boolean(data.lines?.length) ||
+      data.taxType !== undefined ||
+      data.currencyCode !== undefined;
 
     const updated = await prisma.$transaction(async (tx) => {
-      // If lines are provided, recalculate
-      if (data.lines && data.lines.length > 0) {
+      // Recalculate from document tax/currency fields, never from customer VAT registration.
+      if (shouldRecalculate) {
         // Delete old lines
         await tx.salesOrderLine.deleteMany({
           where: { salesOrderId: id },
         });
 
-        const totals = calculateVatTotals(data.lines, {
-          vatRate,
-          vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
+        const totals = calculateDocumentTotals({
+          taxType: inherited.taxType,
+          currencyCode: inherited.currencyCode,
+          lines: recalculationLines,
         });
 
-        const linesWithTotals = data.lines.map((line, idx) => {
+        const linesWithTotals = recalculationLines.map((line, idx) => {
           const calculated = totals.lines[idx];
           const qty = Number(line.quantity);
           const discPct = Number(line.discountPercent);
@@ -164,10 +196,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             subtotal: totals.subtotal,
             discountPercent: totals.discountPercent,
             discountAmount: totals.discountAmount,
-            vatRate,
+            vatRate: totals.vatRate,
             vatAmount: totals.vatAmount,
             totalAmount: totals.totalAmount,
-            vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
+            vatModePolicy: totals.vatModePolicy,
+            taxType: totals.taxType,
+            currencyCode: totals.currencyCode,
             paymentTerms: data.paymentTerms ?? existing.paymentTerms,
             billingNature: data.billingNature ?? existing.billingNature,
             notes: data.notes ?? existing.notes,
@@ -212,7 +246,8 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         updateData.vatModePolicy = data.vatModePolicy;
       }
 
-      updateData.vatRate = vatRate;
+      updateData.taxType = inherited.taxType;
+      updateData.currencyCode = inherited.currencyCode;
 
       const updated = await tx.salesOrder.update({
         where: { id },

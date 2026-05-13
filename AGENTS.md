@@ -35,6 +35,9 @@ project patterns.
   - `DESIGN.md` - visual system
   - `memory/project_overview.md` - business workflow
   - `docs/DEPLOY-PHASE-6A.md` - billing go-live checklist and manual ops
+  - `docs/VAT-PRICE-MODE-PLAN.md` - line-level VAT price mode rules
+  - `docs/SALES-DOCUMENT-TAX-CURRENCY.md` - document tax type, currency snapshot,
+    legal customer-name, and rollout checklist
 
 ## Business Domain Rules
 
@@ -47,6 +50,19 @@ provider.
 - WHT management is an optional exception layer.
 - PND53 export remains deferred until an AP module exists with Supplier/Bill
   models.
+- Document VAT mode is selected per document (`VAT_INCLUSIVE`,
+  `VAT_EXCLUSIVE`, or `NO_VAT`) and should not be inferred only from customer
+  VAT registration status.
+- Document currency is a per-document snapshot; MVP stores/displays the selected
+  currency code without automatic FX conversion.
+- Customer `name` should stay as the base name. Legal document display names are
+  formatted through the shared customer-name helper using juristic type or
+  individual title fields.
+- New legal/accounting document snapshots must store the formatted legal
+  customer display name; downstream Tax Invoices should prefer source Invoice
+  snapshot fields before current Customer fields.
+- Only one active Tax Invoice may exist per source Invoice. Creating another is
+  allowed only after the prior Tax Invoice is cancelled.
 
 Manufacturing workflow to preserve in product design:
 

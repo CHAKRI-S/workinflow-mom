@@ -1,20 +1,18 @@
 import { z } from "zod";
+import { JURISTIC_TYPES, INDIVIDUAL_TITLES } from "@/lib/customer-name";
 import { billingNatureEnum } from "./billing-nature";
 
 export { billingNatureEnum };
 
-export const juristicTypeEnum = z.enum([
-  "COMPANY_LTD",
-  "PUBLIC_CO",
-  "LIMITED_PARTNERSHIP",
-  "FOUNDATION",
-  "ASSOCIATION",
-  "JOINT_VENTURE",
-  "OTHER_JURISTIC",
-  "INDIVIDUAL",
-]);
+export const juristicTypeEnum = z.enum(JURISTIC_TYPES);
+export const individualTitleEnum = z.enum(INDIVIDUAL_TITLES);
 
-export const customerCreateSchema = z.object({
+const optionalIndividualTitle = z
+  .union([individualTitleEnum, z.literal(""), z.undefined()])
+  .optional()
+  .transform((v) => (v === "" || v === undefined ? undefined : v));
+
+const customerBaseSchema = z.object({
   // Optional — auto-generated server-side when blank/omitted
   code: z.string().optional(),
   name: z.string().min(1, "Required"),
@@ -37,6 +35,8 @@ export const customerCreateSchema = z.object({
     .transform((v) => (v === "" || v === undefined ? undefined : v)),
   branchNo: z.string().optional(),
   country: z.string().optional(),
+  individualTitle: optionalIndividualTitle,
+  individualTitleOther: z.string().optional(),
   // Tax policy — Phase 8A
   /// ลูกค้ารายนี้หัก ณ ที่จ่าย 3% หรือไม่ (default false = ขายสินค้าไม่หัก)
   withholdsTax: z.boolean().optional().default(false),
@@ -56,7 +56,55 @@ export const customerCreateSchema = z.object({
     .optional(),
 });
 
-export const customerUpdateSchema = customerCreateSchema.partial().omit({ code: true });
+function validateIndividualTitleOther(
+  data: {
+    juristicType?: string;
+    individualTitle?: string;
+    individualTitleOther?: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (
+    data.juristicType === "INDIVIDUAL" &&
+    data.individualTitle === "OTHER" &&
+    !data.individualTitleOther?.trim()
+  ) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["individualTitleOther"],
+      message: "Required when title is other",
+    });
+  }
+}
+
+function normalizeIndividualTitleFields<T extends {
+  juristicType?: string;
+  individualTitle?: string;
+  individualTitleOther?: string;
+}>(data: T): T {
+  if (data.juristicType !== "INDIVIDUAL") {
+    return {
+      ...data,
+      individualTitle: undefined,
+      individualTitleOther: undefined,
+    };
+  }
+
+  return {
+    ...data,
+    individualTitleOther: data.individualTitleOther?.trim() || undefined,
+  };
+}
+
+export const customerCreateSchema = customerBaseSchema
+  .superRefine(validateIndividualTitleOther)
+  .transform(normalizeIndividualTitleFields);
+
+export const customerUpdateSchema = customerBaseSchema
+  .partial()
+  .omit({ code: true })
+  .superRefine(validateIndividualTitleOther)
+  .transform(normalizeIndividualTitleFields);
 
 // Form uses the input type (allows "" for juristicType); server POST handler
 // receives the output type after zod parse has transformed "" → undefined.

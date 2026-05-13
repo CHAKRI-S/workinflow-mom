@@ -38,10 +38,28 @@ export async function PATCH(req: NextRequest, { params }: Params) {
   const data = customerUpdateSchema.parse(body);
 
   // Normalize empty-string juristicType → null, handle branchNo/country
-  const { juristicType, branchNo, country, brandingAssets, ...rest } = data;
+  const {
+    juristicType,
+    branchNo,
+    country,
+    individualTitle,
+    individualTitleOther,
+    brandingAssets,
+    ...rest
+  } = data;
   const patch: Record<string, unknown> = { ...rest };
   if (juristicType !== undefined) {
     patch.juristicType = juristicType || null;
+    patch.individualTitle = juristicType === "INDIVIDUAL" ? individualTitle || null : null;
+    patch.individualTitleOther =
+      juristicType === "INDIVIDUAL" && individualTitle === "OTHER"
+        ? individualTitleOther?.trim() || null
+        : null;
+  } else {
+    if (individualTitle !== undefined) patch.individualTitle = individualTitle || null;
+    if (individualTitleOther !== undefined) {
+      patch.individualTitleOther = individualTitleOther?.trim() || null;
+    }
   }
   if (branchNo !== undefined) patch.branchNo = branchNo?.trim() || null;
   if (country !== undefined) patch.country = country?.trim() || "TH";

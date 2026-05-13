@@ -6,6 +6,7 @@ import { TotalsBox } from "../components/TotalsBox";
 import { PageFooter, SignatureRow } from "../components/Footer";
 import { CancelledWatermark } from "../components/CancelledWatermark";
 import { registerPdfFonts } from "../fonts";
+import { formatPdfMoney } from "../format";
 import type { ReceiptPdfData } from "../types";
 
 /**
@@ -65,10 +66,7 @@ export function ReceiptPdf({ data }: { data: ReceiptPdfData }) {
               {data.summary.description}
             </Text>
             <Text style={[pdfStyles.tdText, pdfStyles.colAmount]}>
-              {Number(data.totals.grossAmount).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2,
-              })}
+              {formatPdfMoney(data.totals.grossAmount, data.currencyCode)}
             </Text>
           </View>
         </View>
@@ -81,6 +79,7 @@ export function ReceiptPdf({ data }: { data: ReceiptPdfData }) {
           netTotal={data.totals.netAmount}
           bahtAmount={data.totals.netAmount}
           grandLabel="ยอดรวม"
+          currencyCode={data.currencyCode}
         />
 
         {hasWht && (
@@ -88,10 +87,7 @@ export function ReceiptPdf({ data }: { data: ReceiptPdfData }) {
             <Text style={pdfStyles.bold}>ข้อมูลการหักภาษี ณ ที่จ่าย</Text>
             <Text>
               อัตรา {data.totals.whtRate || 3}% · ยอดหัก{" "}
-              {Number(data.totals.whtAmount).toLocaleString("en-US", {
-                minimumFractionDigits: 2,
-              })}{" "}
-              บาท
+              {formatPdfMoney(data.totals.whtAmount, data.currencyCode)}
             </Text>
             <Text>
               หนังสือรับรองหัก ณ ที่จ่าย (50 ทวิ) เลขที่:{" "}

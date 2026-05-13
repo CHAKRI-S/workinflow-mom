@@ -23,11 +23,23 @@ enum JuristicType {
   COMPANY_LTD // บริษัทจำกัด
   PUBLIC_CO // บริษัทมหาชนจำกัด
   LIMITED_PARTNERSHIP // ห้างหุ้นส่วนจำกัด
+  ORDINARY_PARTNERSHIP // ห้างหุ้นส่วนสามัญ
+  SHOP // ร้านค้า
+  PERSON_GROUP // คณะบุคคล
   FOUNDATION // มูลนิธิ
   ASSOCIATION // สมาคม
   JOINT_VENTURE // กิจการร่วมค้า
   OTHER_JURISTIC // นิติบุคคลอื่น ๆ
   INDIVIDUAL // บุคคลธรรมดา
+}
+
+enum IndividualTitle {
+  MR
+  MRS
+  MISS
+  KHUN
+  NONE
+  OTHER
 }
 
 model Tenant {
@@ -182,6 +194,12 @@ enum VatModePolicy {
   PER_LINE
   FORCE_EXCLUSIVE
   FORCE_INCLUSIVE
+}
+
+enum DocumentTaxType {
+  VAT_INCLUSIVE
+  VAT_EXCLUSIVE
+  NO_VAT
 }
 
 model Subscription {
@@ -385,6 +403,8 @@ model Customer {
   name                 String
   customerType         CustomerType  @default(OTHER)
   juristicType         JuristicType? // ประเภทนิติบุคคล / บุคคลธรรมดา
+  individualTitle      IndividualTitle?
+  individualTitleOther String?
   country              String        @default("TH") // รหัสประเทศ ISO 3166-1 alpha-2
   contactName          String?
   email                String?
@@ -707,6 +727,8 @@ model Quotation {
   vatAmount       Decimal         @default(0) @db.Decimal(14, 2) // VAT เงิน
   totalAmount     Decimal         @default(0) @db.Decimal(14, 2) // ยอดรวมสุทธิ
   vatModePolicy   VatModePolicy   @default(PER_LINE)
+  taxType         DocumentTaxType @default(VAT_EXCLUSIVE)
+  currencyCode    String          @default("THB") @db.VarChar(3)
   // Billing Nature (ไหลลง SO → Invoice)
   billingNature   BillingNature   @default(GOODS)
   notes           String?
@@ -806,6 +828,8 @@ model SalesOrder {
   vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
   totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
   vatModePolicy    VatModePolicy    @default(PER_LINE)
+  taxType          DocumentTaxType  @default(VAT_EXCLUSIVE)
+  currencyCode     String           @default("THB") @db.VarChar(3)
   // สถานะชำระเงิน
   paymentStatus    PaymentStatus    @default(UNPAID)
   paymentTerms     String? // e.g. "มัดจำ 50%, ส่วนที่เหลือเครดิต 30 วัน"
@@ -940,7 +964,9 @@ model Invoice {
   vatRate                 Decimal       @default(7) @db.Decimal(5, 2)
   vatAmount               Decimal       @default(0) @db.Decimal(14, 2)
   totalAmount             Decimal       @default(0) @db.Decimal(14, 2)
-  vatModePolicy           VatModePolicy @default(PER_LINE)
+  vatModePolicy           VatModePolicy   @default(PER_LINE)
+  taxType                 DocumentTaxType @default(VAT_EXCLUSIVE)
+  currencyCode            String          @default("THB") @db.VarChar(3)
   paidAmount              Decimal       @default(0) @db.Decimal(14, 2)
   // Billing nature + Withholding Tax (3% ม.3 เตรส)
   billingNature           BillingNature @default(GOODS)
@@ -1037,6 +1063,8 @@ model TaxInvoice {
   vatRate          Decimal          @default(7) @db.Decimal(5, 2)
   vatAmount        Decimal          @default(0) @db.Decimal(14, 2)
   totalAmount      Decimal          @default(0) @db.Decimal(14, 2)
+  taxType         DocumentTaxType @default(VAT_EXCLUSIVE)
+  currencyCode    String          @default("THB") @db.VarChar(3)
   // Billing nature snapshot (ณ วันออก TI) — ต้อง preserve เพราะ PDF wording อ้างจากค่านี้
   billingNature    BillingNature    @default(GOODS)
   // ยกเลิก
@@ -1075,7 +1103,9 @@ model Receipt {
   // ยอดเงินที่รับ (net of WHT)
   amount        Decimal       @db.Decimal(14, 2)
   // Billing nature snapshot (ณ วันออก receipt)
-  billingNature BillingNature @default(GOODS)
+  billingNature BillingNature   @default(GOODS)
+  taxType       DocumentTaxType @default(VAT_EXCLUSIVE)
+  currencyCode  String          @default("THB") @db.VarChar(3)
   // WHT ที่ลูกค้าหัก ณ ที่จ่าย (ถ้ามี) — net = grossAmount - whtAmount
   grossAmount   Decimal?      @db.Decimal(14, 2) // ยอดก่อนหัก ณ ที่จ่าย
   whtRate       Decimal       @default(0) @db.Decimal(5, 2)
@@ -1139,6 +1169,8 @@ model CreditNote {
   vatAmount         Decimal          @default(0) @db.Decimal(14, 2)
   totalAmount       Decimal          @default(0) @db.Decimal(14, 2)
   vatModePolicy     VatModePolicy    @default(PER_LINE)
+  taxType           DocumentTaxType  @default(VAT_EXCLUSIVE)
+  currencyCode      String           @default("THB") @db.VarChar(3)
   // Billing nature snapshot + WHT reversal (ถ้า invoice ต้นฉบับโดนหัก)
   billingNature     BillingNature    @default(GOODS)
   whtReversalAmount Decimal          @default(0) @db.Decimal(14, 2) // ยอด WHT ที่ต้อง reverse กลับ (prorate)

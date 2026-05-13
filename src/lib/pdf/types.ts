@@ -1,16 +1,19 @@
 import type { HeaderTenant } from "./components/Header";
 import type { Party } from "./components/PartyBlock";
 import type { PdfLineItem } from "./components/LineItemsTable";
+import type { CurrencyCode } from "@/lib/currency";
+import type { DocumentTaxType } from "@/lib/tax-type";
 
 export interface InvoicePdfData {
   tenant: HeaderTenant;
   /**
-   * Phase 8.12 — Tenant VAT registration status. Controls:
-   * - PDF title ("ใบกำกับภาษี / ใบแจ้งหนี้" vs plain "ใบแจ้งหนี้")
-   * - Whether VAT line renders in TotalsBox
-   * Defaults to true via schema default; non-VAT tenants flip to false.
+   * Legacy field name retained for template compatibility. This is now derived
+   * from document taxType (true for VAT_INCLUSIVE/VAT_EXCLUSIVE, false for
+   * NO_VAT) and controls VAT wording/line rendering in invoice PDFs.
    */
   tenantIsVatRegistered: boolean;
+  taxType: DocumentTaxType;
+  currencyCode: CurrencyCode;
   buyer: Party;
   seller: Party;
   /** Document status — when "CANCELLED", renders a red diagonal watermark */
@@ -42,8 +45,10 @@ export interface InvoicePdfData {
 
 export interface ReceiptPdfData {
   tenant: HeaderTenant;
-  /** Phase 8.12 — see InvoicePdfData.tenantIsVatRegistered */
+  /** Legacy template flag derived from receipt taxType; see InvoicePdfData. */
   tenantIsVatRegistered: boolean;
+  taxType: DocumentTaxType;
+  currencyCode: CurrencyCode;
   payer: Party; // ผู้จ่ายเงิน
   seller: Party;
   /** Document status — when "CANCELLED", renders a red diagonal watermark */
@@ -108,12 +113,10 @@ export interface SubscriptionInvoicePdfData {
 
 export interface TaxInvoicePdfData {
   tenant: HeaderTenant;
-  /**
-   * Phase 8.12 — A tax invoice should NEVER be issued by a non-VAT tenant.
-   * API routes must block generation; this flag lets template render a
-   * defensive banner if somehow a non-VAT tenant reaches rendering.
-   */
+  /** Legacy template flag derived from tax invoice taxType; see InvoicePdfData. */
   tenantIsVatRegistered: boolean;
+  taxType: DocumentTaxType;
+  currencyCode: CurrencyCode;
   buyer: Party;
   seller: Party;
   /** Document status — when "CANCELLED", renders a red diagonal watermark */

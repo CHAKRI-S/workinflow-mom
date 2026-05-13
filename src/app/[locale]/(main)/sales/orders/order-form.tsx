@@ -28,7 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import {
   ArrowLeft,
   Save,
@@ -41,12 +41,18 @@ import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { detectServiceWording } from "@/lib/po-wording-check";
-import { calculateVatTotals } from "@/lib/vat";
+import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
+import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
+import {
+  TAX_TYPE_OPTIONS,
+  resolveTaxCalculation,
+  type DocumentTaxType,
+} from "@/lib/tax-type";
 import type {
   BillingNature,
   DrawingSource,
 } from "@/lib/validators/billing-nature";
-import type { VatModePolicy, VatPriceMode } from "@/lib/vat";
+import type { VatPriceMode } from "@/lib/vat";
 
 interface Customer {
   id: string;
@@ -99,7 +105,9 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
       customerId: "",
       depositPercent: 0,
       requestedDate: new Date(Date.now() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0],
-      vatModePolicy: "PER_LINE",
+      taxType: "VAT_EXCLUSIVE",
+      currencyCode: "THB",
+      vatModePolicy: "FORCE_EXCLUSIVE",
       billingNature: "GOODS",
       lines: [
         {
@@ -124,7 +132,10 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
   const watchLines = watch("lines");
   const watchCustomerId = watch("customerId");
   const watchDepositPercent = watch("depositPercent");
-  const watchVatModePolicy = (watch("vatModePolicy") ?? "PER_LINE") as VatModePolicy;
+  const watchTaxType = (watch("taxType") ?? "VAT_EXCLUSIVE") as DocumentTaxType;
+  const watchCurrencyCode = watch("currencyCode") ?? "THB";
+  const taxCalculation = resolveTaxCalculation(watchTaxType);
+  const vatRate = taxCalculation.vatRate;
   const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
   const watchCustomerPoNumber = watch("customerPoNumber");
   const poWordingCheck = detectServiceWording(watchCustomerPoNumber);
@@ -148,31 +159,22 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
       .catch(() => {});
   }, []);
 
-  // Calculate financial summary
+  // Calculate financial summary from document taxType, not customer VAT registration.
   const selectedCustomer = customers.find((c) => c.id === watchCustomerId);
-  const isVat = selectedCustomer?.isVatRegistered ?? true;
-  const vatRate = isVat ? 7 : 0;
-  const vatTotals = calculateVatTotals(watchLines || [], {
-    vatRate,
-    vatModePolicy: watchVatModePolicy,
+  const vatTotals = calculateDocumentTotals({
+    taxType: watchTaxType,
+    currencyCode: watchCurrencyCode,
+    lines: watchLines || [],
   });
+  const totals = {
+    subtotal: vatTotals.subtotal,
+    vatAmount: vatTotals.vatAmount,
+    total: vatTotals.totalAmount,
+    depositAmount:
+      vatTotals.totalAmount * ((Number(watchDepositPercent) || 0) / 100),
+  };
 
-  const calculateTotals = useCallback(() => {
-    const subtotal = vatTotals.subtotal;
-    const vatAmount = vatTotals.vatAmount;
-    const total = vatTotals.totalAmount;
-    const depositAmount = total * ((Number(watchDepositPercent) || 0) / 100);
-
-    return { subtotal, vatAmount, total, depositAmount };
-  }, [vatTotals, watchDepositPercent]);
-
-  const totals = calculateTotals();
-
-  const formatCurrency = (n: number) =>
-    n.toLocaleString("th-TH", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    });
+  const formatCurrency = (amount: number) => formatMoney(amount, watchCurrencyCode);
 
   // Auto-fill shipping address + billing nature default when customer changes
   useEffect(() => {
@@ -357,31 +359,89 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
             <div className="space-y-1.5">
-              <Label>VAT ของบิลนี้</Label>
+              <Label>ประเภทภาษี</Label>
               <Select
-                value={watchVatModePolicy}
-                onValueChange={(v) =>
-                  setValue("vatModePolicy", v as VatModePolicy)
+                value={watchTaxType}
+                onValueChange={(value) => {
+                  const taxType = value as DocumentTaxType;
+                  const nextCalculation = resolveTaxCalculation(taxType);
+                  setValue("taxType", taxType, { shouldDirty: true });
+                  setValue("vatModePolicy", nextCalculation.vatModePolicy, {
+                    shouldDirty: true,
+                  });
+                }}
+              >
+                <SelectTrigger aria-label="ประเภทภาษี: รวม VAT / แยก VAT / ไม่มี VAT">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAX_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span>{option.labelTh}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {option.descriptionTh}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.taxType && (
+                <p className="text-xs text-destructive">
+                  {errors.taxType.message}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>สกุลเงิน</Label>
+              <Select
+                value={watchCurrencyCode}
+                onValueChange={(value) =>
+                  setValue(
+                    "currencyCode",
+                    value as SalesOrderCreateInput["currencyCode"],
+                    { shouldDirty: true },
+                  )
                 }
               >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="PER_LINE">ตามสินค้าแต่ละรายการ</SelectItem>
-                  <SelectItem value="FORCE_EXCLUSIVE">บังคับ VAT นอกทั้งบิล</SelectItem>
-                  <SelectItem value="FORCE_INCLUSIVE">บังคับ VAT ในทั้งบิล</SelectItem>
+                  {CURRENCY_OPTIONS.map((option) => (
+                    <SelectItem key={option.code} value={option.code}>
+                      {option.code} — {option.label} ({option.symbol})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
+              {errors.currencyCode && (
+                <p className="text-xs text-destructive">
+                  {errors.currencyCode.message}
+                </p>
+              )}
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                การเปลี่ยนสกุลเงินไม่แปลงราคาอัตโนมัติ กรุณาตรวจราคาต่อหน่วยอีกครั้ง
+              </p>
             </div>
+          </div>
+
+          <div className="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              {TAX_TYPE_OPTIONS.find((option) => option.value === watchTaxType)?.labelTh}
+              {" — "}
+              VAT {vatRate}%
+            </p>
             <div className="rounded-md border p-3 text-sm text-muted-foreground">
               <div className="flex justify-between">
-                <span>รายการ VAT นอก</span>
-                <span>{vatTotals.modeSummary.EXCLUSIVE.count}</span>
+                <span>สกุลเงินเอกสาร</span>
+                <span>{watchCurrencyCode}</span>
               </div>
               <div className="flex justify-between">
-                <span>รายการ VAT ใน</span>
-                <span>{vatTotals.modeSummary.INCLUSIVE.count}</span>
+                <span>ตัวอย่างยอดรวม</span>
+                <span>{formatMoney(totals.total, watchCurrencyCode)}</span>
               </div>
             </div>
           </div>
@@ -514,14 +574,14 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                         </TableCell>
                         <TableCell>
                           <Select
-                            value={line?.vatPriceMode ?? "EXCLUSIVE"}
+                            value={effectiveMode}
                             onValueChange={(v) =>
                               setValue(
                                 `lines.${index}.vatPriceMode`,
                                 v as VatPriceMode,
                               )
                             }
-                            disabled={watchVatModePolicy !== "PER_LINE"}
+                            disabled
                           >
                             <SelectTrigger className="w-[120px]">
                               <SelectValue />
@@ -531,11 +591,9 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                               <SelectItem value="INCLUSIVE">VAT ใน</SelectItem>
                             </SelectContent>
                           </Select>
-                          {watchVatModePolicy !== "PER_LINE" && (
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              ใช้ {effectiveMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
-                            </p>
-                          )}
+                          <p className="mt-1 text-[11px] text-muted-foreground">
+                            ใช้ {effectiveMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"} ตามประเภทภาษี
+                          </p>
                         </TableCell>
                         <TableCell>
                           <Input

@@ -2,12 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
-import { generateDocNumber, invoicePrefix } from "@/lib/doc-numbering";
+import { generateDocNumber, invoicePrefixFromTaxType } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { invoiceCreateSchema } from "@/lib/validators/invoice";
-import { calculateVatTotals } from "@/lib/vat";
+import { calculateDocumentTotals, inheritDocumentTaxAndCurrency } from "@/lib/document-tax-propagation";
+import { formatCustomerDisplayName } from "@/lib/customer-name";
 
 // GET /api/finance/invoices — list all invoices for tenant
 export async function GET(req: NextRequest) {
@@ -62,50 +63,44 @@ export async function POST(req: NextRequest) {
       dueDate,
       lines,
       notes,
-      vatModePolicy,
       billingNature: headerBillingNature,
     } = data;
 
     const tenantId = session!.user.tenantId;
 
-    // Fetch sales order with customer + lines (to inherit drawingSource defaults)
-    // + tenant VAT status (Phase 8.12 — a non-VAT seller cannot issue VAT docs)
-    const [salesOrder, tenant] = await Promise.all([
-      prisma.salesOrder.findFirst({
-        where: { id: salesOrderId, tenantId },
-        include: {
-          customer: {
-            select: {
-              id: true,
-              name: true,
-              isVatRegistered: true,
-              taxId: true,
-              billingAddress: true,
-              shippingAddress: true,
-              defaultBillingNature: true,
-              withholdsTax: true,
-            },
-          },
-          lines: {
-            select: {
-              id: true,
-              drawingSource: true,
-              lineBillingNature: true,
-              productCode: true,
-              drawingRevision: true,
-              customerDrawingUrl: true,
-              customerBranding: true,
-              enteredUnitPrice: true,
-              vatPriceMode: true,
-            },
+    // Fetch sales order with customer + lines (to inherit tax/currency and drawingSource defaults)
+    const salesOrder = await prisma.salesOrder.findFirst({
+      where: { id: salesOrderId, tenantId },
+      include: {
+        customer: {
+          select: {
+            id: true,
+            name: true,
+            taxId: true,
+            billingAddress: true,
+            shippingAddress: true,
+            juristicType: true,
+            individualTitle: true,
+            individualTitleOther: true,
+            defaultBillingNature: true,
+            withholdsTax: true,
           },
         },
-      }),
-      prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { isVatRegistered: true },
-      }),
-    ]);
+        lines: {
+          select: {
+            id: true,
+            drawingSource: true,
+            lineBillingNature: true,
+            productCode: true,
+            drawingRevision: true,
+            customerDrawingUrl: true,
+            customerBranding: true,
+            enteredUnitPrice: true,
+            vatPriceMode: true,
+          },
+        },
+      },
+    });
 
     if (!salesOrder || !salesOrder.customer) {
       return NextResponse.json(
@@ -115,10 +110,21 @@ export async function POST(req: NextRequest) {
     }
 
     const customer = salesOrder.customer;
-    // A doc is a VAT doc only if BOTH seller and buyer are VAT-registered.
-    const tenantIsVat = tenant?.isVatRegistered ?? true;
-    const isVatDoc = tenantIsVat && customer.isVatRegistered;
-    const vatRate = isVatDoc ? 7 : 0;
+    const customerDisplayName = formatCustomerDisplayName({
+      name: customer.name,
+      juristicType: customer.juristicType,
+      individualTitle: customer.individualTitle,
+      individualTitleOther: customer.individualTitleOther,
+    });
+    const inherited = inheritDocumentTaxAndCurrency({
+      source: salesOrder,
+      override: {
+        taxType: Object.prototype.hasOwnProperty.call(body, "taxType") ? data.taxType : undefined,
+        currencyCode: Object.prototype.hasOwnProperty.call(body, "currencyCode")
+          ? data.currencyCode
+          : undefined,
+      },
+    });
 
     // Map SO lines by id for inheritance lookup
     const soLineById = new Map(salesOrder.lines.map((l) => [l.id, l]));
@@ -134,9 +140,10 @@ export async function POST(req: NextRequest) {
         vatPriceMode: line.vatPriceMode ?? soLine?.vatPriceMode ?? "EXCLUSIVE",
       };
     });
-    const totals = calculateVatTotals(lineInputs, {
-      vatRate,
-      vatModePolicy,
+    const totals = calculateDocumentTotals({
+      taxType: inherited.taxType,
+      currencyCode: inherited.currencyCode,
+      lines: lineInputs,
     });
 
     // Calculate line totals + inherit drawing/branding from SO line (body overrides inheritance)
@@ -210,7 +217,7 @@ export async function POST(req: NextRequest) {
     const whtCertStatus = whtRate > 0 ? "PENDING" : "NOT_APPLICABLE";
 
     const invoice = await prisma.$transaction(async (tx) => {
-      const prefix = invoicePrefix(tenantIsVat, customer.isVatRegistered);
+      const prefix = invoicePrefixFromTaxType(totals.taxType);
       const invoiceNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.invoice.create({
@@ -224,16 +231,18 @@ export async function POST(req: NextRequest) {
           dueDate: new Date(dueDate),
           subtotal: totals.subtotal,
           discountAmount: totals.discountAmount,
-          vatRate,
+          vatRate: totals.vatRate,
           vatAmount: totals.vatAmount,
           totalAmount: totals.totalAmount,
-          vatModePolicy,
+          vatModePolicy: totals.vatModePolicy,
+          taxType: totals.taxType,
+          currencyCode: totals.currencyCode,
           paidAmount: 0,
           billingNature,
           whtRate,
           whtCertStatus,
           notes: notes || null,
-          snapshotCustomerName: customer.name,
+          snapshotCustomerName: customerDisplayName,
           snapshotCustomerAddress: customer.billingAddress || customer.shippingAddress || null,
           snapshotCustomerTaxId: customer.taxId || null,
           createdById: session!.user.id,

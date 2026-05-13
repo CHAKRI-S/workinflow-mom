@@ -46,6 +46,8 @@ export default async function EditCustomerPage({
         // an existing customer lost these selections. Include them so the
         // form state matches the DB row.
         juristicType: customer.juristicType || undefined,
+        individualTitle: customer.individualTitle || undefined,
+        individualTitleOther: customer.individualTitleOther || undefined,
         branchNo: customer.branchNo || undefined,
         country: customer.country || "TH",
         // Tax policy (Phase 8A) — load stored values so form reflects current DB row

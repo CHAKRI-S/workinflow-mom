@@ -3,7 +3,8 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { quotationUpdateSchema } from "@/lib/validators/quotation";
-import { calculateVatTotals } from "@/lib/vat";
+import { calculateDocumentTotals, inheritDocumentTaxAndCurrency } from "@/lib/document-tax-propagation";
+import { Prisma, type VatModePolicy } from "@/generated/prisma/client";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -69,6 +70,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     // Check existing quotation
     const existing = await prisma.quotation.findFirst({
       where: { id, tenantId },
+      include: { lines: { orderBy: { sortOrder: "asc" } } },
     });
 
     if (!existing) {
@@ -85,8 +87,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
     const body = await req.json();
     const data = quotationUpdateSchema.parse(body);
 
-    // If customerId changed, lookup new customer for VAT
-    let vatRate = Number(existing.vatRate);
+    // If customerId changed, lookup new customer for tenant ownership only.
     if (data.customerId && data.customerId !== existing.customerId) {
       const customer = await prisma.customer.findFirst({
         where: { id: data.customerId, tenantId },
@@ -97,18 +98,48 @@ export async function PATCH(req: NextRequest, { params }: Params) {
           { status: 404 }
         );
       }
-      vatRate = customer.isVatRegistered ? 7 : 0;
     }
 
-    // Recalculate if lines are provided
-    let calculatedFields = {};
-    if (data.lines && data.lines.length > 0) {
-      const totals = calculateVatTotals(data.lines, {
-        vatRate,
-        vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
+    const inherited = inheritDocumentTaxAndCurrency({
+      source: existing,
+      override: data,
+    });
+    const recalculationLines = data.lines ?? existing.lines.map((line) => ({
+      productId: line.productId,
+      description: line.description ?? undefined,
+      quantity: Number(line.quantity),
+      color: line.color ?? undefined,
+      surfaceFinish: line.surfaceFinish ?? undefined,
+      materialSpec: line.materialSpec ?? undefined,
+      enteredUnitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+      unitPrice: Number(line.enteredUnitPrice ?? line.unitPrice),
+      vatPriceMode: line.vatPriceMode,
+      discountPercent: Number(line.discountPercent),
+      notes: line.notes ?? undefined,
+      sortOrder: line.sortOrder,
+      drawingSource: line.drawingSource,
+      lineBillingNature: line.lineBillingNature,
+      productCode: line.productCode,
+      drawingRevision: line.drawingRevision,
+      customerDrawingUrl: line.customerDrawingUrl,
+      customerBranding: line.customerBranding as Record<string, unknown> | null | undefined,
+    }));
+    const shouldRecalculate =
+      Boolean(data.lines?.length) ||
+      data.taxType !== undefined ||
+      data.currencyCode !== undefined ||
+      data.discountPercent !== undefined;
+
+    // Recalculate if lines or document tax/currency fields are provided
+    let calculatedFields: Prisma.QuotationUncheckedUpdateInput = {};
+    if (shouldRecalculate) {
+      const totals = calculateDocumentTotals({
+        taxType: inherited.taxType,
+        currencyCode: inherited.currencyCode,
+        lines: recalculationLines,
         discountPercent: data.discountPercent ?? Number(existing.discountPercent),
       });
-      const linesWithTotals = data.lines.map((line, idx) => ({
+      const linesWithTotals = recalculationLines.map((line, idx) => ({
         ...line,
         ...totals.lines[idx],
       }));
@@ -117,10 +148,12 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         subtotal: totals.subtotal,
         discountPercent: totals.discountPercent,
         discountAmount: totals.discountAmount,
-        vatRate,
+        vatRate: totals.vatRate,
         vatAmount: totals.vatAmount,
         totalAmount: totals.totalAmount,
-        vatModePolicy: data.vatModePolicy ?? existing.vatModePolicy,
+        vatModePolicy: totals.vatModePolicy,
+        taxType: totals.taxType,
+        currencyCode: totals.currencyCode,
       };
 
       // Update in transaction: delete old lines, create new
@@ -137,7 +170,9 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             paymentTerms: data.paymentTerms,
             deliveryTerms: data.deliveryTerms,
             leadTimeDays: data.leadTimeDays,
-            vatModePolicy: data.vatModePolicy,
+            vatModePolicy: calculatedFields.vatModePolicy as VatModePolicy | undefined,
+            taxType: inherited.taxType,
+            currencyCode: inherited.currencyCode,
             billingNature: data.billingNature,
             notes: data.notes,
             internalNotes: data.internalNotes,
@@ -163,7 +198,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
                 drawingRevision: line.drawingRevision ?? null,
                 customerDrawingUrl: line.customerDrawingUrl ?? null,
                 customerBranding: line.customerBranding ?? undefined,
-              })),
+              })) as Prisma.QuotationLineUncheckedCreateWithoutQuotationInput[],
             },
           },
           include: {
@@ -190,11 +225,13 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         paymentTerms: data.paymentTerms,
         deliveryTerms: data.deliveryTerms,
         leadTimeDays: data.leadTimeDays,
-        vatModePolicy: data.vatModePolicy,
+        vatModePolicy: calculatedFields.vatModePolicy as VatModePolicy | undefined,
+        taxType: inherited.taxType,
+        currencyCode: inherited.currencyCode,
         billingNature: data.billingNature,
         notes: data.notes,
         internalNotes: data.internalNotes,
-        vatRate,
+        ...calculatedFields,
       },
       include: {
         customer: { select: { id: true, code: true, name: true } },

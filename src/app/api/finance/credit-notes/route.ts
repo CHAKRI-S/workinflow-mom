@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
-import { generateDocNumber, creditNotePrefix } from "@/lib/doc-numbering";
+import { generateDocNumber, creditNotePrefixFromTaxType } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
-import { calculateVatTotals, normalizeVatModePolicy } from "@/lib/vat";
+import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 
 // GET /api/finance/credit-notes — list all credit notes for tenant
 export async function GET(req: NextRequest) {
@@ -53,8 +53,6 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json();
     const { invoiceId, reason, description, lines, notes } = body;
-    const vatModePolicy = normalizeVatModePolicy(body.vatModePolicy);
-
     if (!invoiceId || !reason || !description || !lines?.length) {
       return NextResponse.json(
         { error: "Missing required fields" },
@@ -64,47 +62,33 @@ export async function POST(req: NextRequest) {
 
     const tenantId = session!.user.tenantId;
 
-    // Fetch invoice with customer VAT status + receipts + tenant (Phase 8.12)
-    const [invoice, tenant] = await Promise.all([
-      prisma.invoice.findFirst({
-        where: { id: invoiceId, tenantId },
-        select: {
-          id: true,
-          subtotal: true,
-          billingNature: true,
-          salesOrder: {
-            include: {
-              customer: { select: { isVatRegistered: true } },
-            },
-          },
-          receipts: {
-            where: { cancelledAt: null },
-            select: { whtAmount: true, grossAmount: true },
-          },
+    // Fetch invoice for inherited tax/currency context + receipts.
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: invoiceId, tenantId },
+      select: {
+        id: true,
+        subtotal: true,
+        billingNature: true,
+        taxType: true,
+        currencyCode: true,
+        receipts: {
+          where: { cancelledAt: null },
+          select: { whtAmount: true, grossAmount: true },
         },
-      }),
-      prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { isVatRegistered: true },
-      }),
-    ]);
+      },
+    });
 
-    if (!invoice || !invoice.salesOrder || !invoice.salesOrder.customer) {
+    if (!invoice) {
       return NextResponse.json(
-        { error: "Invoice, sales order, or customer not found" },
+        { error: "Invoice not found" },
         { status: 404 }
       );
     }
 
-    // A CN is a VAT doc only if BOTH seller and buyer are VAT-registered.
-    const tenantIsVat = tenant?.isVatRegistered ?? true;
-    const customerIsVat = invoice.salesOrder.customer.isVatRegistered;
-    const isVat = tenantIsVat && customerIsVat;
-    const vatRate = isVat ? 7 : 0;
-
-    const totals = calculateVatTotals(lines, {
-      vatRate,
-      vatModePolicy,
+    const totals = calculateDocumentTotals({
+      taxType: invoice.taxType,
+      currencyCode: invoice.currencyCode,
+      lines,
     });
 
     // Calculate line totals
@@ -148,7 +132,7 @@ export async function POST(req: NextRequest) {
         : 0;
 
     const creditNote = await prisma.$transaction(async (tx) => {
-      const prefix = creditNotePrefix(tenantIsVat, customerIsVat);
+      const prefix = creditNotePrefixFromTaxType(totals.taxType);
       const creditNoteNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.creditNote.create({
@@ -159,10 +143,12 @@ export async function POST(req: NextRequest) {
           reason,
           issueDate: new Date(),
           subtotal: totals.subtotal,
-          vatRate,
+          vatRate: totals.vatRate,
           vatAmount: totals.vatAmount,
           totalAmount: totals.totalAmount,
-          vatModePolicy,
+          vatModePolicy: totals.vatModePolicy,
+          taxType: totals.taxType,
+          currencyCode: totals.currencyCode,
           billingNature: invoice.billingNature,
           whtReversalAmount: new Prisma.Decimal(whtReversalAmount),
           description,

@@ -66,3 +66,26 @@ npx prisma migrate status
 - `Tenant.omiseCustomerId`
 - `Tenant.omiseDefaultCardId`
 - `Tenant.isVatRegistered`
+- `Product.defaultVatPriceMode`
+- `Quotation.vatModePolicy`
+- `SalesOrder.vatModePolicy`
+- `Invoice.vatModePolicy`
+- `CreditNote.vatModePolicy`
+- `DocumentTaxType` enum
+- `IndividualTitle` enum
+- `Customer.individualTitle`
+- `Customer.individualTitleOther`
+- `Quotation.taxType`
+- `Quotation.currencyCode`
+- `SalesOrder.taxType`
+- `SalesOrder.currencyCode`
+- `Invoice.taxType`
+- `Invoice.currencyCode`
+- `TaxInvoice.taxType`
+- `TaxInvoice.currencyCode`
+- `Receipt.taxType`
+- `Receipt.currencyCode`
+- `CreditNote.taxType`
+- `CreditNote.currencyCode`
+
+See `docs/SALES-DOCUMENT-TAX-CURRENCY.md` for the sales-document tax/currency/legal-name rollout checklist.

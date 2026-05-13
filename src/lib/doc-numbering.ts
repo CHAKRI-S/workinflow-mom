@@ -91,7 +91,7 @@ export const DOC_PREFIX = {
   SALES_ORDER: "SO",
   INVOICE_VAT: "INV",       // ใบแจ้งหนี้ (มี VAT)
   INVOICE_NON_VAT: "BIL",   // ใบเรียกเก็บเงิน (ไม่มี VAT)
-  TAX_INVOICE: "TI",        // ใบกำกับภาษี (เฉพาะลูกค้า VAT)
+  TAX_INVOICE: "TI",        // ใบกำกับภาษี (เฉพาะเอกสารที่มี VAT)
   RECEIPT_VAT: "RC",        // ใบเสร็จ (มี VAT)
   RECEIPT_NON_VAT: "RN",    // ใบเสร็จ (ไม่มี VAT)
   CREDIT_NOTE_VAT: "CN",    // ใบลดหนี้ (มี VAT)
@@ -103,32 +103,55 @@ export const DOC_PREFIX = {
 } as const;
 
 /**
- * A document gets the VAT prefix only when BOTH the seller (tenant) and the
- * buyer (customer) are VAT-registered. A non-VAT seller can never issue
- * "ใบกำกับภาษี / ใบเสร็จรับเงิน (VAT)" regardless of who the buyer is —
- * doing so would violate ม.86 ประมวลรัษฎากร (2× tax penalty + criminal).
+ * Legacy Phase 8.12 prefix helper kept for old callers only.
+ * New sales/finance documents must use the selected document tax type via
+ * invoicePrefixFromTaxType / receiptPrefixFromTaxType / creditNotePrefixFromTaxType.
  */
 function isVatDoc(tenantIsVat: boolean, customerIsVat: boolean): boolean {
   return tenantIsVat && customerIsVat;
 }
 
-/** Pick invoice prefix. Requires seller VAT status (Phase 8.12). */
+/** @deprecated Use invoicePrefixFromTaxType(document.taxType). */
 export function invoicePrefix(tenantIsVat: boolean, customerIsVat: boolean): string {
   return isVatDoc(tenantIsVat, customerIsVat)
     ? DOC_PREFIX.INVOICE_VAT
     : DOC_PREFIX.INVOICE_NON_VAT;
 }
 
-/** Pick receipt prefix. Requires seller VAT status (Phase 8.12). */
+/** @deprecated Use receiptPrefixFromTaxType(document.taxType). */
 export function receiptPrefix(tenantIsVat: boolean, customerIsVat: boolean): string {
   return isVatDoc(tenantIsVat, customerIsVat)
     ? DOC_PREFIX.RECEIPT_VAT
     : DOC_PREFIX.RECEIPT_NON_VAT;
 }
 
-/** Pick credit note prefix. Requires seller VAT status (Phase 8.12). */
+/** @deprecated Use creditNotePrefixFromTaxType(document.taxType). */
 export function creditNotePrefix(tenantIsVat: boolean, customerIsVat: boolean): string {
   return isVatDoc(tenantIsVat, customerIsVat)
+    ? DOC_PREFIX.CREDIT_NOTE_VAT
+    : DOC_PREFIX.CREDIT_NOTE_NON_VAT;
+}
+
+export type DocumentTaxTypeForPrefix = "VAT_INCLUSIVE" | "VAT_EXCLUSIVE" | "NO_VAT";
+
+function isTaxableDocument(taxType: DocumentTaxTypeForPrefix): boolean {
+  return taxType !== "NO_VAT";
+}
+
+export function invoicePrefixFromTaxType(taxType: DocumentTaxTypeForPrefix): string {
+  return isTaxableDocument(taxType)
+    ? DOC_PREFIX.INVOICE_VAT
+    : DOC_PREFIX.INVOICE_NON_VAT;
+}
+
+export function receiptPrefixFromTaxType(taxType: DocumentTaxTypeForPrefix): string {
+  return isTaxableDocument(taxType)
+    ? DOC_PREFIX.RECEIPT_VAT
+    : DOC_PREFIX.RECEIPT_NON_VAT;
+}
+
+export function creditNotePrefixFromTaxType(taxType: DocumentTaxTypeForPrefix): string {
+  return isTaxableDocument(taxType)
     ? DOC_PREFIX.CREDIT_NOTE_VAT
     : DOC_PREFIX.CREDIT_NOTE_NON_VAT;
 }

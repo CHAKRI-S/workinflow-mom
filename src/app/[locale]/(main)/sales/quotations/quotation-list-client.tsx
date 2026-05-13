@@ -16,6 +16,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Plus, Search } from "lucide-react";
+import { formatMoney } from "@/lib/currency";
+import { getTaxTypeLabelTh, type DocumentTaxType } from "@/lib/tax-type";
 
 interface QuotationRow {
   id: string;
@@ -25,6 +27,8 @@ interface QuotationRow {
   issueDate: string;
   validUntil: string;
   totalAmount: string;
+  taxType: DocumentTaxType;
+  currencyCode: string;
   customer: { id: string; code: string; name: string };
   createdBy: { id: string; name: string };
   _count: { lines: number };
@@ -108,17 +112,23 @@ export function QuotationListClient({
         cell: ({ row }) => {
           const status = row.original.status;
           return (
-            <Badge
-              variant={
-                STATUS_COLORS[status] as
-                  | "default"
-                  | "secondary"
-                  | "destructive"
-                  | "outline"
-              }
-            >
-              {t(`status.${status}` as Parameters<typeof t>[0])}
-            </Badge>
+            <div className="flex flex-wrap gap-1">
+              <Badge
+                variant={
+                  STATUS_COLORS[status] as
+                    | "default"
+                    | "secondary"
+                    | "destructive"
+                    | "outline"
+                }
+              >
+                {t(`status.${status}` as Parameters<typeof t>[0])}
+              </Badge>
+              <Badge variant="outline">
+                {getTaxTypeLabelTh(row.original.taxType)}
+              </Badge>
+              <Badge variant="secondary">{row.original.currencyCode}</Badge>
+            </div>
           );
         },
       },
@@ -145,10 +155,7 @@ export function QuotationListClient({
         ),
         cell: ({ row }) => (
           <div className="text-right font-medium">
-            {Number(row.original.totalAmount).toLocaleString(undefined, {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
+            {formatMoney(Number(row.original.totalAmount), row.original.currencyCode)}
           </div>
         ),
       },

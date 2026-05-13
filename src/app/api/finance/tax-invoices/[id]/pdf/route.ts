@@ -43,7 +43,6 @@ export async function GET(_req: NextRequest, { params }: Params) {
         address: true,
         phone: true,
         email: true,
-        isVatRegistered: true, // Phase 8.12
       },
     });
 
@@ -51,15 +50,13 @@ export async function GET(_req: NextRequest, { params }: Params) {
       return NextResponse.json({ error: "Tenant not found" }, { status: 404 });
     }
 
-    // Phase 8.12 — a non-VAT registered seller cannot legally issue a tax
-    // invoice (ม.86 ประมวลรัษฎากร). Block at the API layer. The tax-invoice
-    // CREATE route should also prevent this; this is belt-and-suspenders
-    // for pre-existing rows.
-    if (!tenant.isVatRegistered) {
+    // Tax invoice eligibility follows the source document tax type. Creation
+    // blocks NO_VAT/zero-VAT invoices; keep this defensive guard for old rows.
+    if (taxInvoice.taxType === "NO_VAT" || Number(taxInvoice.vatAmount) <= 0) {
       return NextResponse.json(
         {
           error:
-            "ไม่สามารถออกใบกำกับภาษีได้ — บริษัทยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม (ม.86 ประมวลรัษฎากร)",
+            "เอกสารนี้เป็นประเภทไม่มี VAT จึงไม่สามารถออกใบกำกับภาษีได้",
         },
         { status: 422 }
       );

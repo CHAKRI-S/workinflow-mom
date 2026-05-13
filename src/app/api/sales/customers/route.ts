@@ -43,9 +43,12 @@ export async function POST(req: NextRequest) {
       juristicType,
       branchNo,
       country,
+      individualTitle,
+      individualTitleOther,
       brandingAssets,
       ...rest
     } = data;
+    void _ignored;
     // Strip empty branding fields and drop the whole key if nothing meaningful is set.
     const cleanedBranding =
       brandingAssets && typeof brandingAssets === "object"
@@ -62,6 +65,11 @@ export async function POST(req: NextRequest) {
     const cleaned = {
       ...rest,
       juristicType: juristicType || null,
+      individualTitle: juristicType === "INDIVIDUAL" ? individualTitle || null : null,
+      individualTitleOther:
+        juristicType === "INDIVIDUAL" && individualTitle === "OTHER"
+          ? individualTitleOther?.trim() || null
+          : null,
       branchNo: branchNo?.trim() || null,
       country: country?.trim() || "TH",
       ...(brandingForDb !== undefined ? { brandingAssets: brandingForDb } : {}),

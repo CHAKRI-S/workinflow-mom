@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { billingNatureEnum, lineTaxFieldsSchema } from "./billing-nature";
+import { documentTaxAndCurrencySchema } from "./document-fields";
 import { VAT_MODE_POLICIES, VAT_PRICE_MODES } from "@/lib/vat";
 
 export const invoiceTypeEnum = z.enum([
@@ -22,7 +23,8 @@ export const invoiceLineSchema = z
   })
   .merge(lineTaxFieldsSchema);
 
-export const invoiceCreateSchema = z.object({
+export const invoiceCreateSchema = z
+  .object({
   salesOrderId: z.string().min(1, "Required"),
   invoiceType: invoiceTypeEnum,
   dueDate: z.string().min(1, "Required"),
@@ -30,11 +32,13 @@ export const invoiceCreateSchema = z.object({
   billingNature: billingNatureEnum.optional().default("GOODS"),
   notes: z.string().optional(),
   lines: z.array(invoiceLineSchema).min(1, "At least one line required"),
-});
+})
+  .merge(documentTaxAndCurrencySchema);
 
 /// สำหรับ PATCH /invoices/[id] — แก้ไขได้เฉพาะ DRAFT
 /// รับ billingNature + lines override (drawingSource, productCode ฯลฯ) ที่ระดับ line
-export const invoiceUpdateSchema = z.object({
+export const invoiceUpdateSchema = z
+  .object({
   dueDate: z.string().optional(),
   notes: z.string().nullable().optional(),
   billingNature: billingNatureEnum.optional(),
@@ -49,7 +53,8 @@ export const invoiceUpdateSchema = z.object({
     .optional(),
   status: z.string().optional(),
   cancelReason: z.string().optional(),
-});
+})
+  .merge(documentTaxAndCurrencySchema.partial());
 
 export type InvoiceLineInput = z.input<typeof invoiceLineSchema>;
 export type InvoiceCreateInput = z.input<typeof invoiceCreateSchema>;

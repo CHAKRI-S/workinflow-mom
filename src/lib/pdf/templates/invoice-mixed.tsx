@@ -34,7 +34,8 @@ export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
   const hasGoods = goodsItems.length > 0;
   const hasService = serviceItems.length > 0;
 
-  // Phase 8.12 — adjust for non-VAT tenants.
+  // The legacy flag name is derived from document taxType, not tenant settings.
+  // NO_VAT documents must not print "ใบกำกับภาษี"; VAT_* documents keep tax wording.
   const title = data.tenantIsVatRegistered
     ? "ใบกำกับภาษี / ใบแจ้งหนี้"
     : "ใบแจ้งหนี้ (สินค้า + บริการ)";
@@ -75,6 +76,7 @@ export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
               items={goodsItems}
               showCodeColumn
               descColLabel="รายการสินค้า"
+              currencyCode={data.currencyCode}
             />
           </>
         )}
@@ -88,6 +90,7 @@ export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
               items={serviceItems}
               showCodeColumn={false}
               descColLabel="รายการบริการ"
+              currencyCode={data.currencyCode}
             />
           </>
         )}
@@ -101,6 +104,7 @@ export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
           whtRate={data.totals.whtRate}
           whtAmount={data.totals.whtAmount}
           bahtAmount={data.totals.totalAmount}
+          currencyCode={data.currencyCode}
         />
 
         {hasService && Number(data.totals.whtAmount ?? 0) > 0 && (

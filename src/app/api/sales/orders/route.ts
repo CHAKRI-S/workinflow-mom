@@ -5,7 +5,7 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { salesOrderCreateSchema } from "@/lib/validators/sales-order";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { Prisma } from "@/generated/prisma/client";
-import { calculateVatTotals } from "@/lib/vat";
+import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 
 // GET /api/sales/orders — list all sales orders for tenant
 export async function GET(req: NextRequest) {
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
     const data = salesOrderCreateSchema.parse(body);
     const tenantId = session!.user.tenantId;
 
-    // Fetch customer to determine VAT status
+    // Fetch customer only to verify tenant ownership. VAT is selected per document.
     const customer = await prisma.customer.findFirst({
       where: { id: data.customerId, tenantId },
     });
@@ -62,11 +62,10 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
-    const vatRate = customer.isVatRegistered ? 7 : 0;
-
-    const totals = calculateVatTotals(data.lines, {
-      vatRate,
-      vatModePolicy: data.vatModePolicy,
+    const totals = calculateDocumentTotals({
+      taxType: data.taxType,
+      currencyCode: data.currencyCode,
+      lines: data.lines,
     });
 
     // Calculate line totals
@@ -120,10 +119,12 @@ export async function POST(req: NextRequest) {
           subtotal: totals.subtotal,
           discountPercent: totals.discountPercent,
           discountAmount: totals.discountAmount,
-          vatRate,
+          vatRate: totals.vatRate,
           vatAmount: totals.vatAmount,
           totalAmount: totals.totalAmount,
-          vatModePolicy: data.vatModePolicy ?? "PER_LINE",
+          vatModePolicy: totals.vatModePolicy,
+          taxType: totals.taxType,
+          currencyCode: totals.currencyCode,
           paymentTerms: data.paymentTerms || null,
           billingNature: data.billingNature ?? "GOODS",
           notes: data.notes || null,

@@ -4,6 +4,9 @@ import type {
   SubscriptionInvoicePdfData,
   TaxInvoicePdfData,
 } from "./types";
+import { formatCustomerDisplayName } from "@/lib/customer-name";
+import { normalizeCurrencyCode } from "@/lib/currency";
+import { normalizeDocumentTaxType } from "@/lib/tax-type";
 
 type Dec = { toString: () => string } | number | string | null | undefined;
 
@@ -54,6 +57,8 @@ export interface InvoiceWithLines {
   issueDate: Date;
   dueDate: Date;
   billingNature: string;
+  taxType?: string | null;
+  currencyCode?: string | null;
   snapshotCustomerName: string | null;
   snapshotCustomerAddress: string | null;
   snapshotCustomerTaxId: string | null;
@@ -73,6 +78,9 @@ export interface InvoiceWithLines {
     branchNo?: string | null;
     phone?: string | null;
     email?: string | null;
+    juristicType?: string | null;
+    individualTitle?: string | null;
+    individualTitleOther?: string | null;
   };
   createdBy?: { name: string | null } | null;
   lines: Array<{
@@ -130,13 +138,26 @@ export function mapInvoiceToPdfData(
   );
   const oemDisclaimer = invoice.billingNature === "GOODS" && hasBranding;
 
-  // Default undefined → true (preserves existing behavior for callers
-  // that haven't been updated to pass isVatRegistered yet)
-  const tenantIsVatRegistered = tenant.isVatRegistered ?? true;
+  // Document tax type is the current source of truth for VAT wording/totals.
+  const taxType = normalizeDocumentTaxType(invoice.taxType);
+  const currencyCode = normalizeCurrencyCode(invoice.currencyCode);
+  const tenantIsVatRegistered = taxType !== "NO_VAT";
+  const formattedCustomerName = formatCustomerDisplayName({
+    name: invoice.customer.name,
+    juristicType: invoice.customer.juristicType,
+    individualTitle: invoice.customer.individualTitle,
+    individualTitleOther: invoice.customer.individualTitleOther,
+  });
+  const customerDisplayName =
+    invoice.snapshotCustomerName && invoice.snapshotCustomerName !== invoice.customer.name
+      ? invoice.snapshotCustomerName
+      : formattedCustomerName;
 
   return {
     tenant,
     tenantIsVatRegistered,
+    taxType,
+    currencyCode,
     status: invoice.status ?? null,
     seller: {
       name: tenant.name,
@@ -147,7 +168,7 @@ export function mapInvoiceToPdfData(
       email: tenant.email,
     },
     buyer: {
-      name: invoice.snapshotCustomerName || invoice.customer.name,
+      name: customerDisplayName,
       address:
         invoice.snapshotCustomerAddress ||
         invoice.customer.billingAddress ||
@@ -188,6 +209,8 @@ export interface ReceiptForPdf {
   status?: string | null;
   issueDate: Date;
   billingNature: string;
+  taxType?: string | null;
+  currencyCode?: string | null;
   grossAmount: Dec;
   amount: Dec; // net after WHT
   whtRate: Dec;
@@ -213,9 +236,13 @@ export function mapReceiptToPdfData(
   tenant: TenantLike
 ): ReceiptPdfData {
   const gross = n(r.grossAmount) || n(r.amount); // fallback ถ้าไม่มี WHT
+  const taxType = normalizeDocumentTaxType(r.taxType);
+  const currencyCode = normalizeCurrencyCode(r.currencyCode);
   return {
     tenant,
-    tenantIsVatRegistered: tenant.isVatRegistered ?? true,
+    tenantIsVatRegistered: taxType !== "NO_VAT",
+    taxType,
+    currencyCode,
     status: r.status ?? null,
     seller: {
       name: tenant.name,
@@ -258,6 +285,8 @@ export interface TaxInvoiceForPdf {
   status?: string | null;
   issueDate: Date;
   billingNature: string;
+  taxType?: string | null;
+  currencyCode?: string | null;
   buyerName: string;
   buyerTaxId: string | null;
   buyerAddress: string | null;
@@ -365,9 +394,13 @@ export function mapTaxInvoiceToPdfData(
   const sortedLines = [...ti.invoice.lines].sort(
     (a, b) => a.sortOrder - b.sortOrder
   );
+  const taxType = normalizeDocumentTaxType(ti.taxType);
+  const currencyCode = normalizeCurrencyCode(ti.currencyCode);
   return {
     tenant,
-    tenantIsVatRegistered: tenant.isVatRegistered ?? true,
+    tenantIsVatRegistered: taxType !== "NO_VAT",
+    taxType,
+    currencyCode,
     status: ti.status ?? null,
     seller: {
       name: ti.sellerName,

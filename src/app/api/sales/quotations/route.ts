@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { quotationCreateSchema } from "@/lib/validators/quotation";
-import { calculateVatTotals } from "@/lib/vat";
+import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 // GET /api/sales/quotations — list all quotations for tenant
 export async function GET() {
   try {
@@ -45,7 +45,7 @@ export async function POST(req: NextRequest) {
 
     const tenantId = session!.user.tenantId;
 
-    // Look up customer to determine VAT status
+    // Look up customer only to verify tenant ownership. VAT is selected per document.
     const customer = await prisma.customer.findFirst({
       where: { id: data.customerId, tenantId },
     });
@@ -57,11 +57,10 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const vatRate = customer.isVatRegistered ? 7 : 0;
-
-    const totals = calculateVatTotals(data.lines, {
-      vatRate,
-      vatModePolicy: data.vatModePolicy,
+    const totals = calculateDocumentTotals({
+      taxType: data.taxType,
+      currencyCode: data.currencyCode,
+      lines: data.lines,
       discountPercent: data.discountPercent,
     });
     const linesWithTotals = data.lines.map((line, idx) => ({
@@ -87,10 +86,12 @@ export async function POST(req: NextRequest) {
           discountPercent: totals.discountPercent,
           discountAmount: totals.discountAmount,
           subtotal: totals.subtotal,
-          vatRate,
+          vatRate: totals.vatRate,
           vatAmount: totals.vatAmount,
           totalAmount: totals.totalAmount,
-          vatModePolicy: data.vatModePolicy ?? "PER_LINE",
+          vatModePolicy: totals.vatModePolicy,
+          taxType: totals.taxType,
+          currencyCode: totals.currencyCode,
           billingNature: data.billingNature ?? "GOODS",
           notes: data.notes,
           internalNotes: data.internalNotes,

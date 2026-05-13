@@ -21,8 +21,8 @@ import type { InvoicePdfData } from "../types";
  */
 export function InvoiceGoodsPdf({ data }: { data: InvoicePdfData }) {
   registerPdfFonts();
-  // Phase 8.12 — drop "ใบกำกับภาษี" for non-VAT tenants. Only VAT-registered
-  // sellers are legally allowed to issue tax invoices (ม.86 ประมวลรัษฎากร).
+  // The legacy flag name is derived from document taxType, not tenant settings.
+  // NO_VAT documents must not print "ใบกำกับภาษี"; VAT_* documents keep tax wording.
   const title = data.tenantIsVatRegistered
     ? "ใบกำกับภาษี / ใบแจ้งหนี้"
     : "ใบแจ้งหนี้ / ใบส่งของ";
@@ -59,6 +59,7 @@ export function InvoiceGoodsPdf({ data }: { data: InvoicePdfData }) {
           items={data.items}
           showCodeColumn
           descColLabel="รายการสินค้า"
+          currencyCode={data.currencyCode}
         />
 
         <TotalsBox
@@ -68,6 +69,7 @@ export function InvoiceGoodsPdf({ data }: { data: InvoicePdfData }) {
           vatAmount={data.tenantIsVatRegistered ? data.totals.vatAmount : null}
           grandTotal={data.totals.totalAmount}
           bahtAmount={data.totals.totalAmount}
+          currencyCode={data.currencyCode}
         />
 
         {data.oemDisclaimer && (

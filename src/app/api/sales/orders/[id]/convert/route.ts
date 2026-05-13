@@ -46,7 +46,8 @@ export async function POST(req: NextRequest, { params }: Params) {
       );
     }
 
-    const vatRate = quotation.customer.isVatRegistered ? 7 : 0;
+    // Map quotation lines to SO lines. Tax/currency totals are copied from the approved quotation.
+    // Quotation tax type is the source of truth, not customer VAT registration.
 
     // Map quotation lines to SO lines
     const soLines = quotation.lines.map((line, idx) => ({
@@ -72,16 +73,12 @@ export async function POST(req: NextRequest, { params }: Params) {
         (line.customerBranding ?? undefined) as Prisma.InputJsonValue | undefined,
     }));
 
-    const subtotal = soLines.reduce(
-      (sum, l) => sum + Number(l.lineTotal),
-      0
-    );
-
+    const subtotal = Number(quotation.subtotal);
     const discountPercent = Number(quotation.discountPercent);
-    const discountAmount = Math.round((subtotal * discountPercent) / 100);
-    const afterDiscount = Math.round((subtotal - discountAmount) * 100) / 100;
-    const vatAmount = Math.round((afterDiscount * vatRate) / 100);
-    const totalAmount = Math.round((afterDiscount + vatAmount) * 100) / 100;
+    const discountAmount = Number(quotation.discountAmount);
+    const vatRate = Number(quotation.vatRate);
+    const vatAmount = Number(quotation.vatAmount);
+    const totalAmount = Number(quotation.totalAmount);
     const depositAmount = Math.round((totalAmount * depositPercent) / 100);
 
     const order = await prisma.$transaction(async (tx) => {
@@ -106,6 +103,8 @@ export async function POST(req: NextRequest, { params }: Params) {
           vatAmount,
           totalAmount,
           vatModePolicy: quotation.vatModePolicy,
+          taxType: quotation.taxType,
+          currencyCode: quotation.currencyCode,
           paymentTerms: quotation.paymentTerms || null,
           billingNature: quotation.billingNature,
           notes: quotation.notes || null,

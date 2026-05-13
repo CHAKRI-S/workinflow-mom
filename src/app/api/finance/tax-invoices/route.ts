@@ -5,6 +5,7 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
+import { formatCustomerDisplayName } from "@/lib/customer-name";
 
 // GET /api/finance/tax-invoices — list all tax invoices for tenant
 export async function GET(req: NextRequest) {
@@ -71,6 +72,9 @@ export async function POST(req: NextRequest) {
             name: true,
             taxId: true,
             billingAddress: true,
+            juristicType: true,
+            individualTitle: true,
+            individualTitleOther: true,
           },
         },
       },
@@ -90,7 +94,6 @@ export async function POST(req: NextRequest) {
         name: true,
         taxId: true,
         address: true,
-        isVatRegistered: true, // Phase 8.12 — gate tax invoice creation
       },
     });
 
@@ -101,17 +104,40 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Phase 8.12 — refuse to create a tax invoice for a non-VAT tenant.
-    // Only VAT-registered sellers may issue ใบกำกับภาษี (ม.86 ประมวลรัษฎากร).
-    // User must register for VAT (or toggle the flag in admin settings if
-    // already registered) before issuing this document type.
-    if (!tenant.isVatRegistered) {
+    if (invoice.taxType === "NO_VAT" || Number(invoice.vatAmount) <= 0) {
       return NextResponse.json(
         {
           error:
-            "บริษัทยังไม่ได้จดทะเบียนภาษีมูลค่าเพิ่ม จึงไม่สามารถออกใบกำกับภาษีได้ — กรุณาไปที่ Settings เพื่อเปิดสถานะ VAT ก่อน",
+            "เอกสารนี้เป็นประเภทไม่มี VAT จึงไม่สามารถออกใบกำกับภาษีได้",
         },
         { status: 422 }
+      );
+    }
+
+    const customerDisplayName = formatCustomerDisplayName({
+      name: invoice.customer.name,
+      juristicType: invoice.customer.juristicType,
+      individualTitle: invoice.customer.individualTitle,
+      individualTitleOther: invoice.customer.individualTitleOther,
+    });
+
+    const existingTaxInvoice = await prisma.taxInvoice.findFirst({
+      where: {
+        tenantId,
+        invoiceId,
+        status: { not: "CANCELLED" },
+      },
+      select: { id: true, taxInvoiceNumber: true },
+    });
+
+    if (existingTaxInvoice) {
+      return NextResponse.json(
+        {
+          error: "มีใบกำกับภาษีสำหรับใบแจ้งหนี้นี้แล้ว",
+          taxInvoiceId: existingTaxInvoice.id,
+          taxInvoiceNumber: existingTaxInvoice.taxInvoiceNumber,
+        },
+        { status: 409 }
       );
     }
 
@@ -127,10 +153,11 @@ export async function POST(req: NextRequest) {
           invoiceId,
           status: "DRAFT",
           issueDate: new Date(),
-          // Buyer info (snapshot from customer)
-          buyerName: invoice.customer.name,
-          buyerTaxId: invoice.customer.taxId || null,
-          buyerAddress: invoice.customer.billingAddress || null,
+          // Buyer info (snapshot from source invoice, with formatted customer fallback)
+          buyerName: invoice.snapshotCustomerName || customerDisplayName,
+          buyerTaxId: invoice.snapshotCustomerTaxId || invoice.customer.taxId || null,
+          buyerAddress:
+            invoice.snapshotCustomerAddress || invoice.customer.billingAddress || null,
           buyerBranch: null,
           // Seller info (snapshot from tenant)
           sellerName: tenant.name,
@@ -141,6 +168,8 @@ export async function POST(req: NextRequest) {
           vatRate: Number(invoice.vatRate),
           vatAmount: Number(invoice.vatAmount),
           totalAmount: Number(invoice.totalAmount),
+          taxType: invoice.taxType,
+          currencyCode: invoice.currencyCode,
           notes: notes || null,
           tenantId,
         },

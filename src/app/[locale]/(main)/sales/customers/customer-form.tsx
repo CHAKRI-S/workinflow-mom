@@ -23,6 +23,7 @@ import { Link } from "@/i18n/navigation";
 import {
   BusinessInfoSection,
   type BusinessInfoValue,
+  type IndividualTitleValue,
   type JuristicTypeValue,
 } from "@/components/forms/business-info-section";
 
@@ -89,6 +90,8 @@ export function CustomerForm({
   const watched = watch();
   const businessInfo: BusinessInfoValue = {
     juristicType: (watched.juristicType as JuristicTypeValue | "") || "",
+    individualTitle: (watched.individualTitle as IndividualTitleValue | "") || "",
+    individualTitleOther: watched.individualTitleOther || "",
     taxId: watched.taxId || "",
     branchNo: watched.branchNo || "00000",
     name: watched.name || "",
@@ -106,6 +109,17 @@ export function CustomerForm({
       );
     }
     if (patch.taxId !== undefined) setValue("taxId", patch.taxId);
+    if (patch.individualTitle !== undefined) {
+      setValue(
+        "individualTitle",
+        patch.individualTitle === ""
+          ? undefined
+          : (patch.individualTitle as CustomerCreateInput["individualTitle"]),
+      );
+    }
+    if (patch.individualTitleOther !== undefined) {
+      setValue("individualTitleOther", patch.individualTitleOther || undefined);
+    }
     if (patch.branchNo !== undefined) setValue("branchNo", patch.branchNo);
     if (patch.name !== undefined) setValue("name", patch.name);
     if (patch.address !== undefined)
@@ -129,6 +143,12 @@ export function CustomerForm({
         billingAddress: data.billingAddress || undefined,
         shippingAddress: data.shippingAddress || undefined,
         juristicType: data.juristicType || undefined,
+        individualTitle:
+          data.juristicType === "INDIVIDUAL" ? data.individualTitle || undefined : undefined,
+        individualTitleOther:
+          data.juristicType === "INDIVIDUAL" && data.individualTitle === "OTHER"
+            ? data.individualTitleOther?.trim() || undefined
+            : undefined,
         branchNo: data.branchNo || undefined,
         country: data.country || "TH",
         creditLimit: data.creditLimit && !isNaN(data.creditLimit) ? data.creditLimit : undefined,
@@ -189,6 +209,11 @@ export function CustomerForm({
           />
           {errors.name && (
             <p className="text-xs text-destructive">{errors.name.message}</p>
+          )}
+          {errors.individualTitleOther && (
+            <p className="text-xs text-destructive">
+              {errors.individualTitleOther.message}
+            </p>
           )}
         </Card>
 

@@ -3,12 +3,33 @@
  * Pure functions — no side effects, safe for server + client.
  */
 
+import { formatMoney, normalizeCurrencyCode } from "@/lib/currency";
+
 export function formatCurrency(n: number | string | null | undefined): string {
   const v = Number(n ?? 0);
   return v.toLocaleString("en-US", {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   });
+}
+
+export function formatPdfMoney(
+  n: number | string | null | undefined,
+  currencyCode: string | null | undefined = "THB",
+): string {
+  return formatMoney(Number(n ?? 0), currencyCode);
+}
+
+export function pdfAmountText(
+  amount: number | string,
+  currencyCode: string | null | undefined = "THB",
+): string {
+  const normalizedCurrency = normalizeCurrencyCode(currencyCode);
+  if (normalizedCurrency === "THB") {
+    return bahtText(amount);
+  }
+
+  return formatPdfMoney(amount, normalizedCurrency);
 }
 
 export function formatDateTh(

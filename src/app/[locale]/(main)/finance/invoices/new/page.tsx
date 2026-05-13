@@ -36,7 +36,8 @@ export default async function NewInvoicePage({
       vatAmount: true,
       discountAmount: true,
       depositAmount: true,
-      vatModePolicy: true,
+      taxType: true,
+      currencyCode: true,
       billingNature: true,
       customer: {
         select: {

@@ -1,6 +1,6 @@
 import { Text, View } from "@react-pdf/renderer";
 import { pdfStyles } from "../styles";
-import { bahtText, formatCurrency } from "../format";
+import { formatPdfMoney, pdfAmountText } from "../format";
 
 export interface TotalsProps {
   subtotal: number | string;
@@ -13,6 +13,7 @@ export interface TotalsProps {
   netTotal?: number | string | null; // ยอดรับสุทธิหลัง WHT (ใช้กับ receipt)
   bahtAmount: number | string; // ตัวเลขสำหรับคำอ่านภาษาไทย (grandTotal หรือ netTotal)
   grandLabel?: string; // default "รวมทั้งสิ้น"
+  currencyCode?: string | null;
 }
 
 export function TotalsBox({
@@ -26,10 +27,16 @@ export function TotalsBox({
   netTotal,
   bahtAmount,
   grandLabel = "รวมทั้งสิ้น",
+  currencyCode = "THB",
 }: TotalsProps) {
-  const showDiscount = discountAmount && Number(discountAmount) !== 0;
-  const showVat = vatAmount !== null && vatAmount !== undefined && Number(vatAmount) !== 0;
-  const showWht = whtAmount !== null && whtAmount !== undefined && Number(whtAmount) !== 0;
+  const showDiscount =
+    discountAmount !== null &&
+    discountAmount !== undefined &&
+    Number(discountAmount) !== 0;
+  const showVat =
+    vatAmount !== null && vatAmount !== undefined && Number(vatAmount) !== 0;
+  const showWht =
+    whtAmount !== null && whtAmount !== undefined && Number(whtAmount) !== 0;
   const showNet = netTotal !== null && netTotal !== undefined;
 
   return (
@@ -38,43 +45,43 @@ export function TotalsBox({
         <View style={pdfStyles.totalsBox}>
           <View style={pdfStyles.totalsLine}>
             <Text>รวมเป็นเงิน</Text>
-            <Text>{formatCurrency(subtotal)}</Text>
+            <Text>{formatPdfMoney(subtotal, currencyCode)}</Text>
           </View>
           {showDiscount && (
             <View style={[pdfStyles.totalsLine, pdfStyles.totalsLineAlt]}>
               <Text>ส่วนลด</Text>
-              <Text>({formatCurrency(discountAmount)})</Text>
+              <Text>({formatPdfMoney(discountAmount, currencyCode)})</Text>
             </View>
           )}
           {showVat && (
             <View style={pdfStyles.totalsLine}>
               <Text>ภาษีมูลค่าเพิ่ม {vatRate ? `${vatRate}%` : ""}</Text>
-              <Text>{formatCurrency(vatAmount)}</Text>
+              <Text>{formatPdfMoney(vatAmount, currencyCode)}</Text>
             </View>
           )}
           <View style={pdfStyles.totalsGrand}>
             <Text>{grandLabel}</Text>
-            <Text>{formatCurrency(grandTotal)}</Text>
+            <Text>{formatPdfMoney(grandTotal, currencyCode)}</Text>
           </View>
           {showWht && (
             <View style={[pdfStyles.totalsLine, pdfStyles.totalsLineAlt]}>
               <Text>
                 หัก ณ ที่จ่าย {whtRate ? `${whtRate}%` : ""}
               </Text>
-              <Text>({formatCurrency(whtAmount)})</Text>
+              <Text>({formatPdfMoney(whtAmount, currencyCode)})</Text>
             </View>
           )}
           {showNet && (
             <View style={pdfStyles.totalsGrand}>
               <Text>ยอดรับสุทธิ</Text>
-              <Text>{formatCurrency(netTotal)}</Text>
+              <Text>{formatPdfMoney(netTotal, currencyCode)}</Text>
             </View>
           )}
         </View>
       </View>
 
       <View style={pdfStyles.bahtBox}>
-        <Text>({bahtText(bahtAmount)})</Text>
+        <Text>({pdfAmountText(bahtAmount, currencyCode)})</Text>
       </View>
     </>
   );

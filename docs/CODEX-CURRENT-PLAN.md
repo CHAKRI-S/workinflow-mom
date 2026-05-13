@@ -1,8 +1,10 @@
-# Codex Current Plan - 2026-04-30
+# Codex Current Plan - 2026-05-13
 
 This plan replaces the stale pending/deferred notes that were copied forward in
 `CLAUDE.md` and older deploy docs. It is based on code inspection, not only on
-documentation.
+documentation. Latest local documentation update added
+`docs/SALES-DOCUMENT-TAX-CURRENCY.md` for the tax type, currency snapshot, and
+customer legal-name handoff.
 
 ## Verified In Code
 
@@ -86,8 +88,11 @@ npx prisma migrate deploy
    - Confirm `Receipt.whtCertReceivedAt`, `Receipt.whtCertFileUrl`,
      `PlatformSettings`, `Tenant.omiseCustomerId`, `Tenant.isVatRegistered`,
      `Product.defaultVatPriceMode`, `Quotation.vatModePolicy`,
-     `SalesOrder.vatModePolicy`, `Invoice.vatModePolicy`, and
-     `CreditNote.vatModePolicy` exist in production DB.
+     `SalesOrder.vatModePolicy`, `Invoice.vatModePolicy`,
+     `CreditNote.vatModePolicy`, `DocumentTaxType`, `IndividualTitle`,
+     `Customer.individualTitle`, `Customer.individualTitleOther`, and
+     document `taxType`/`currencyCode` snapshots on Quotation, SalesOrder,
+     Invoice, TaxInvoice, Receipt, and CreditNote exist in production DB.
 
 2. **Verify GitHub/Coolify deploy secrets**
    - Pushes to `main` trigger `.github/workflows/deploy.yml`; recent deploy
@@ -119,12 +124,18 @@ npx prisma migrate deploy
 
 ### P1 - Product/Security Follow-Ups
 
-1. **VAT price mode per bill - implemented, needs production migration**
-   - New requirement: users must be able to choose per document/bill whether
-     prices are VAT outside (`EXCLUSIVE`) or VAT included (`INCLUSIVE`).
-   - See `docs/VAT-PRICE-MODE-PLAN.md`.
-   - Implemented in code on 2026-04-30 with new migration
-     `20260430090000_add_vat_price_mode`.
+1. **VAT price mode, document tax type, currency snapshot, and legal customer names - implemented locally, needs production migration**
+   - Users can choose document tax type (`VAT_EXCLUSIVE`, `VAT_INCLUSIVE`,
+     `NO_VAT`) independently from customer VAT registration defaults.
+   - Documents store `currencyCode` as a per-document snapshot; MVP displays the
+     selected currency without automatic FX conversion.
+   - Customer `name` remains the base name; legal/accounting document snapshots
+     use formatted names from juristic type / individual title fields.
+   - See `docs/VAT-PRICE-MODE-PLAN.md` for line-level VAT price mode and
+     `docs/SALES-DOCUMENT-TAX-CURRENCY.md` for the tax/currency/legal-name
+     handoff and rollout checklist.
+   - Implemented in code with migrations `20260430090000_add_vat_price_mode` and
+     `20260513113300_tax_type_currency_customer_legal_name`.
    - Still requires production `npx prisma migrate deploy` after DB backup.
 
 2. **Improve SA self password change**
@@ -154,8 +165,9 @@ npx prisma migrate deploy
 2. P0: production migration/env verification.
 3. P0: push renewal retry scheduler and verify first run.
 4. P0: configure Coolify database backups and run one restore test.
-5. P1: deploy VAT price mode migration after backup, then smoke test
-   quotation -> SO -> invoice totals.
+5. P1: deploy VAT price mode and tax/currency/legal-name migrations after backup,
+   then smoke test quotation -> SO -> invoice -> tax invoice/receipt/credit note
+   totals, PDF labels, currency display, and Tax Invoice singleton blocking.
 6. P1: SA self password-change hardening.
 7. P1: update stale deployment docs after production verification.
 8. Deferred: AP module, then PND53 export.

@@ -37,6 +37,12 @@ import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
 import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
 import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { calculateVatTotals } from "@/lib/vat";
+import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
+import {
+  TAX_TYPE_OPTIONS,
+  resolveTaxCalculation,
+  type DocumentTaxType,
+} from "@/lib/tax-type";
 import type {
   BillingNature,
   DrawingSource,
@@ -103,7 +109,9 @@ export function QuotationForm({
       deliveryTerms: "",
       leadTimeDays: undefined,
       discountPercent: 0,
-      vatModePolicy: "PER_LINE",
+      taxType: "VAT_EXCLUSIVE",
+      currencyCode: "THB",
+      vatModePolicy: "FORCE_EXCLUSIVE",
       billingNature: "GOODS",
       notes: "",
       internalNotes: "",
@@ -134,9 +142,12 @@ export function QuotationForm({
 
   const watchLines = watch("lines");
   const watchDiscountPercent = watch("discountPercent");
-  const watchVatModePolicy = (watch("vatModePolicy") ?? "PER_LINE") as VatModePolicy;
+  const watchTaxType = (watch("taxType") ?? "VAT_EXCLUSIVE") as DocumentTaxType;
+  const watchCurrencyCode = watch("currencyCode") ?? "THB";
   const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
-  const vatRate = selectedCustomer?.isVatRegistered ? 7 : 0;
+  const taxCalculation = resolveTaxCalculation(watchTaxType);
+  const vatRate = taxCalculation.vatRate;
+  const watchVatModePolicy = taxCalculation.vatModePolicy as VatModePolicy;
   const totals = calculateVatTotals(watchLines || [], {
     vatRate,
     vatModePolicy: watchVatModePolicy,
@@ -164,7 +175,8 @@ export function QuotationForm({
 
   const watchedCustomerId = watch("customerId");
 
-  // Track selected customer for VAT display + pre-fill billing nature from customer default
+  // Track selected customer for display + pre-fill billing nature from customer default.
+  // VAT is selected per quotation, not derived from customer VAT registration.
   useEffect(() => {
     if (watchedCustomerId && customers.length > 0) {
       const found = customers.find((c) => c.id === watchedCustomerId);
@@ -258,11 +270,6 @@ export function QuotationForm({
                   {errors.customerId.message}
                 </p>
               )}
-              {selectedCustomer && (
-                <p className="text-xs text-muted-foreground">
-                  {t("vatRate")}: {vatRate}%
-                </p>
-              )}
             </div>
 
             {/* Valid Until */}
@@ -322,6 +329,75 @@ export function QuotationForm({
                 {...register("discountPercent", { valueAsNumber: true })}
               />
             </div>
+
+            {/* Tax Type */}
+            <div className="space-y-2">
+              <Label>ประเภทภาษี</Label>
+              <Select
+                value={watchTaxType}
+                onValueChange={(value) => {
+                  const taxType = value as DocumentTaxType;
+                  const nextCalculation = resolveTaxCalculation(taxType);
+                  setValue("taxType", taxType, { shouldDirty: true });
+                  setValue("vatModePolicy", nextCalculation.vatModePolicy, {
+                    shouldDirty: true,
+                  });
+                }}
+              >
+                <SelectTrigger aria-label="ประเภทภาษี: รวม VAT / แยก VAT / ไม่มี VAT">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {TAX_TYPE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      <div className="flex flex-col">
+                        <span>{option.labelTh}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {option.descriptionTh}
+                        </span>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.taxType && (
+                <p className="text-xs text-destructive">
+                  {errors.taxType.message}
+                </p>
+              )}
+            </div>
+
+            {/* Currency */}
+            <div className="space-y-2">
+              <Label>สกุลเงิน</Label>
+              <Select
+                value={watchCurrencyCode}
+                onValueChange={(value) =>
+                  setValue("currencyCode", value as QuotationCreateInput["currencyCode"], {
+                    shouldDirty: true,
+                  })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {CURRENCY_OPTIONS.map((option) => (
+                    <SelectItem key={option.code} value={option.code}>
+                      {option.code} — {option.label} ({option.symbol})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {errors.currencyCode && (
+                <p className="text-xs text-destructive">
+                  {errors.currencyCode.message}
+                </p>
+              )}
+              <p className="text-xs text-amber-700 dark:text-amber-400">
+                การเปลี่ยนสกุลเงินไม่แปลงราคาอัตโนมัติ กรุณาตรวจราคาต่อหน่วยอีกครั้ง
+              </p>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -336,29 +412,21 @@ export function QuotationForm({
       <Card>
         <CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-2">
           <div className="space-y-2">
-            <Label>VAT ของบิลนี้</Label>
-            <Select
-              value={watchVatModePolicy}
-              onValueChange={(v) => setValue("vatModePolicy", v as VatModePolicy)}
-            >
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="PER_LINE">ตามสินค้าแต่ละรายการ</SelectItem>
-                <SelectItem value="FORCE_EXCLUSIVE">บังคับ VAT นอกทั้งบิล</SelectItem>
-                <SelectItem value="FORCE_INCLUSIVE">บังคับ VAT ในทั้งบิล</SelectItem>
-              </SelectContent>
-            </Select>
+            <Label>สรุปภาษีของใบเสนอราคา</Label>
+            <p className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
+              {TAX_TYPE_OPTIONS.find((option) => option.value === watchTaxType)?.labelTh}
+              {" — "}
+              VAT {vatRate}%
+            </p>
           </div>
           <div className="rounded-md border p-3 text-sm text-muted-foreground">
             <div className="flex justify-between">
-              <span>รายการ VAT นอก</span>
-              <span>{totals.modeSummary.EXCLUSIVE.count}</span>
+              <span>สกุลเงินเอกสาร</span>
+              <span>{watchCurrencyCode}</span>
             </div>
             <div className="flex justify-between">
-              <span>รายการ VAT ใน</span>
-              <span>{totals.modeSummary.INCLUSIVE.count}</span>
+              <span>ตัวอย่างยอดรวม</span>
+              <span>{formatMoney(totalAmount, watchCurrencyCode)}</span>
             </div>
           </div>
         </CardContent>
@@ -420,7 +488,6 @@ export function QuotationForm({
                     <TableHead className="w-[120px]">
                       {t("unitPrice")}
                     </TableHead>
-                    <TableHead className="w-[130px]">VAT</TableHead>
                     <TableHead className="w-[80px]">
                       {t("discountPercent")}
                     </TableHead>
@@ -432,13 +499,8 @@ export function QuotationForm({
                 </TableHeader>
                 <TableBody>
                   {fields.map((field, index) => {
-                    const line = watchLines?.[index];
                     const calculatedLine = totals.lines[index];
                     const lineTotal = calculatedLine?.lineTotal ?? 0;
-                    const effectiveMode =
-                      calculatedLine?.vatPriceMode ??
-                      line?.vatPriceMode ??
-                      "EXCLUSIVE";
                     return (
                       <TableRow key={field.id}>
                         <TableCell className="text-muted-foreground">
@@ -500,31 +562,6 @@ export function QuotationForm({
                           />
                         </TableCell>
                         <TableCell>
-                          <Select
-                            value={line?.vatPriceMode ?? "EXCLUSIVE"}
-                            onValueChange={(v) =>
-                              setValue(
-                                `lines.${index}.vatPriceMode`,
-                                v as VatPriceMode,
-                              )
-                            }
-                            disabled={watchVatModePolicy !== "PER_LINE"}
-                          >
-                            <SelectTrigger className="w-[120px]">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="EXCLUSIVE">VAT นอก</SelectItem>
-                              <SelectItem value="INCLUSIVE">VAT ใน</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          {watchVatModePolicy !== "PER_LINE" && (
-                            <p className="mt-1 text-[11px] text-muted-foreground">
-                              ใช้ {effectiveMode === "INCLUSIVE" ? "VAT ใน" : "VAT นอก"}
-                            </p>
-                          )}
-                        </TableCell>
-                        <TableCell>
                           <Input
                             type="number"
                             step="0.01"
@@ -548,10 +585,7 @@ export function QuotationForm({
                           />
                         </TableCell>
                         <TableCell className="text-right font-medium">
-                          {lineTotal.toLocaleString(undefined, {
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          })}
+                          {formatMoney(lineTotal, watchCurrencyCode)}
                         </TableCell>
                         <TableCell>
                           <Button
@@ -663,10 +697,7 @@ export function QuotationForm({
               <div className="flex justify-between">
                 <span>{t("subtotal")}</span>
                 <span className="font-medium">
-                  {subtotal.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
+{formatMoney(subtotal, watchCurrencyCode)}
                 </span>
               </div>
               {(watchDiscountPercent || 0) > 0 && (
@@ -676,34 +707,19 @@ export function QuotationForm({
                   </span>
                   <span>
                     -
-                    {discountAmount.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
+{formatMoney(discountAmount, watchCurrencyCode)}
                   </span>
                 </div>
               )}
-              {vatRate > 0 && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>
-                    {t("vatAmount")} ({vatRate}%)
-                  </span>
-                  <span>
-                    {vatAmount.toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between text-muted-foreground">
+                <span>
+                  {t("vatAmount")} ({vatRate}%)
+                </span>
+                <span>{formatMoney(vatAmount, watchCurrencyCode)}</span>
+              </div>
               <div className="flex justify-between border-t pt-2 font-bold text-base">
                 <span>{t("totalAmount")}</span>
-                <span>
-                  {totalAmount.toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                    maximumFractionDigits: 2,
-                  })}
-                </span>
+<span>{formatMoney(totalAmount, watchCurrencyCode)}</span>
               </div>
             </div>
           </div>

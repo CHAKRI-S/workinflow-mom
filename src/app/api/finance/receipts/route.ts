@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
-import { generateDocNumber, receiptPrefix } from "@/lib/doc-numbering";
+import { generateDocNumber, receiptPrefixFromTaxType } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
 import {
@@ -71,25 +71,18 @@ export async function POST(req: NextRequest) {
     const body = parsed.data;
     const tenantId = session!.user.tenantId;
 
-    // Fetch invoice + customer (for VAT + WHT policy) + tenant (Phase 8.12)
-    const [invoice, tenant] = await Promise.all([
-      prisma.invoice.findFirst({
-        where: { id: body.invoiceId, tenantId },
-        include: {
-          customer: {
-            select: {
-              isVatRegistered: true,
-              withholdsTax: true,
-              country: true,
-            },
+    // Fetch invoice + customer for inherited tax/currency and WHT policy.
+    const invoice = await prisma.invoice.findFirst({
+      where: { id: body.invoiceId, tenantId },
+      include: {
+        customer: {
+          select: {
+            withholdsTax: true,
+            country: true,
           },
         },
-      }),
-      prisma.tenant.findUnique({
-        where: { id: tenantId },
-        select: { isVatRegistered: true },
-      }),
-    ]);
+      },
+    });
 
     if (!invoice || !invoice.customer) {
       return NextResponse.json(
@@ -97,7 +90,6 @@ export async function POST(req: NextRequest) {
         { status: 404 }
       );
     }
-    const tenantIsVat = tenant?.isVatRegistered ?? true;
 
     if (invoice.status === "CANCELLED") {
       return NextResponse.json(
@@ -123,7 +115,7 @@ export async function POST(req: NextRequest) {
     });
 
     const receipt = await prisma.$transaction(async (tx) => {
-      const prefix = receiptPrefix(tenantIsVat, invoice.customer!.isVatRegistered);
+      const prefix = receiptPrefixFromTaxType(invoice.taxType);
       const receiptNumber = await generateDocNumber(tenantId, prefix);
 
       const created = await tx.receipt.create({
@@ -136,6 +128,8 @@ export async function POST(req: NextRequest) {
           amount: new Prisma.Decimal(netAmount),
           // Snapshot billing nature
           billingNature: invoice.billingNature,
+          taxType: invoice.taxType,
+          currencyCode: invoice.currencyCode,
           grossAmount: new Prisma.Decimal(body.grossAmount),
           whtRate: new Prisma.Decimal(whtRate),
           whtAmount: new Prisma.Decimal(whtAmount),

@@ -13,33 +13,20 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Loader2, Search } from "lucide-react";
+import {
+  JURISTIC_TYPE_OPTIONS,
+  INDIVIDUAL_TITLE_OPTIONS,
+  type IndividualTitle,
+  type JuristicType,
+} from "@/lib/customer-name";
 
-export type JuristicTypeValue =
-  | "COMPANY_LTD"
-  | "PUBLIC_CO"
-  | "LIMITED_PARTNERSHIP"
-  | "FOUNDATION"
-  | "ASSOCIATION"
-  | "JOINT_VENTURE"
-  | "OTHER_JURISTIC"
-  | "INDIVIDUAL";
-
-export const JURISTIC_TYPE_OPTIONS: Array<{
-  value: JuristicTypeValue;
-  labelTh: string;
-}> = [
-  { value: "COMPANY_LTD", labelTh: "บริษัทจำกัด" },
-  { value: "PUBLIC_CO", labelTh: "บริษัทมหาชนจำกัด" },
-  { value: "LIMITED_PARTNERSHIP", labelTh: "ห้างหุ้นส่วนจำกัด" },
-  { value: "FOUNDATION", labelTh: "มูลนิธิ" },
-  { value: "ASSOCIATION", labelTh: "สมาคม" },
-  { value: "JOINT_VENTURE", labelTh: "กิจการร่วมค้า" },
-  { value: "OTHER_JURISTIC", labelTh: "นิติบุคคลอื่นๆ" },
-  { value: "INDIVIDUAL", labelTh: "บุคคลธรรมดา" },
-];
+export type JuristicTypeValue = JuristicType;
+export type IndividualTitleValue = IndividualTitle;
 
 export interface BusinessInfoValue {
   juristicType: JuristicTypeValue | "";
+  individualTitle?: IndividualTitleValue | "";
+  individualTitleOther?: string;
   taxId: string;
   branchNo: string; // "00000" = HQ, else branch number padded to 5
   name: string;
@@ -65,8 +52,8 @@ export function BusinessInfoSection({
   value,
   onChange,
   onAutoFill,
-  nameLabel = "ชื่อบริษัท / ร้านค้า / ชื่อบุคคล",
-  namePlaceholder = "บริษัท ○○○ จำกัด / ร้าน ○○○ / ชื่อบุคคล",
+  nameLabel = "ชื่อจริง / ชื่อกิจการ (ไม่ต้องใส่คำนำหน้าหรือคำลงท้าย)",
+  namePlaceholder = "เช่น เอบีซีแมชชีน / สมชายการช่าง / สมชาย ใจดี",
   showCountry = true,
   disabled,
 }: Props) {
@@ -77,6 +64,8 @@ export function BusinessInfoSection({
   } | null>(null);
 
   const isHQ = !value.branchNo || value.branchNo === "00000";
+  const isIndividual = value.juristicType === "INDIVIDUAL";
+  const showOtherTitle = isIndividual && value.individualTitle === "OTHER";
 
   // Normalize displayed taxId so legacy-stored formatting (dashes, spaces,
   // NBSP) doesn't break the length check or the lookup button.
@@ -159,9 +148,15 @@ export function BusinessInfoSection({
           <Label>ประเภทนิติบุคคล</Label>
           <Select
             value={value.juristicType || ""}
-            onValueChange={(v) =>
-              onChange({ juristicType: (v as JuristicTypeValue) || "" })
-            }
+            onValueChange={(v) => {
+              const juristicType = (v as JuristicTypeValue) || "";
+              onChange({
+                juristicType,
+                ...(juristicType === "INDIVIDUAL"
+                  ? {}
+                  : { individualTitle: undefined, individualTitleOther: "" }),
+              });
+            }}
             disabled={disabled}
           >
             <SelectTrigger className="w-full">
@@ -177,6 +172,56 @@ export function BusinessInfoSection({
           </Select>
         </div>
       </div>
+
+      {isIndividual && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1.5">
+            <Label>คำนำหน้าชื่อบุคคลธรรมดา</Label>
+            <Select
+              value={value.individualTitle || "NONE"}
+              onValueChange={(v) => {
+                const individualTitle = (v as IndividualTitleValue) || "NONE";
+                onChange({
+                  individualTitle,
+                  ...(individualTitle === "OTHER"
+                    ? {}
+                    : { individualTitleOther: "" }),
+                });
+              }}
+              disabled={disabled}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue placeholder="-- เลือกคำนำหน้า --" />
+              </SelectTrigger>
+              <SelectContent>
+                {INDIVIDUAL_TITLE_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={o.value}>
+                    {o.labelTh}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              ใช้สร้างชื่อเต็มในเอกสารอัตโนมัติ ผู้ใช้กรอกเฉพาะชื่อจริงด้านล่าง
+            </p>
+          </div>
+
+          {showOtherTitle && (
+            <div className="space-y-1.5">
+              <Label>คำนำหน้าอื่นๆ *</Label>
+              <Input
+                value={value.individualTitleOther || ""}
+                onChange={(e) => onChange({ individualTitleOther: e.target.value })}
+                placeholder="เช่น ดร. / ผศ."
+                disabled={disabled}
+              />
+              <p className="text-xs text-muted-foreground">
+                จำเป็นเมื่อเลือก “อื่นๆ”
+              </p>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Tax ID + lookup */}
       <div className="space-y-1.5">

@@ -26,6 +26,8 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { formatMoney } from "@/lib/currency";
+import { getTaxTypeLabelTh, type DocumentTaxType } from "@/lib/tax-type";
 import {
   ArrowLeft,
   Send,
@@ -70,6 +72,8 @@ interface QuotationDetail {
   vatRate: string;
   vatAmount: string;
   totalAmount: string;
+  taxType: DocumentTaxType;
+  currencyCode: string;
   notes?: string;
   internalNotes?: string;
   customer: {
@@ -208,6 +212,8 @@ export function QuotationDetailClient({
           >
             {t(`status.${quotation.status}` as Parameters<typeof t>[0])}
           </Badge>
+          <Badge variant="outline">{getTaxTypeLabelTh(quotation.taxType)}</Badge>
+          <Badge variant="secondary">{quotation.currencyCode}</Badge>
         </div>
 
         {/* Action buttons */}
@@ -314,8 +320,16 @@ export function QuotationDetailClient({
               </div>
             )}
             <div className="flex justify-between">
+              <span className="text-muted-foreground">ประเภทภาษี</span>
+              <span>{getTaxTypeLabelTh(quotation.taxType)}</span>
+            </div>
+            <div className="flex justify-between">
               <span className="text-muted-foreground">{t("vatRate")}</span>
               <span>{Number(quotation.vatRate)}%</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">สกุลเงิน</span>
+              <span>{quotation.currencyCode}</span>
             </div>
           </CardContent>
         </Card>
@@ -420,9 +434,7 @@ export function QuotationDetailClient({
                     <TableCell>{line.color || "-"}</TableCell>
                     <TableCell>{line.surfaceFinish || "-"}</TableCell>
                     <TableCell className="text-right">
-                      {Number(line.unitPrice).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                      })}
+                      {formatMoney(Number(line.unitPrice), quotation.currencyCode)}
                     </TableCell>
                     <TableCell className="text-right">
                       {Number(line.discountPercent) > 0
@@ -430,9 +442,7 @@ export function QuotationDetailClient({
                         : "-"}
                     </TableCell>
                     <TableCell className="text-right font-medium">
-                      {Number(line.lineTotal).toLocaleString(undefined, {
-                        minimumFractionDigits: 2,
-                      })}
+                      {formatMoney(Number(line.lineTotal), quotation.currencyCode)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -447,12 +457,20 @@ export function QuotationDetailClient({
         <CardContent className="pt-6">
           <div className="flex justify-end">
             <div className="w-full max-w-xs space-y-2 text-sm">
+              <div className="flex items-center justify-between gap-2 pb-2">
+                <span className="text-muted-foreground">ประเภทภาษี</span>
+                <Badge variant="outline">
+                  {getTaxTypeLabelTh(quotation.taxType)}
+                </Badge>
+              </div>
+              <div className="flex items-center justify-between gap-2 pb-2">
+                <span className="text-muted-foreground">สกุลเงิน</span>
+                <Badge variant="secondary">{quotation.currencyCode}</Badge>
+              </div>
               <div className="flex justify-between">
                 <span>{t("subtotal")}</span>
                 <span className="font-medium">
-                  {Number(quotation.subtotal).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatMoney(Number(quotation.subtotal), quotation.currencyCode)}
                 </span>
               </div>
               {Number(quotation.discountPercent) > 0 && (
@@ -462,31 +480,22 @@ export function QuotationDetailClient({
                   </span>
                   <span>
                     -
-                    {Number(quotation.discountAmount).toLocaleString(
-                      undefined,
-                      { minimumFractionDigits: 2 }
-                    )}
+                    {formatMoney(Number(quotation.discountAmount), quotation.currencyCode)}
                   </span>
                 </div>
               )}
-              {Number(quotation.vatRate) > 0 && (
-                <div className="flex justify-between text-muted-foreground">
-                  <span>
-                    {t("vatAmount")} ({Number(quotation.vatRate)}%)
-                  </span>
-                  <span>
-                    {Number(quotation.vatAmount).toLocaleString(undefined, {
-                      minimumFractionDigits: 2,
-                    })}
-                  </span>
-                </div>
-              )}
+              <div className="flex justify-between text-muted-foreground">
+                <span>
+                  {t("vatAmount")} ({Number(quotation.vatRate)}%)
+                </span>
+                <span>
+                  {formatMoney(Number(quotation.vatAmount), quotation.currencyCode)}
+                </span>
+              </div>
               <div className="flex justify-between border-t pt-2 font-bold text-base">
                 <span>{t("totalAmount")}</span>
                 <span>
-                  {Number(quotation.totalAmount).toLocaleString(undefined, {
-                    minimumFractionDigits: 2,
-                  })}
+                  {formatMoney(Number(quotation.totalAmount), quotation.currencyCode)}
                 </span>
               </div>
             </div>

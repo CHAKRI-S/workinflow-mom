@@ -180,8 +180,8 @@ export default function SignupPage() {
             value={business}
             onChange={patchBusiness}
             onAutoFill={patchBusiness}
-            nameLabel="ชื่อบริษัท"
-            namePlaceholder="บริษัท ○○○ จำกัด"
+            nameLabel="ชื่อจริง / ชื่อกิจการ (ไม่ต้องใส่คำนำหน้าหรือคำลงท้าย)"
+            namePlaceholder="เช่น เอบีซีแมชชีน / สมชายการช่าง"
           />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Field

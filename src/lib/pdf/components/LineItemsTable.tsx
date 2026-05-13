@@ -1,6 +1,6 @@
 import { Text, View } from "@react-pdf/renderer";
 import { pdfStyles } from "../styles";
-import { formatCurrency } from "../format";
+import { formatCurrency, formatPdfMoney } from "../format";
 
 export interface PdfLineItem {
   no: number;
@@ -19,10 +19,12 @@ export function LineItemsTable({
   items,
   showCodeColumn = true,
   descColLabel = "รายการ",
+  currencyCode = "THB",
 }: {
   items: PdfLineItem[];
   showCodeColumn?: boolean;
   descColLabel?: string;
+  currencyCode?: string | null;
 }) {
   const descStyle = showCodeColumn ? pdfStyles.colDesc : pdfStyles.colDescWide;
   return (
@@ -70,10 +72,10 @@ export function LineItemsTable({
             {it.unit ? ` ${it.unit}` : ""}
           </Text>
           <Text style={[pdfStyles.tdText, pdfStyles.colPrice]}>
-            {formatCurrency(it.unitPrice)}
+            {formatPdfMoney(it.unitPrice, currencyCode)}
           </Text>
           <Text style={[pdfStyles.tdText, pdfStyles.colAmount]}>
-            {formatCurrency(it.lineTotal)}
+            {formatPdfMoney(it.lineTotal, currencyCode)}
           </Text>
         </View>
       ))}

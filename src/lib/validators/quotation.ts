@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { billingNatureEnum, lineTaxFieldsSchema } from "./billing-nature";
+import { documentTaxAndCurrencySchema } from "./document-fields";
 import { VAT_MODE_POLICIES, VAT_PRICE_MODES } from "@/lib/vat";
 
 export const quotationLineSchema = z
@@ -19,7 +20,8 @@ export const quotationLineSchema = z
   })
   .merge(lineTaxFieldsSchema);
 
-export const quotationCreateSchema = z.object({
+export const quotationCreateSchema = z
+  .object({
   customerId: z.string().min(1, "Required"),
   validUntil: z.string().min(1, "Required"),
   paymentTerms: z.string().optional(),
@@ -31,7 +33,8 @@ export const quotationCreateSchema = z.object({
   notes: z.string().optional(),
   internalNotes: z.string().optional(),
   lines: z.array(quotationLineSchema).min(1, "At least one line required"),
-});
+})
+  .merge(documentTaxAndCurrencySchema);
 
 export const quotationUpdateSchema = quotationCreateSchema.partial();
 

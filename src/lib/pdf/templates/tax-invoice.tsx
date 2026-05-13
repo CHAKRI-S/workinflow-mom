@@ -35,9 +35,8 @@ export function TaxInvoicePdf({ data }: { data: TaxInvoicePdfData }) {
       <Page size="A4" style={pdfStyles.page}>
         <CancelledWatermark show={data.status === "CANCELLED"} />
         {/*
-          Phase 8.12 — defensive banner. If a non-VAT tenant somehow renders
-          this template (API should block first), print a prominent warning
-          so the invalid document is obviously non-authoritative.
+          Defensive banner for legacy/corrupt NO_VAT rows. The template flag is
+          derived from document taxType, so normal TaxInvoice rows should be VAT_*.
         */}
         {!data.tenantIsVatRegistered && (
           <View style={pdfStyles.noteBox}>
@@ -72,6 +71,7 @@ export function TaxInvoicePdf({ data }: { data: TaxInvoicePdfData }) {
           descColLabel={
             isService ? "รายการบริการ" : isMixed ? "รายการ" : "รายการสินค้า"
           }
+          currencyCode={data.currencyCode}
         />
 
         <TotalsBox
@@ -80,6 +80,7 @@ export function TaxInvoicePdf({ data }: { data: TaxInvoicePdfData }) {
           vatAmount={data.totals.vatAmount}
           grandTotal={data.totals.totalAmount}
           bahtAmount={data.totals.totalAmount}
+          currencyCode={data.currencyCode}
         />
 
         {data.notes && (

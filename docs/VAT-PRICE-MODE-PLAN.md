@@ -1,7 +1,10 @@
 # VAT Price Mode Plan
 
-Status on 2026-04-30: implementation is in progress/completed in code for the
-MVP surfaces below. Production still needs the new Prisma migration deployed.
+Status on 2026-05-13: line-level VAT price mode is implemented in code for
+the MVP surfaces below. Production still needs the Prisma migrations deployed.
+For document-level tax type (`VAT_EXCLUSIVE`/`VAT_INCLUSIVE`/`NO_VAT`),
+currency snapshots, and legal customer-name snapshots, see
+`docs/SALES-DOCUMENT-TAX-CURRENCY.md`.
 
 Implemented in this pass:
 
