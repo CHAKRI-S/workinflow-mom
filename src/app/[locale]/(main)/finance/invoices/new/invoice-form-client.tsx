@@ -26,16 +26,9 @@ import {
 } from "@/components/ui/table";
 import { useState, useMemo, useEffect } from "react";
 import { ArrowLeft, Loader2, Save } from "lucide-react";
-import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
-import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
-import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 import { formatMoney, getCurrencyLabel, type CurrencyCode } from "@/lib/currency";
 import { getTaxTypeLabelTh, type DocumentTaxType } from "@/lib/tax-type";
-import type {
-  BillingNature,
-  DrawingSource,
-} from "@/lib/validators/billing-nature";
 import type { VatPriceMode } from "@/lib/vat";
 
 interface SOLine {
@@ -48,12 +41,6 @@ interface SOLine {
   lineTotal: string;
   notes: string | null;
   sortOrder: number;
-  drawingSource?: DrawingSource | null;
-  lineBillingNature?: BillingNature | null;
-  productCode?: string | null;
-  drawingRevision?: string | null;
-  customerDrawingUrl?: string | null;
-  customerBranding?: { mark?: string; logoRef?: string; method?: string } | null;
   product: { id: string; name: string };
 }
 
@@ -68,19 +55,12 @@ interface SalesOrderOption {
   depositAmount: string;
   taxType: DocumentTaxType;
   currencyCode: CurrencyCode;
-  billingNature?: BillingNature | null;
   customer: {
     id: string;
     code: string;
     name: string;
     isVatRegistered: boolean;
     withholdsTax?: boolean;
-    defaultBillingNature?: BillingNature | null;
-    brandingAssets?: {
-      defaultMark?: string;
-      logoUrl?: string;
-      notes?: string;
-    } | null;
   };
   lines: SOLine[];
 }
@@ -95,11 +75,6 @@ interface InvoiceLineDraft {
   lineTotal: number;
   notes: string | null;
   sortOrder: number;
-  drawingSource: DrawingSource;
-  productCode: string;
-  drawingRevision: string;
-  customerDrawingUrl: string;
-  customerMark: string;
 }
 
 const INVOICE_TYPES = ["DEPOSIT", "FULL", "REMAINING", "PARTIAL"] as const;
@@ -117,7 +92,6 @@ export function InvoiceFormClient({
   const [dueDate, setDueDate] = useState<string>("");
   const [notes, setNotes] = useState<string>("");
   const [saving, setSaving] = useState(false);
-  const [billingNature, setBillingNature] = useState<BillingNature>("GOODS");
   const [lineDrafts, setLineDrafts] = useState<InvoiceLineDraft[]>([]);
 
   const selectedSO = useMemo(() => {
@@ -140,34 +114,9 @@ export function InvoiceFormClient({
       lineTotal: Number(line.lineTotal),
       notes: line.notes,
       sortOrder: line.sortOrder,
-      drawingSource: (line.drawingSource as DrawingSource) ?? "TENANT_OWNED",
-      productCode: line.productCode ?? "",
-      drawingRevision: line.drawingRevision ?? "",
-      customerDrawingUrl: line.customerDrawingUrl ?? "",
-      // Inherit mark from SO line, or fall back to customer default
-      customerMark:
-        line.customerBranding?.mark ??
-        selectedSO.customer.brandingAssets?.defaultMark ??
-        "",
     }));
     setLineDrafts(drafts);
-
-    // Resolve initial billingNature: SO snapshot > customer default > GOODS
-    const initial =
-      (selectedSO.billingNature as BillingNature | null | undefined) ??
-      selectedSO.customer.defaultBillingNature ??
-      "GOODS";
-    setBillingNature(initial);
   }, [selectedSO]);
-
-  // Auto-suggest from line drawing sources
-  const suggestedBillingNature = useMemo(
-    () =>
-      suggestBillingNature(
-        lineDrafts.map((l) => ({ drawingSource: l.drawingSource }))
-      ),
-    [lineDrafts]
-  );
 
   // Calculate totals
   const { subtotal, vatRate, vatAmount, totalAmount, vatSummary, calculatedLines } = useMemo(() => {
@@ -205,18 +154,6 @@ export function InvoiceFormClient({
     return formatMoney(amount, selectedSO?.currencyCode ?? "THB");
   };
 
-  const updateLineField = <K extends keyof InvoiceLineDraft>(
-    index: number,
-    key: K,
-    value: InvoiceLineDraft[K]
-  ) => {
-    setLineDrafts((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], [key]: value };
-      return next;
-    });
-  };
-
   const handleSubmit = async () => {
     if (!selectedSOId) {
       alert(t("invoice.selectSalesOrder"));
@@ -240,7 +177,6 @@ export function InvoiceFormClient({
           dueDate,
           taxType: selectedSO.taxType,
           currencyCode: selectedSO.currencyCode,
-          billingNature,
           lines: lineDrafts.map((l) => ({
             salesOrderLineId: l.salesOrderLineId,
             description: l.description,
@@ -250,13 +186,6 @@ export function InvoiceFormClient({
             vatPriceMode: l.vatPriceMode,
             notes: l.notes,
             sortOrder: l.sortOrder,
-            drawingSource: l.drawingSource,
-            productCode: l.productCode || undefined,
-            drawingRevision: l.drawingRevision || undefined,
-            customerDrawingUrl: l.customerDrawingUrl || undefined,
-            customerBranding: l.customerMark.trim()
-              ? { mark: l.customerMark.trim() }
-              : undefined,
           })),
           notes: notes || undefined,
         }),
@@ -373,15 +302,6 @@ export function InvoiceFormClient({
         </div>
       </Card>
 
-      {/* Billing Nature */}
-      {selectedSO && (
-        <BillingNaturePicker
-          value={billingNature}
-          suggestion={suggestedBillingNature}
-          onChange={setBillingNature}
-        />
-      )}
-
       {selectedSO && (
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -482,56 +402,6 @@ export function InvoiceFormClient({
             </Table>
           </div>
 
-          {/* Drawing source per line (collapsible) */}
-          <details className="mt-3">
-            <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
-              แบบงาน / Drawing source (ใช้ auto-classify billing nature)
-            </summary>
-            <div className="mt-3 space-y-3">
-              {lineDrafts.map((line, index) => (
-                <div
-                  key={line.salesOrderLineId}
-                  className="border rounded-lg p-3 space-y-2"
-                >
-                  <p className="text-xs text-muted-foreground">
-                    #{index + 1} {line.description}
-                  </p>
-                  <DrawingSourceRow
-                    value={line.drawingSource}
-                    onChange={(v) => updateLineField(index, "drawingSource", v)}
-                    productCode={line.productCode}
-                    drawingRevision={line.drawingRevision}
-                    customerDrawingUrl={line.customerDrawingUrl}
-                    onProductCodeChange={(v) =>
-                      updateLineField(index, "productCode", v)
-                    }
-                    onDrawingRevisionChange={(v) =>
-                      updateLineField(index, "drawingRevision", v)
-                    }
-                    onCustomerDrawingUrlChange={(v) =>
-                      updateLineField(index, "customerDrawingUrl", v)
-                    }
-                  />
-                  {/* Phase 8.9 — Customer Mark (OEM branding) */}
-                  <div className="space-y-1">
-                    <Label className="text-xs">Customer Mark</Label>
-                    <Input
-                      value={line.customerMark}
-                      onChange={(e) =>
-                        updateLineField(index, "customerMark", e.target.value)
-                      }
-                      placeholder={
-                        selectedSO?.customer.brandingAssets?.defaultMark
-                          ? `เช่น ${selectedSO.customer.brandingAssets.defaultMark}`
-                          : "เช่น ACME logo"
-                      }
-                      className="h-8 text-sm"
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </details>
         </Card>
       )}
 

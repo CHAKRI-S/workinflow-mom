@@ -5,10 +5,34 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, invoicePrefixFromTaxType } from "@/lib/doc-numbering";
 import { createAuditLog } from "@/lib/audit";
 import { Prisma } from "@/generated/prisma/client";
-import { suggestBillingNature } from "@/lib/validators/billing-nature";
+import {
+  billingNatureFromProductKind,
+  type BillingNature,
+  type ProductKind,
+} from "@/lib/product-billing";
 import { invoiceCreateSchema } from "@/lib/validators/invoice";
 import { calculateDocumentTotals, inheritDocumentTaxAndCurrency } from "@/lib/document-tax-propagation";
 import { formatCustomerDisplayName } from "@/lib/customer-name";
+
+class InvoiceSalesOrderLineLookupError extends Error {
+  constructor(salesOrderLineId: string | null | undefined) {
+    super(`Sales order line not found for invoice line: ${salesOrderLineId ?? "<missing>"}`);
+    this.name = "InvoiceSalesOrderLineLookupError";
+  }
+}
+
+function deriveInvoiceBillingNature(
+  lines: Array<{ lineBillingNature?: BillingNature | null }>,
+): BillingNature {
+  if (!lines.length) return "GOODS";
+
+  const natures = lines.map((line) => line.lineBillingNature ?? "GOODS");
+  if (natures.every((nature) => nature === "GOODS")) return "GOODS";
+  if (natures.every((nature) => nature === "MANUFACTURING_SERVICE")) {
+    return "MANUFACTURING_SERVICE";
+  }
+  return "MIXED";
+}
 
 // GET /api/finance/invoices — list all invoices for tenant
 export async function GET(req: NextRequest) {
@@ -63,7 +87,6 @@ export async function POST(req: NextRequest) {
       dueDate,
       lines,
       notes,
-      billingNature: headerBillingNature,
     } = data;
 
     const tenantId = session!.user.tenantId;
@@ -97,6 +120,17 @@ export async function POST(req: NextRequest) {
             customerBranding: true,
             enteredUnitPrice: true,
             vatPriceMode: true,
+            product: {
+              select: {
+                id: true,
+                code: true,
+                productKind: true,
+                drawingSource: true,
+                drawingRevision: true,
+                customerDrawingUrl: true,
+                fusionFileUrl: true,
+              },
+            },
           },
         },
       },
@@ -137,7 +171,7 @@ export async function POST(req: NextRequest) {
       return {
         ...line,
         enteredUnitPrice: line.enteredUnitPrice ?? line.unitPrice,
-        vatPriceMode: line.vatPriceMode ?? soLine?.vatPriceMode ?? "EXCLUSIVE",
+        vatPriceMode: soLine?.vatPriceMode ?? line.vatPriceMode ?? "EXCLUSIVE",
       };
     });
     const totals = calculateDocumentTotals({
@@ -146,70 +180,50 @@ export async function POST(req: NextRequest) {
       lines: lineInputs,
     });
 
-    // Calculate line totals + inherit drawing/branding from SO line (body overrides inheritance)
-    const linesWithTotals = lineInputs.map(
-      (
-        line: {
-          salesOrderLineId?: string | null;
-          description: string;
-          quantity: number;
-          enteredUnitPrice?: number;
-          unitPrice: number;
-          vatPriceMode?: "EXCLUSIVE" | "INCLUSIVE";
-          notes?: string | null;
-          sortOrder?: number;
-          drawingSource?: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT";
-          lineBillingNature?: "GOODS" | "MANUFACTURING_SERVICE" | "MIXED" | null;
-          productCode?: string | null;
-          drawingRevision?: string | null;
-          customerDrawingUrl?: string | null;
-          customerBranding?: Record<string, unknown> | null;
-        },
-        idx: number
-      ) => {
-        const calculated = totals.lines[idx];
-        const qty = Number(line.quantity);
+    // Calculate line totals + inherit authoritative snapshots from SO line.
+    // If an old SO line has missing snapshots, fall back to the Product relation on that SO line.
+    const linesWithTotals = lineInputs.map((line, idx) => {
+      const calculated = totals.lines[idx];
+      const qty = Number(line.quantity);
+      const soLine = line.salesOrderLineId
+        ? soLineById.get(line.salesOrderLineId)
+        : undefined;
 
-        const soLine = line.salesOrderLineId
-          ? soLineById.get(line.salesOrderLineId)
-          : undefined;
-
-        return {
-          salesOrderLineId: line.salesOrderLineId || null,
-          description: line.description,
-          quantity: qty,
-          enteredUnitPrice: calculated.enteredUnitPrice,
-          unitPrice: calculated.unitPrice,
-          vatPriceMode: calculated.vatPriceMode,
-          lineTotal: calculated.lineTotal,
-          notes: line.notes || null,
-          sortOrder: line.sortOrder ?? idx,
-          drawingSource: line.drawingSource ?? soLine?.drawingSource ?? "TENANT_OWNED",
-          lineBillingNature: line.lineBillingNature ?? soLine?.lineBillingNature ?? null,
-          productCode: line.productCode ?? soLine?.productCode ?? null,
-          drawingRevision: line.drawingRevision ?? soLine?.drawingRevision ?? null,
-          customerDrawingUrl:
-            line.customerDrawingUrl ?? soLine?.customerDrawingUrl ?? null,
-          customerBranding:
-            (line.customerBranding ??
-              (soLine?.customerBranding as Record<string, unknown> | null | undefined) ??
-              undefined) as Prisma.InputJsonValue | undefined,
-        };
+      if (!soLine) {
+        throw new InvoiceSalesOrderLineLookupError(line.salesOrderLineId);
       }
-    );
 
-    // Resolve billingNature: body override > SO snapshot > customer default > auto-suggest > GOODS
-    const suggested = suggestBillingNature(
-      linesWithTotals.map((l: { drawingSource: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT" }) => ({
-        drawingSource: l.drawingSource,
-      }))
-    );
-    const billingNature =
-      headerBillingNature ??
-      salesOrder.billingNature ??
-      customer.defaultBillingNature ??
-      suggested ??
-      "GOODS";
+      const product = soLine.product;
+      const lineBillingNature =
+        soLine.lineBillingNature ??
+        billingNatureFromProductKind(product?.productKind as ProductKind | null | undefined);
+
+      return {
+        salesOrderLineId: line.salesOrderLineId || null,
+        description: line.description,
+        quantity: qty,
+        enteredUnitPrice: calculated.enteredUnitPrice,
+        unitPrice: calculated.unitPrice,
+        vatPriceMode: calculated.vatPriceMode,
+        lineTotal: calculated.lineTotal,
+        notes: line.notes || null,
+        sortOrder: line.sortOrder ?? idx,
+        drawingSource: soLine.drawingSource ?? product?.drawingSource ?? "TENANT_OWNED",
+        lineBillingNature,
+        productCode: soLine.productCode ?? product?.code ?? null,
+        drawingRevision: soLine.drawingRevision ?? product?.drawingRevision ?? null,
+        customerDrawingUrl:
+          soLine.customerDrawingUrl ??
+          product?.customerDrawingUrl ??
+          product?.fusionFileUrl ??
+          null,
+        customerBranding:
+          ((soLine.customerBranding as Record<string, unknown> | null | undefined) ??
+            undefined) as Prisma.InputJsonValue | undefined,
+      };
+    });
+
+    const billingNature = salesOrder.billingNature ?? deriveInvoiceBillingNature(linesWithTotals);
 
     // Auto-set WHT defaults for service
     const isService = billingNature === "MANUFACTURING_SERVICE";
@@ -280,6 +294,9 @@ export async function POST(req: NextRequest) {
     }
     if (err instanceof Error && err.name === "ZodError") {
       return NextResponse.json({ error: "Validation failed", details: err }, { status: 400 });
+    }
+    if (err instanceof InvoiceSalesOrderLineLookupError) {
+      return NextResponse.json({ error: err.message }, { status: 400 });
     }
     console.error("POST /api/finance/invoices error:", err);
     return NextResponse.json(

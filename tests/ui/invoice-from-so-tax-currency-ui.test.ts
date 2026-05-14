@@ -13,6 +13,18 @@ const invoiceFormSource = readFileSync(
 );
 
 describe("invoice from sales order tax type and currency UI contracts", () => {
+  it("does not expose drawing-source or billing-nature controls in the normal invoice create flow", () => {
+    expect(invoiceFormSource).not.toContain("BillingNaturePicker");
+    expect(invoiceFormSource).not.toContain("DrawingSourceRow");
+    expect(invoiceFormSource).not.toContain("suggestBillingNature");
+    expect(invoiceFormSource).not.toContain("แบบงาน / Drawing source");
+    expect(invoiceFormSource).not.toContain("auto-classify billing nature");
+    expect(invoiceFormSource).not.toContain("Customer Mark");
+    expect(invoiceFormSource).toContain("selectedSO.taxType");
+    expect(invoiceFormSource).toContain("selectedSO.currencyCode");
+    expect(invoiceFormSource).toContain("calculateDocumentTotals");
+  });
+
   it("loads sales order document tax type and currency for invoice creation", () => {
     expect(newInvoicePageSource).toContain("taxType: true");
     expect(newInvoicePageSource).toContain("currencyCode: true");

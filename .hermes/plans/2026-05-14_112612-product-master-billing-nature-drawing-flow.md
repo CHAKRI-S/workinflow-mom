@@ -742,3 +742,31 @@ Verification:
 
 Next Action:
 - Sprint 5: Invoice create UI/API cleanup. Remove normal Invoice drawing-source controls, inherit SO line snapshots into invoices, and fallback to Product master only when no SO snapshot exists.
+
+### Sprint 5: Invoice create UI/API cleanup + DRAFT patch snapshot hardening
+
+Status: completed
+Completed: 2026-05-14 15:29 +07
+
+Done:
+- Removed normal Invoice create flow `BillingNaturePicker`, `DrawingSourceRow`, drawing-source/customer-branding controls, and drawing-source auto-classification copy while preserving SO selection, inherited tax type/currency display, line preview totals, notes, and submit flow.
+- Hardened Invoice create API to ignore client-sent billing/drawing snapshot fields; invoice lines now inherit authoritative snapshots from Sales Order lines and fallback to Product master through the SO line product relation only when SO snapshots are missing.
+- Invoice create now prefers SO line `vatPriceMode` over client payload, uses SO header `billingNature` snapshot when present, derives from line/Product snapshots only as fallback, and fails closed with 400 for invoice lines that do not belong to the selected SO.
+- Hardened DRAFT Invoice PATCH so normal edits only update `dueDate`/`notes`; it no longer accepts or writes `billingNature`, line drawing metadata, customer branding, or line billing classification overrides.
+- Narrowed Invoice create/update Zod schemas so normal API contracts no longer define billing nature or line drawing/classification override fields.
+- Added tests for hostile Invoice create payloads, SO header billing snapshot inheritance, VAT mode spoof prevention, foreign SO line fail-closed behavior, Product fallback, DRAFT PATCH spoof prevention, and Invoice create UI removal.
+
+Verification:
+- RED: `npm test -- tests/ui/invoice-from-so-tax-currency-ui.test.ts tests/api/invoice-product-snapshots.test.ts` failed before implementation because Invoice create UI still contained `BillingNaturePicker`/`DrawingSourceRow` and POST accepted client/default billing snapshots.
+- RED follow-up: `npm test -- tests/api/invoice-product-snapshots.test.ts` failed before fixes for SO header billing snapshot / VAT mode spoof assertions; `npm test -- tests/api/invoice-patch-snapshots.test.ts` failed before DRAFT PATCH hardening.
+- GREEN: `npm test -- tests/api/invoice-product-snapshots.test.ts tests/api/invoice-patch-snapshots.test.ts tests/ui/invoice-from-so-tax-currency-ui.test.ts` → 10 passed.
+- Cross-flow regression: `npm test -- tests/ui/invoice-from-so-tax-currency-ui.test.ts tests/api/invoice-product-snapshots.test.ts tests/api/invoice-patch-snapshots.test.ts tests/ui/sales-order-form-tax-currency-ui.test.ts tests/api/sales-order-product-snapshots.test.ts tests/api/sales-order-convert-snapshots.test.ts tests/api/sales-order-patch-tax.test.ts tests/lib/quotation-product-snapshots.test.ts` → 25 passed.
+- `node node_modules/prisma/build/index.js validate` → passed.
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` → passed.
+- `node node_modules/eslint/bin/eslint.js <Sprint 5 touched files>` → passed.
+- Scoped `git diff --check` on Sprint 5 touched files → passed.
+- Subagent spec/quality review initially REQUEST_CHANGES for client VAT mode spoof, SO header billing snapshot precedence, and DRAFT PATCH spoof bypass; fixes applied with regression tests.
+- Focused re-review → APPROVED.
+
+Next Action:
+- Sprint 6: Invoice detail/report cleanup. Review Invoice detail UI so line snapshot metadata is read-only/no hidden override path, then update report/PDF wording to say drawing source comes from Product/SO/Invoice snapshots.
