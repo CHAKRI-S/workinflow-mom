@@ -19,6 +19,25 @@ const editPageSource = readFileSync(
   join(repoRoot, "src/app/[locale]/(main)/production/products/[id]/edit/page.tsx"),
   "utf8",
 );
+const factoryBoardSource = readFileSync(
+  join(repoRoot, "src/app/[locale]/factory/factory-board.tsx"),
+  "utf8",
+);
+const factoryBoardApiSource = readFileSync(
+  join(repoRoot, "src/app/api/public/factory-board/route.ts"),
+  "utf8",
+);
+const adminExportSource = readFileSync(
+  join(repoRoot, "src/app/api/admin/export/[entity]/route.ts"),
+  "utf8",
+);
+const finishingNotesMigration = readFileSync(
+  join(
+    repoRoot,
+    "prisma/migrations/20260514175238_product_finishing_notes/migration.sql",
+  ),
+  "utf8",
+);
 
 describe("product master billing/drawing UI contracts", () => {
   it("makes product kind a required source-of-truth field on the product form", () => {
@@ -76,5 +95,46 @@ describe("product master billing/drawing UI contracts", () => {
     expect(editPageSource).toContain("drawingSource: serialized.drawingSource");
     expect(editPageSource).toContain("drawingRevision: serialized.drawingRevision");
     expect(editPageSource).toContain("customerDrawingUrl: serialized.customerDrawingUrl");
+  });
+
+  it("uses checkboxes for manufacturing flags and one combined finishing notes field", () => {
+    expect(formSource).toContain('type="checkbox" {...register("requiresPainting")}');
+    expect(formSource).toContain('type="checkbox" {...register("requiresLogoEngraving")}');
+    expect(formSource).toContain('register("finishingNotes")');
+    expect(formSource).toContain("หมายเหตุสี/ผิวสำเร็จ");
+    expect(formSource).toContain("ลูกค้าสั่งหลายสี");
+    expect(formSource).not.toContain('register("defaultColor")');
+    expect(formSource).not.toContain('register("defaultSurfaceFinish")');
+    expect(formSource).not.toContain("สีเริ่มต้น");
+    expect(formSource).not.toContain("ผิวสำเร็จเริ่มต้น");
+
+    expect(detailSource).toContain("finishingNotes");
+    expect(detailSource).not.toContain("defaultColor &&");
+    expect(detailSource).not.toContain("defaultSurfaceFinish &&");
+    expect(editPageSource).toContain("finishingNotes: serialized.finishingNotes");
+  });
+
+  it("carries combined finishing notes into factory board and product export surfaces", () => {
+    expect(factoryBoardApiSource).toContain("finishingNotes: true");
+    expect(factoryBoardApiSource).not.toContain("defaultColor: true");
+    expect(factoryBoardApiSource).not.toContain("defaultSurfaceFinish: true");
+
+    expect(factoryBoardSource).toContain("finishingNotes: string | null");
+    expect(factoryBoardSource).toContain("selectedWO.product.finishingNotes");
+    expect(factoryBoardSource).toContain("หมายเหตุสี/ผิวสำเร็จ");
+    expect(factoryBoardSource).not.toContain("selectedWO.product.defaultColor");
+    expect(factoryBoardSource).not.toContain("selectedWO.product.defaultSurfaceFinish");
+
+    expect(adminExportSource).toContain("finishingNotes: true");
+    expect(adminExportSource).not.toContain("defaultColor: true");
+  });
+
+  it("backfills legacy color and surface finish into combined notes during migration", () => {
+    expect(finishingNotesMigration).toContain('ADD COLUMN "finishingNotes" TEXT');
+    expect(finishingNotesMigration).toContain('"defaultColor"');
+    expect(finishingNotesMigration).toContain('"defaultSurfaceFinish"');
+    expect(finishingNotesMigration).toContain('SET "finishingNotes"');
+    expect(finishingNotesMigration).toContain("สีเดิม:");
+    expect(finishingNotesMigration).toContain("ผิวสำเร็จเดิม:");
   });
 });

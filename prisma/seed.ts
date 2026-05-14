@@ -359,9 +359,9 @@ async function seedSampleData(tenantId: string) {
 
   // Products
   const products = [
-    { code: "PRD-00001", name: "Bracket Mount A-100", category: "Bracket", requiresPainting: true, requiresLogoEngraving: true, defaultColor: "Black Anodize", unitPrice: 850.0, leadTimeDays: 14 },
-    { code: "PRD-00002", name: "CNC Cover Plate B-200", category: "Cover", requiresPainting: false, requiresLogoEngraving: false, defaultSurfaceFinish: "Bead Blast", unitPrice: 1200.0, leadTimeDays: 7 },
-    { code: "PRD-00003", name: "Shaft Adapter C-300", category: "Adapter", requiresPainting: true, requiresLogoEngraving: false, defaultColor: "Silver Anodize", unitPrice: 650.0, leadTimeDays: 10 },
+    { code: "PRD-00001", name: "Bracket Mount A-100", category: "Bracket", requiresPainting: true, requiresLogoEngraving: true, finishingNotes: "งานทำสี/กัดโลโก้: สีตามคำสั่งซื้อแต่ละรายการ", unitPrice: 850.0, leadTimeDays: 14 },
+    { code: "PRD-00002", name: "CNC Cover Plate B-200", category: "Cover", requiresPainting: false, requiresLogoEngraving: false, finishingNotes: "ผิวสำเร็จอ้างอิงตามหมายเหตุใน SO/WO", unitPrice: 1200.0, leadTimeDays: 7 },
+    { code: "PRD-00003", name: "Shaft Adapter C-300", category: "Adapter", requiresPainting: true, requiresLogoEngraving: false, finishingNotes: "สี/ผิวสำเร็จอาจแตกต่างตาม lot ลูกค้า", unitPrice: 650.0, leadTimeDays: 10 },
   ];
   for (const p of products) {
     await prisma.product.upsert({

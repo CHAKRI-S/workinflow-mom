@@ -73,7 +73,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ enti
           where: { tenantId },
           orderBy: { code: "asc" },
           select: {
-            code: true, name: true, category: true, defaultColor: true,
+            code: true, name: true, category: true, finishingNotes: true,
             unitPrice: true, cycleTimeMinutes: true, leadTimeDays: true,
             requiresPainting: true, requiresLogoEngraving: true, isActive: true,
           },

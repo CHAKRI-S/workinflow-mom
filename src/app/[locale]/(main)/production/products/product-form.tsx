@@ -441,14 +441,16 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
               {t("product.requiresLogo")}
             </Label>
 
-            <div className="space-y-1.5">
-              <Label>{t("product.defaultColor")}</Label>
-              <Input {...register("defaultColor")} placeholder="Black Anodize" />
-            </div>
-
-            <div className="space-y-1.5">
-              <Label>{t("product.defaultSurfaceFinish")}</Label>
-              <Input {...register("defaultSurfaceFinish")} placeholder="Bead Blast, Polish..." />
+            <div className="md:col-span-2 space-y-1.5">
+              <Label>หมายเหตุสี/ผิวสำเร็จ</Label>
+              <Textarea
+                {...register("finishingNotes")}
+                rows={3}
+                placeholder="เช่น ลูกค้าสั่งหลายสีในสินค้าเดียวกัน: สีแดง 5 ชิ้น, สีดำ 10 ชิ้น / ผิว anodize ตาม line item"
+              />
+              <p className="text-xs text-muted-foreground">
+                ใช้บันทึกหมายเหตุรวมเมื่อลูกค้าสั่งหลายสีหรือหลายผิวสำเร็จในสินค้าเดียวกัน ไม่แยกเป็นหลายช่องเพื่อไม่ให้สับสน
+              </p>
             </div>
 
             <div className="space-y-1.5">

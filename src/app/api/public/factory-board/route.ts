@@ -62,8 +62,7 @@ export async function GET(req: NextRequest) {
             name: true,
             cycleTimeMinutes: true,
             category: true,
-            defaultColor: true,
-            defaultSurfaceFinish: true,
+            finishingNotes: true,
             drawingNotes: true,
             requiresPainting: true,
             images: {

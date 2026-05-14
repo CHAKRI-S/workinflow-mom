@@ -62,8 +62,6 @@ interface Product {
   name: string;
   unitPrice?: string | number;
   defaultVatPriceMode?: VatPriceMode;
-  defaultColor?: string | null;
-  defaultSurfaceFinish?: string | null;
 }
 
 interface OrderFormProps {
@@ -208,12 +206,6 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
         `lines.${index}.vatPriceMode`,
         product.defaultVatPriceMode ?? "EXCLUSIVE",
       );
-      if (product.defaultColor) {
-        setValue(`lines.${index}.color`, product.defaultColor);
-      }
-      if (product.defaultSurfaceFinish) {
-        setValue(`lines.${index}.surfaceFinish`, product.defaultSurfaceFinish);
-      }
     }
   };
 

@@ -487,8 +487,9 @@ model Product {
   drawingNotes          String? // หมายเหตุจากแบบ
   requiresPainting      Boolean  @default(false)
   requiresLogoEngraving Boolean  @default(false)
-  defaultColor          String?
-  defaultSurfaceFinish  String? // e.g. "Anodize", "Bead Blast", "Polish"
+  defaultColor          String? // legacy: no longer edited from Product form
+  defaultSurfaceFinish  String? // legacy: no longer edited from Product form
+  finishingNotes        String? // หมายเหตุรวมเรื่องสี/ผิวสำเร็จ/งานทำสีของสินค้า
   unitPrice             Decimal?     @db.Decimal(12, 2) // ราคาอ้างอิง
   defaultVatPriceMode   VatPriceMode @default(EXCLUSIVE)
   cycleTimeMinutes      Decimal? @db.Decimal(8, 2) // เวลาผลิตต่อชิ้น (นาที)

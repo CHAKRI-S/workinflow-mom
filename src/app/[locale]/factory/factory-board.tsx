@@ -38,8 +38,7 @@ interface Product {
   name: string;
   cycleTimeMinutes: string | number | null;
   category: string | null;
-  defaultColor: string | null;
-  defaultSurfaceFinish: string | null;
+  finishingNotes: string | null;
   drawingNotes: string | null;
   requiresPainting: boolean;
   images: ProductImage[];
@@ -963,20 +962,16 @@ export function FactoryBoard() {
                         value={selectedWO.product.category}
                       />
                     )}
-                    {(selectedWO.color || selectedWO.product.defaultColor) && (
+                    {selectedWO.color && (
                       <InfoRow
                         label={t("workOrder.color")}
-                        value={
-                          selectedWO.color ||
-                          selectedWO.product.defaultColor ||
-                          ""
-                        }
+                        value={selectedWO.color}
                       />
                     )}
-                    {selectedWO.product.defaultSurfaceFinish && (
+                    {selectedWO.product.finishingNotes && (
                       <InfoRow
-                        label={t("quotation.surfaceFinish")}
-                        value={selectedWO.product.defaultSurfaceFinish}
+                        label="หมายเหตุสี/ผิวสำเร็จ"
+                        value={selectedWO.product.finishingNotes}
                       />
                     )}
                     {selectedWO.materialSize && (

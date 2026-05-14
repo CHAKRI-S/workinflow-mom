@@ -54,6 +54,19 @@ describe("product validator", () => {
     ).toThrow();
   });
 
+  it("accepts one combined finishing note instead of separate color and surface defaults", () => {
+    const parsed = productCreateSchema.parse({
+      ...baseProduct,
+      requiresPainting: true,
+      requiresLogoEngraving: true,
+      finishingNotes: "ลูกค้าสั่งสีแดง/ดำใน PO เดียวกัน; ผิว anodize ตาม line item",
+    });
+
+    expect(parsed.finishingNotes).toBe(
+      "ลูกค้าสั่งสีแดง/ดำใน PO เดียวกัน; ผิว anodize ตาม line item",
+    );
+  });
+
   it("does not inject create defaults during partial product updates", () => {
     const parsed = productUpdateSchema.parse({ name: "Updated Bracket" });
 

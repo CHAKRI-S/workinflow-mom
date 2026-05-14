@@ -74,6 +74,7 @@ interface Product {
   requiresLogoEngraving: boolean;
   defaultColor: string | null;
   defaultSurfaceFinish: string | null;
+  finishingNotes: string | null;
   unitPrice: string | number | null;
   defaultVatPriceMode?: "EXCLUSIVE" | "INCLUSIVE" | null;
   leadTimeDays: number;
@@ -290,7 +291,7 @@ export function ProductDetailClient({
             <p className="text-muted-foreground">{t("product.fusionFile")}</p>
             <p className="font-medium">{product.fusionFileName || "—"}</p>
           </div>
-          <div className="col-span-2 flex gap-2">
+          <div className="col-span-2 flex flex-wrap gap-2">
             {product.requiresPainting && (
               <Badge variant="secondary" className="gap-1">
                 <Paintbrush className="h-3 w-3" />
@@ -303,12 +304,12 @@ export function ProductDetailClient({
                 {t("product.requiresLogo")}
               </Badge>
             )}
-            {product.defaultColor && (
-              <Badge variant="outline">{product.defaultColor}</Badge>
-            )}
-            {product.defaultSurfaceFinish && (
-              <Badge variant="outline">{product.defaultSurfaceFinish}</Badge>
-            )}
+          </div>
+          <div className="col-span-2">
+            <p className="text-muted-foreground">หมายเหตุสี/ผิวสำเร็จ</p>
+            <p className="font-medium whitespace-pre-wrap">
+              {product.finishingNotes || "—"}
+            </p>
           </div>
         </div>
       </Card>

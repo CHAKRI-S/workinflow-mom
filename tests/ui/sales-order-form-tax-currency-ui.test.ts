@@ -51,4 +51,14 @@ describe("direct sales order form tax type and currency UI contracts", () => {
     expect(formSource).toContain("taxType");
     expect(formSource).toContain("currencyCode");
   });
+
+  it("does not prefill line color or surface finish from product defaults", () => {
+    expect(formSource).toContain("handleProductChange");
+    expect(formSource).not.toContain('setValue(`lines.${index}.color`, product.defaultColor)');
+    expect(formSource).not.toContain(
+      'setValue(`lines.${index}.surfaceFinish`, product.defaultSurfaceFinish)',
+    );
+    expect(formSource).not.toContain("defaultColor?: string | null");
+    expect(formSource).not.toContain("defaultSurfaceFinish?: string | null");
+  });
 });
