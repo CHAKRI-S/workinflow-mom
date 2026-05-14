@@ -11,7 +11,8 @@
 - Added server-side Thai address master data helper and authenticated endpoint: `GET /api/locations/thai-addresses`.
 - Enhanced RD tax-ID lookup to return `subdistrict` and `district` in addition to existing address/province/post code fields.
 - Wired customer new/edit form to save/reload the structured fields and render responsive autocomplete-style inputs below the billing address textarea.
-- Verification completed locally: targeted Vitest, full Vitest suite, Prisma validate, targeted ESLint, TypeScript, and Next build. Production migration/deploy still requires explicit approval.
+- Verification completed locally: targeted Vitest, full Vitest suite, Prisma validate, targeted ESLint, TypeScript, and Next build.
+- Production deploy completed after approval on 2026-05-14 04:03 UTC: commit `790581f3` reached Coolify, migration `20260514104500_customer_structured_billing_address` applied, container image tag matched the commit, and public smoke checks passed. Future production migrations/deploys remain approval-gated.
 
 **Architecture:** เก็บ structured address เป็น optional columns บน `Customer` คู่กับ `billingAddress` เดิม แล้วปรับ `BusinessInfoSection`/`CustomerForm` ให้เลือกที่อยู่ไทยแบบ cascading select/autocomplete และ sync กลับไปสร้างที่อยู่เต็มได้. สำหรับข้อมูลตำบล/อำเภอ/จังหวัด/รหัสไปรษณีย์ แนะนำเพิ่ม endpoint read-only ภายใน app เพื่อค้นหา/กรองข้อมูล master data แทนโหลด dataset ทั้งประเทศลง client หนัก ๆ.
 
