@@ -15,6 +15,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { getConsumableCategoryLabelTh } from "@/lib/select-labels";
 
 const CATEGORIES = [
   "CUTTING_TOOL",
@@ -33,7 +34,6 @@ export function ConsumableFormClient() {
   const [error, setError] = useState<string | null>(null);
 
   // Form state
-  const [code, setCode] = useState("");
   const [name, setName] = useState("");
   const [category, setCategory] = useState("OTHER");
   const [brand, setBrand] = useState("");
@@ -45,8 +45,8 @@ export function ConsumableFormClient() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!code.trim() || !name.trim()) {
-      setError("Code and name are required");
+    if (!name.trim()) {
+      setError("Name is required");
       return;
     }
 
@@ -58,7 +58,6 @@ export function ConsumableFormClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: code.trim(),
           name: name.trim(),
           category,
           brand: brand.trim() || null,
@@ -103,14 +102,11 @@ export function ConsumableFormClient() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>{t("code")} *</Label>
-              <Input
-                value={code}
-                onChange={(e) => setCode(e.target.value)}
-                placeholder={t("code")}
-                required
-              />
+            <div className="space-y-1.5 rounded-md border border-dashed bg-muted/30 p-3">
+              <Label>{t("code")}</Label>
+              <p className="text-sm text-muted-foreground">
+                ระบบจะสร้างรหัสวัสดุสิ้นเปลืองให้อัตโนมัติจากรหัสบริษัท เช่น WF01-CON-0001
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -130,12 +126,14 @@ export function ConsumableFormClient() {
                 onValueChange={(v) => setCategory(v ?? "OTHER")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("category")} />
+                  <SelectValue placeholder={t("category")}>
+                    {(value) => getConsumableCategoryLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((cat) => (
                     <SelectItem key={cat} value={cat}>
-                      {t(`categoryLabel.${cat}`)}
+                      {getConsumableCategoryLabelTh(cat)}
                     </SelectItem>
                   ))}
                 </SelectContent>

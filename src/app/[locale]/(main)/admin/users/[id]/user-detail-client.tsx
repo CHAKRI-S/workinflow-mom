@@ -22,6 +22,7 @@ import {
 } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2, Trash2 } from "lucide-react";
+import { getUserRoleLabelTh } from "@/lib/select-labels";
 
 const ROLES_LIST = [
   "ADMIN",
@@ -284,12 +285,14 @@ export function UserDetailClient({
                 onValueChange={(v) => setValue("role", v ?? user.role)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getUserRoleLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES_LIST.map((role) => (
                     <SelectItem key={role} value={role}>
-                      {t(`user.roleLabel.${role}`)}
+                      {getUserRoleLabelTh(role)}
                     </SelectItem>
                   ))}
                 </SelectContent>

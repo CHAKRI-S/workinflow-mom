@@ -17,6 +17,7 @@ import {
 import { Link } from "@/i18n/navigation";
 import { Search, Plus } from "lucide-react";
 import { useState, useMemo } from "react";
+import { getAllOptionLabelTh, getConsumableCategoryLabelTh } from "@/lib/select-labels";
 
 const CATEGORIES = [
   "CUTTING_TOOL",
@@ -190,13 +191,16 @@ export function ConsumableListClient({
           onValueChange={(v) => setCategoryFilter(v ?? "ALL")}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder={t("category")} />
+            <SelectValue placeholder={t("category")}>
+              {(value) =>
+                value === "ALL" ? getAllOptionLabelTh(value) : getConsumableCategoryLabelTh(value)}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">{tCommon("all")}</SelectItem>
+            <SelectItem value="ALL">{getAllOptionLabelTh("ALL")}</SelectItem>
             {CATEGORIES.map((cat) => (
               <SelectItem key={cat} value={cat}>
-                {t(`categoryLabel.${cat}`)}
+                {getConsumableCategoryLabelTh(cat)}
               </SelectItem>
             ))}
           </SelectContent>

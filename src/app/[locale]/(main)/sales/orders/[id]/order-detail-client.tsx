@@ -31,6 +31,7 @@ import {
   XCircle,
   ChevronRight,
 } from "lucide-react";
+import { getSalesOrderStatusLabelTh } from "@/lib/select-labels";
 
 interface OrderLine {
   id: string;
@@ -208,14 +209,16 @@ export function OrderDetailClient({ order }: { order: OrderDetail }) {
                 <SelectTrigger className="w-[200px]">
                   <SelectValue
                     placeholder={t("salesOrder.statusTransition")}
-                  />
+                  >
+                    {(value) => getSalesOrderStatusLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {nextStatuses.map((s) => (
                     <SelectItem key={s} value={s}>
                       <div className="flex items-center gap-1">
                         <ChevronRight className="h-3 w-3" />
-                        {t(`salesOrder.status.${s}`)}
+                        {getSalesOrderStatusLabelTh(s)}
                       </div>
                     </SelectItem>
                   ))}

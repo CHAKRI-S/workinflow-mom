@@ -42,10 +42,12 @@ import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
 import {
   TAX_TYPE_OPTIONS,
+  getTaxTypeLabelTh,
   resolveTaxCalculation,
   type DocumentTaxType,
 } from "@/lib/tax-type";
 import type { VatPriceMode } from "@/lib/vat";
+import { getVatPriceModeLabelTh } from "@/lib/select-labels";
 
 interface Customer {
   id: string;
@@ -62,6 +64,24 @@ interface Product {
   name: string;
   unitPrice?: string | number;
   defaultVatPriceMode?: VatPriceMode;
+}
+
+function getCustomerOptionLabel(customers: Customer[], customerId?: string | null): string {
+  if (!customerId) return "";
+  const customer = customers.find((c) => c.id === customerId);
+  return customer ? `${customer.code} — ${customer.name}` : "ไม่พบลูกค้าที่เลือก";
+}
+
+function getProductOptionLabel(products: Product[], productId?: string | null): string {
+  if (!productId) return "";
+  const product = products.find((p) => p.id === productId);
+  return product ? `${product.code} — ${product.name}` : "ไม่พบสินค้าที่เลือก";
+}
+
+function getCurrencySelectLabel(currencyCode?: string | null): string {
+  if (!currencyCode) return "";
+  const option = CURRENCY_OPTIONS.find((currency) => currency.code === currencyCode);
+  return option ? `${option.code} — ${option.label} (${option.symbol})` : currencyCode;
 }
 
 interface OrderFormProps {
@@ -237,11 +257,15 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
             <div className="space-y-1.5">
               <Label>{t("salesOrder.customer")} *</Label>
               <Select
-                defaultValue={defaultValues?.customerId || ""}
+                value={watchCustomerId || ""}
                 onValueChange={(v) => setValue("customerId", v ?? "")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("salesOrder.selectCustomer")} />
+                  <SelectValue placeholder={t("salesOrder.selectCustomer")}>
+                    {(value) =>
+                      getCustomerOptionLabel(customers, value) || t("salesOrder.selectCustomer")
+                    }
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {customers.map((c) => (
@@ -334,7 +358,9 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                 }}
               >
                 <SelectTrigger aria-label="ประเภทภาษี: รวม VAT / แยก VAT / ไม่มี VAT">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getTaxTypeLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {TAX_TYPE_OPTIONS.map((option) => (
@@ -369,7 +395,9 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                 }
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getCurrencySelectLabel(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {CURRENCY_OPTIONS.map((option) => (
@@ -480,9 +508,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                         </TableCell>
                         <TableCell>
                           <Select
-                            defaultValue={
-                              defaultValues?.lines?.[index]?.productId || ""
-                            }
+                            value={watchLines?.[index]?.productId || ""}
                             onValueChange={(v) =>
                               handleProductChange(index, v ?? "")
                             }
@@ -490,7 +516,12 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                             <SelectTrigger className="w-full">
                               <SelectValue
                                 placeholder={t("salesOrder.selectProduct")}
-                              />
+                              >
+                                {(value) =>
+                                  getProductOptionLabel(products, value) ||
+                                  t("salesOrder.selectProduct")
+                                }
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               {products.map((p) => (
@@ -545,7 +576,9 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                             disabled
                           >
                             <SelectTrigger className="w-[120px]">
-                              <SelectValue />
+                              <SelectValue>
+                                {(value) => getVatPriceModeLabelTh(value) || "VAT นอก"}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="EXCLUSIVE">VAT นอก</SelectItem>

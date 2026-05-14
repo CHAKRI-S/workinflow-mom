@@ -32,7 +32,8 @@ export async function POST(req: NextRequest) {
     requirePermission(session, ROLES.PLANNING);
 
     const body = await req.json();
-    const { code, name, type, description, status } = body;
+    const { code: _ignoredCode, name, type, description, status } = body;
+    void _ignoredCode;
     const tenantId = session!.user.tenantId;
 
     if (!name || !type) {
@@ -45,9 +46,6 @@ export async function POST(req: NextRequest) {
     // Plan limit check
     await requireMachineAvailable(tenantId);
 
-    const providedCode =
-      typeof code === "string" && code.trim() ? code.trim() : undefined;
-
     const baseData = {
       name,
       type,
@@ -56,17 +54,13 @@ export async function POST(req: NextRequest) {
       tenantId,
     };
 
-    const machine = providedCode
-      ? await prisma.cncMachine.create({
-          data: { ...baseData, code: providedCode },
-        })
-      : await createWithGeneratedCode({
-          generate: () => generateMachineCode(tenantId),
-          create: (generatedCode) =>
-            prisma.cncMachine.create({
-              data: { ...baseData, code: generatedCode },
-            }),
-        });
+    const machine = await createWithGeneratedCode({
+      generate: () => generateMachineCode(tenantId),
+      create: (generatedCode) =>
+        prisma.cncMachine.create({
+          data: { ...baseData, code: generatedCode },
+        }),
+    });
 
     return NextResponse.json(machine, { status: 201 });
   } catch (err) {

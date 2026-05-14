@@ -35,7 +35,10 @@ import {
   ImagePlus,
   X,
 } from "lucide-react";
+import { getBomMaterialSourcingLabelTh } from "@/lib/select-labels";
 import { useState, useRef, useCallback } from "react";
+
+type BomMaterialSourcing = "STOCK_CUT" | "JOB_SPECIFIC";
 
 interface BomLine {
   id: string;
@@ -46,6 +49,7 @@ interface BomLine {
   piecesPerStock: number | null;
   notes: string | null;
   sortOrder: number;
+  sourcing: BomMaterialSourcing;
   material: { id: string; code: string; name: string; unit: string };
 }
 
@@ -90,6 +94,12 @@ interface Material {
   unit: string;
 }
 
+function getMaterialOptionLabel(materials: Material[], value?: string | null): string {
+  if (!value) return "";
+  const material = materials.find((m) => m.id === value);
+  return material ? `${material.code} — ${material.name}` : "ไม่พบวัตถุดิบที่เลือก";
+}
+
 interface BomFormLine {
   materialId: string;
   qtyPerUnit: number;
@@ -98,6 +108,7 @@ interface BomFormLine {
   piecesPerStock: number | null;
   notes: string;
   sortOrder: number;
+  sourcing: BomMaterialSourcing;
 }
 
 function getProductKindLabel(productKind: Product["productKind"]) {
@@ -128,6 +139,7 @@ export function ProductDetailClient({
       piecesPerStock: l.piecesPerStock || null,
       notes: l.notes || "",
       sortOrder: l.sortOrder,
+      sourcing: l.sourcing ?? "STOCK_CUT",
     }))
   );
   const [saving, setSaving] = useState(false);
@@ -144,7 +156,7 @@ export function ProductDetailClient({
   const addBomLine = () => {
     setBomLines((prev) => [
       ...prev,
-      { materialId: "", qtyPerUnit: 1, materialSize: "", materialType: "", piecesPerStock: null, notes: "", sortOrder: prev.length },
+      { materialId: "", qtyPerUnit: 1, materialSize: "", materialType: "", piecesPerStock: null, notes: "", sortOrder: prev.length, sourcing: "STOCK_CUT" },
     ]);
     setBomDirty(true);
   };
@@ -515,6 +527,7 @@ export function ProductDetailClient({
               <TableRow>
                 <TableHead className="w-8">#</TableHead>
                 <TableHead>{t("material.name")}</TableHead>
+                <TableHead className="w-44">รูปแบบการจัดหา</TableHead>
                 <TableHead className="w-32">{t("product.qtyPerUnit")}</TableHead>
                 <TableHead>{t("product.materialSize")}</TableHead>
                 <TableHead>{t("product.materialType")}</TableHead>
@@ -533,7 +546,9 @@ export function ProductDetailClient({
                       onValueChange={(v) => updateBomLine(idx, "materialId", v ?? "")}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder={t("product.selectMaterial")} />
+                        <SelectValue placeholder={t("product.selectMaterial")}>
+                          {(value) => getMaterialOptionLabel(materials, value)}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {materials.map((m) => (
@@ -541,6 +556,22 @@ export function ProductDetailClient({
                             {m.code} — {m.name}
                           </SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell>
+                    <Select
+                      value={line.sourcing}
+                      onValueChange={(v) => updateBomLine(idx, "sourcing", (v ?? "STOCK_CUT") as BomMaterialSourcing)}
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="รูปแบบการจัดหา">
+                          {(value) => getBomMaterialSourcingLabelTh(value)}
+                        </SelectValue>
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="STOCK_CUT">สต๊อกแล้วแบ่งตัด</SelectItem>
+                        <SelectItem value="JOB_SPECIFIC">สั่งเฉพาะงาน/สินค้านี้</SelectItem>
                       </SelectContent>
                     </Select>
                   </TableCell>

@@ -18,6 +18,11 @@ import {
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from "@/components/ui/table";
+import {
+  getMachineStatusLabelTh,
+  getMachineTypeLabelTh,
+  getMaintenanceTypeLabelTh,
+} from "@/lib/select-labels";
 import { useState, useMemo } from "react";
 import {
   ArrowLeft, Save, Loader2, Plus, Trash2, X, Wrench,
@@ -27,11 +32,6 @@ import {
 const MACHINE_TYPES = ["CNC_MILLING", "CNC_LATHE", "CNC_ROUTER", "CNC_ENGRAVING", "OTHER"] as const;
 const MACHINE_STATUSES = ["AVAILABLE", "IN_USE", "MAINTENANCE", "OFFLINE"] as const;
 const MAINTENANCE_TYPES = ["PREVENTIVE", "CORRECTIVE", "INSPECTION", "CALIBRATION"] as const;
-
-const machineTypeLabel: Record<string, string> = {
-  CNC_MILLING: "Milling", CNC_LATHE: "Lathe", CNC_ROUTER: "Router",
-  CNC_ENGRAVING: "Engraving", OTHER: "Other",
-};
 
 interface MaintenanceLog {
   id: string;
@@ -244,10 +244,12 @@ export function MachineDetailClient({ machine }: { machine: Machine }) {
               <div className="space-y-1.5">
                 <Label>{t("machine.type")}</Label>
                 <Select value={currentType} onValueChange={(v) => setValue("type", v ?? machine.type)}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(value) => getMachineTypeLabelTh(value)}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {MACHINE_TYPES.map((mt) => (
-                      <SelectItem key={mt} value={mt}>{machineTypeLabel[mt]}</SelectItem>
+                      <SelectItem key={mt} value={mt}>{getMachineTypeLabelTh(mt)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -255,10 +257,12 @@ export function MachineDetailClient({ machine }: { machine: Machine }) {
               <div className="space-y-1.5">
                 <Label>{t("common.status")}</Label>
                 <Select value={currentStatus} onValueChange={(v) => { if (v) { setValue("status", v); } }}>
-                  <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                  <SelectTrigger className="w-full">
+                    <SelectValue>{(value) => getMachineStatusLabelTh(value)}</SelectValue>
+                  </SelectTrigger>
                   <SelectContent>
                     {MACHINE_STATUSES.map((s) => (
-                      <SelectItem key={s} value={s}>{t(`machine.status.${s}`)}</SelectItem>
+                      <SelectItem key={s} value={s}>{getMachineStatusLabelTh(s)}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
@@ -302,10 +306,12 @@ export function MachineDetailClient({ machine }: { machine: Machine }) {
                   <div className="space-y-1.5">
                     <Label>{t("machine.type")}</Label>
                     <Select defaultValue="PREVENTIVE" onValueChange={(v) => setValueMaint("type", v ?? "PREVENTIVE")}>
-                      <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+                      <SelectTrigger className="w-full">
+                        <SelectValue>{(value) => getMaintenanceTypeLabelTh(value)}</SelectValue>
+                      </SelectTrigger>
                       <SelectContent>
                         {MAINTENANCE_TYPES.map((mt) => (
-                          <SelectItem key={mt} value={mt}>{t(`machine.maintenanceType.${mt}`)}</SelectItem>
+                          <SelectItem key={mt} value={mt}>{getMaintenanceTypeLabelTh(mt)}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>

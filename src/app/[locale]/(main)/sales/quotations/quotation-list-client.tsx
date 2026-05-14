@@ -18,6 +18,7 @@ import {
 import { Plus, Search } from "lucide-react";
 import { formatMoney } from "@/lib/currency";
 import { getTaxTypeLabelTh, type DocumentTaxType } from "@/lib/tax-type";
+import { getAllOptionLabelTh, getQuotationStatusLabelTh } from "@/lib/select-labels";
 
 interface QuotationRow {
   id: string;
@@ -201,17 +202,21 @@ export function QuotationListClient({
           onValueChange={(val) => setStatusFilter(val ?? "ALL")}
         >
           <SelectTrigger className="w-[160px]">
-            <SelectValue />
+            <SelectValue>
+              {(value) =>
+                value === "ALL" ? getAllOptionLabelTh(value) : getQuotationStatusLabelTh(value)
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">{tc("filter")}</SelectItem>
-            <SelectItem value="DRAFT">{t("status.DRAFT")}</SelectItem>
-            <SelectItem value="SENT">{t("status.SENT")}</SelectItem>
-            <SelectItem value="REVISED">{t("status.REVISED")}</SelectItem>
-            <SelectItem value="APPROVED">{t("status.APPROVED")}</SelectItem>
-            <SelectItem value="REJECTED">{t("status.REJECTED")}</SelectItem>
-            <SelectItem value="EXPIRED">{t("status.EXPIRED")}</SelectItem>
-            <SelectItem value="CANCELLED">{t("status.CANCELLED")}</SelectItem>
+            <SelectItem value="ALL">{getAllOptionLabelTh("ALL")}</SelectItem>
+            <SelectItem value="DRAFT">{getQuotationStatusLabelTh("DRAFT")}</SelectItem>
+            <SelectItem value="SENT">{getQuotationStatusLabelTh("SENT")}</SelectItem>
+            <SelectItem value="REVISED">{getQuotationStatusLabelTh("REVISED")}</SelectItem>
+            <SelectItem value="APPROVED">{getQuotationStatusLabelTh("APPROVED")}</SelectItem>
+            <SelectItem value="REJECTED">{getQuotationStatusLabelTh("REJECTED")}</SelectItem>
+            <SelectItem value="EXPIRED">{getQuotationStatusLabelTh("EXPIRED")}</SelectItem>
+            <SelectItem value="CANCELLED">{getQuotationStatusLabelTh("CANCELLED")}</SelectItem>
           </SelectContent>
         </Select>
       </div>

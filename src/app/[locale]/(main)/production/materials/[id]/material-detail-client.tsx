@@ -28,6 +28,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { getMaterialUnitLabelTh } from "@/lib/select-labels";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2, Package } from "lucide-react";
 
@@ -213,12 +214,14 @@ export function MaterialDetailClient({ material }: { material: Material }) {
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("material.selectUnit")} />
+                    <SelectValue placeholder={t("material.selectUnit")}>
+                      {(value) => getMaterialUnitLabelTh(value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {MATERIAL_UNITS.map((unit) => (
                       <SelectItem key={unit} value={unit}>
-                        {unit}
+                        {getMaterialUnitLabelTh(unit)}
                       </SelectItem>
                     ))}
                   </SelectContent>

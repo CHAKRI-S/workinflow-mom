@@ -608,20 +608,26 @@ model Consumable {
 // BOM (Bill of Materials)
 // ══════════════════════════════════════════════════
 
+enum BomMaterialSourcing {
+  STOCK_CUT
+  JOB_SPECIFIC
+}
+
 model BomLine {
-  id             String   @id @default(cuid())
+  id             String              @id @default(cuid())
   productId      String
-  product        Product  @relation("ProductBom", fields: [productId], references: [id])
+  product        Product             @relation("ProductBom", fields: [productId], references: [id])
   materialId     String
-  material       Material @relation(fields: [materialId], references: [id])
-  qtyPerUnit     Decimal  @db.Decimal(12, 4)
+  material       Material            @relation(fields: [materialId], references: [id])
+  qtyPerUnit     Decimal             @db.Decimal(12, 4)
   materialSize   String? // ขนาดวัสดุ เช่น "Ø50 x 100mm"
   materialType   String? // ประเภทวัสดุ เช่น "AL6061-T6"
   piecesPerStock Int? // จำนวนชิ้นที่ได้ต่อวัสดุ 1 หน่วย
   notes          String?
-  sortOrder      Int      @default(0)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  sourcing       BomMaterialSourcing @default(STOCK_CUT)
+  sortOrder      Int                 @default(0)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
 
   @@index([productId])
   @@index([materialId])

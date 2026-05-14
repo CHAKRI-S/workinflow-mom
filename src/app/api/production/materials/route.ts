@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import {
+  createWithGeneratedCode,
+  generateMaterialCode,
+} from "@/lib/code-gen";
 
 // GET /api/production/materials
 export async function GET() {
@@ -24,7 +28,7 @@ export async function POST(req: NextRequest) {
   const body = await req.json();
 
   const {
-    code,
+    code: _ignoredCode,
     name,
     type,
     specification,
@@ -35,29 +39,35 @@ export async function POST(req: NextRequest) {
     unitCost,
     supplierId,
   } = body;
+  void _ignoredCode;
 
-  if (!code || !name) {
+  if (!name) {
     return NextResponse.json(
-      { error: "Code and name are required" },
+      { error: "Name is required" },
       { status: 400 }
     );
   }
 
   try {
-    const material = await prisma.material.create({
-      data: {
-        code,
-        name,
-        type: type || null,
-        specification: specification || null,
-        unit: unit || "PCS",
-        dimensions: dimensions || null,
-        stockQty: stockQty ?? 0,
-        minStockQty: minStockQty ?? 0,
-        unitCost: unitCost ?? null,
-        supplierId: supplierId || null,
-        tenantId: session!.user.tenantId,
-      },
+    const tenantId = session!.user.tenantId;
+    const material = await createWithGeneratedCode({
+      generate: () => generateMaterialCode(tenantId),
+      create: (code) =>
+        prisma.material.create({
+          data: {
+            code,
+            name,
+            type: type || null,
+            specification: specification || null,
+            unit: unit || "PCS",
+            dimensions: dimensions || null,
+            stockQty: stockQty ?? 0,
+            minStockQty: minStockQty ?? 0,
+            unitCost: unitCost ?? null,
+            supplierId: supplierId || null,
+            tenantId,
+          },
+        }),
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(material)), {

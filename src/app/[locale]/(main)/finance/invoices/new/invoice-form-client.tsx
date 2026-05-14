@@ -29,6 +29,7 @@ import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 import { formatMoney, getCurrencyLabel, type CurrencyCode } from "@/lib/currency";
 import { getTaxTypeLabelTh, type DocumentTaxType } from "@/lib/tax-type";
+import { getInvoiceTypeLabelTh } from "@/lib/select-labels";
 import type { VatPriceMode } from "@/lib/vat";
 
 interface SOLine {
@@ -78,6 +79,16 @@ interface InvoiceLineDraft {
 }
 
 const INVOICE_TYPES = ["DEPOSIT", "FULL", "REMAINING", "PARTIAL"] as const;
+
+function getSalesOrderOptionLabel(
+  salesOrders: SalesOrderOption[],
+  value: string | null | undefined
+): string {
+  if (!value) return "";
+  const salesOrder = salesOrders.find((so) => so.id === value);
+  if (!salesOrder) return "ไม่พบใบสั่งขายที่เลือก";
+  return `${salesOrder.orderNumber} — ${salesOrder.customer.name} · ${formatMoney(Number(salesOrder.totalAmount), salesOrder.currencyCode)}`;
+}
 
 export function InvoiceFormClient({
   salesOrders,
@@ -241,12 +252,16 @@ export function InvoiceFormClient({
               <SelectTrigger>
                 <SelectValue
                   placeholder={t("invoice.selectSalesOrder")}
-                />
+                >
+                  {(value) =>
+                    getSalesOrderOptionLabel(salesOrders, value) ||
+                    t("invoice.selectSalesOrder")}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {salesOrders.map((so) => (
                   <SelectItem key={so.id} value={so.id}>
-                    {so.orderNumber} - {so.customer.name}
+                    {getSalesOrderOptionLabel(salesOrders, so.id)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -260,12 +275,14 @@ export function InvoiceFormClient({
               onValueChange={(v) => setInvoiceType(String(v ?? "FULL"))}
             >
               <SelectTrigger>
-                <SelectValue />
+                <SelectValue>
+                  {(value) => getInvoiceTypeLabelTh(value)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {INVOICE_TYPES.map((type) => (
                   <SelectItem key={type} value={type}>
-                    {t(`invoice.invoiceType.${type}`)}
+                    {getInvoiceTypeLabelTh(type)}
                   </SelectItem>
                 ))}
               </SelectContent>

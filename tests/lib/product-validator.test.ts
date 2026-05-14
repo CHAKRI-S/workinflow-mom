@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { productCreateSchema, productUpdateSchema } from "@/lib/validators/product";
+import { bomLineSchema, productCreateSchema, productUpdateSchema } from "@/lib/validators/product";
 
 const baseProduct = {
   code: "P-001",
@@ -74,5 +74,92 @@ describe("product validator", () => {
     expect(parsed).not.toHaveProperty("productKind");
     expect(parsed).not.toHaveProperty("drawingSource");
     expect(parsed).not.toHaveProperty("defaultVatPriceMode");
+  });
+});
+
+describe("bomLineSchema", () => {
+  const baseLine = {
+    qtyPerUnit: 1.5,
+    sortOrder: 0,
+  };
+
+  it("accepts an existing materialId with STOCK_CUT sourcing", () => {
+    const parsed = bomLineSchema.parse({
+      ...baseLine,
+      materialId: "mat_1",
+      sourcing: "STOCK_CUT",
+    });
+
+    expect(parsed).toMatchObject({
+      materialId: "mat_1",
+      sourcing: "STOCK_CUT",
+    });
+  });
+
+  it("accepts a newMaterial without code with JOB_SPECIFIC sourcing", () => {
+    const parsed = bomLineSchema.parse({
+      ...baseLine,
+      newMaterial: {
+        name: "Aluminum 6061 Round Bar",
+        type: "ALUMINUM",
+        specification: "6061-T6",
+        unit: "BAR",
+        dimensions: "Ø50 x 3000mm",
+        minStockQty: 2,
+        unitCost: 1800,
+      },
+      sourcing: "JOB_SPECIFIC",
+    });
+
+    expect(parsed).toMatchObject({
+      newMaterial: {
+        name: "Aluminum 6061 Round Bar",
+        unit: "BAR",
+      },
+      sourcing: "JOB_SPECIFIC",
+    });
+    expect(parsed.newMaterial).not.toHaveProperty("code");
+  });
+
+  it("does not default sortOrder so the API can preserve array order", () => {
+    const parsed = bomLineSchema.parse({
+      materialId: "mat_1",
+      qtyPerUnit: 1,
+    });
+
+    expect(parsed.sortOrder).toBeUndefined();
+    expect(parsed.sourcing).toBe("STOCK_CUT");
+  });
+
+  it("rejects inline material payloads that try to provide a manual code", () => {
+    expect(() =>
+      bomLineSchema.parse({
+        ...baseLine,
+        newMaterial: {
+          code: "MANUAL-MAT-001",
+          name: "Should auto-generate",
+        },
+      }),
+    ).toThrow();
+  });
+
+  it("rejects lines with neither materialId nor newMaterial", () => {
+    expect(() =>
+      bomLineSchema.parse({
+        ...baseLine,
+        sourcing: "STOCK_CUT",
+      }),
+    ).toThrow();
+  });
+
+  it("rejects lines with both materialId and newMaterial", () => {
+    expect(() =>
+      bomLineSchema.parse({
+        ...baseLine,
+        materialId: "mat_1",
+        newMaterial: { name: "Duplicate inline material" },
+        sourcing: "JOB_SPECIFIC",
+      }),
+    ).toThrow();
   });
 });

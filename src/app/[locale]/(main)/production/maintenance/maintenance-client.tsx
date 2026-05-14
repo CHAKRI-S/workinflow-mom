@@ -4,7 +4,6 @@ import { useState, useMemo } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -37,6 +36,7 @@ import {
   CheckCircle2,
   Loader2,
 } from "lucide-react";
+import { getMaintenanceTypeLabelTh } from "@/lib/select-labels";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -67,6 +67,12 @@ interface MaintenanceLog {
 interface Props {
   logs: MaintenanceLog[];
   machines: Machine[];
+}
+
+function getMachineOptionLabel(machines: Machine[], value?: string | null): string {
+  if (!value) return "";
+  const machine = machines.find((m) => m.id === value);
+  return machine ? `${machine.code} — ${machine.name}` : "ไม่พบเครื่องจักรที่เลือก";
 }
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -295,7 +301,9 @@ function CreateModal({ open, onClose, machines, onCreated }: CreateModalProps) {
               onValueChange={(v) => { if (v) set("machineId", v); }}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="เลือกเครื่อง" />
+                <SelectValue placeholder="เลือกเครื่อง">
+                  {(value) => getMachineOptionLabel(machines, value)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {machines.map((m) => (
@@ -314,12 +322,12 @@ function CreateModal({ open, onClose, machines, onCreated }: CreateModalProps) {
             </Label>
             <Select value={form.type} onValueChange={(v) => { if (v) set("type", v); }}>
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>{(value) => getMaintenanceTypeLabelTh(value)}</SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {MAINTENANCE_TYPES.map((t) => (
                   <SelectItem key={t.value} value={t.value}>
-                    {t.label}
+                    {getMaintenanceTypeLabelTh(t.value)}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -535,7 +543,7 @@ export function MaintenanceClient({ logs, machines }: Props) {
             ยังไม่มีรายการซ่อมบำรุง
           </p>
           <p className="text-xs text-muted-foreground mt-1">
-            คลิก "สร้างรายการ" เพื่อเพิ่มรายการซ่อมบำรุง
+            คลิก &quot;สร้างรายการ&quot; เพื่อเพิ่มรายการซ่อมบำรุง
           </p>
         </div>
       ) : (

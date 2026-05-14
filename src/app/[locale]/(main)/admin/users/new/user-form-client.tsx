@@ -16,6 +16,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { getUserRoleLabelTh } from "@/lib/select-labels";
 
 const ROLES_LIST = [
   "ADMIN",
@@ -166,12 +167,14 @@ export function UserFormClient() {
                 onValueChange={(v) => setValue("role", v ?? "OPERATOR")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getUserRoleLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {ROLES_LIST.map((role) => (
                     <SelectItem key={role} value={role}>
-                      {t(`user.roleLabel.${role}`)}
+                      {getUserRoleLabelTh(role)}
                     </SelectItem>
                   ))}
                 </SelectContent>

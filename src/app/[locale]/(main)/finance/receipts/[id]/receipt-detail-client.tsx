@@ -28,6 +28,7 @@ import {
   AlertCircle,
 } from "lucide-react";
 import { maybeCompressImage } from "@/lib/image-compress";
+import { getWhtCertStatusLabelTh } from "@/lib/select-labels";
 
 type WhtCertStatus =
   | "NOT_APPLICABLE"
@@ -71,14 +72,6 @@ interface ReceiptDetail {
 const NEXT_STATUSES: Record<string, string[]> = {
   DRAFT: ["ISSUED"],
   ISSUED: ["CANCELLED"],
-};
-
-const CERT_STATUS_LABEL: Record<WhtCertStatus, string> = {
-  NOT_APPLICABLE: "ไม่เข้าข่าย",
-  PENDING: "รอรับ cert",
-  RECEIVED: "รับ cert แล้ว",
-  VERIFIED: "ตรวจสอบแล้ว",
-  MISSING_OVERDUE: "เกินกำหนด",
 };
 
 const CERT_STATUS_VARIANT: Record<WhtCertStatus, string> = {
@@ -319,7 +312,7 @@ export function ReceiptDetailClient({
               {hasWht && (
                 <StatusBadge
                   status={CERT_STATUS_VARIANT[receipt.whtCertStatus]}
-                  label={`WHT: ${CERT_STATUS_LABEL[receipt.whtCertStatus]}`}
+                  label={`WHT: ${getWhtCertStatusLabelTh(receipt.whtCertStatus)}`}
                 />
               )}
             </div>
@@ -505,12 +498,14 @@ export function ReceiptDetailClient({
                 disabled={isTerminal}
               >
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getWhtCertStatusLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {certStatusOptions.map((s) => (
                     <SelectItem key={s} value={s}>
-                      {CERT_STATUS_LABEL[s]}
+                      {getWhtCertStatusLabelTh(s)}
                     </SelectItem>
                   ))}
                 </SelectContent>

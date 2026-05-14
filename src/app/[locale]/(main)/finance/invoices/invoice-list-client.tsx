@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Plus, FileDown } from "lucide-react";
 import { useState, useMemo } from "react";
+import { getAllOptionLabelTh, getFinanceStatusLabelTh } from "@/lib/select-labels";
 
 interface InvoiceRow {
   id: string;
@@ -242,12 +243,16 @@ export function InvoiceListClient({
           onValueChange={(v) => setStatusFilter(String(v ?? "ALL"))}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder={t("common.status")} />
+            <SelectValue placeholder={t("common.status")}>
+              {(value) =>
+                value === "ALL" ? getAllOptionLabelTh(value) : getFinanceStatusLabelTh(value)
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {s === "ALL" ? t("common.filter") + ": " + t("common.status") : t(`invoice.status.${s}`)}
+                {s === "ALL" ? getAllOptionLabelTh(s) : getFinanceStatusLabelTh(s)}
               </SelectItem>
             ))}
           </SelectContent>

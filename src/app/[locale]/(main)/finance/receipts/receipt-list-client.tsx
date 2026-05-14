@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/select";
 import { Search } from "lucide-react";
 import { useState, useMemo } from "react";
+import { getAllOptionLabelTh, getFinanceStatusLabelTh } from "@/lib/select-labels";
 
 interface ReceiptRow {
   id: string;
@@ -195,14 +196,18 @@ export function ReceiptListClient({
           onValueChange={(v) => setStatusFilter(String(v ?? "ALL"))}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder={t("common.status")} />
+            <SelectValue placeholder={t("common.status")}>
+              {(value) =>
+                value === "ALL" ? getAllOptionLabelTh(value) : getFinanceStatusLabelTh(value)
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
             {STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
                 {s === "ALL"
-                  ? t("common.filter") + ": " + t("common.status")
-                  : t(`receipt.status.${s}`)}
+                  ? getAllOptionLabelTh(s)
+                  : getFinanceStatusLabelTh(s)}
               </SelectItem>
             ))}
           </SelectContent>

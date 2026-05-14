@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
+import {
+  createWithGeneratedCode,
+  generateConsumableCode,
+} from "@/lib/code-gen";
 
 // GET /api/procurement/consumables — list all consumables for tenant
 export async function GET() {
@@ -34,27 +38,42 @@ export async function POST(req: NextRequest) {
     requirePermission(session, ROLES.PLANNING);
 
     const body = await req.json();
-    const { code, name, category, brand, specification, unit, stockQty, minStockQty } = body;
+    const {
+      code: _ignoredCode,
+      name,
+      category,
+      brand,
+      specification,
+      unit,
+      stockQty,
+      minStockQty,
+    } = body;
+    void _ignoredCode;
 
-    if (!code || !name) {
+    if (!name) {
       return NextResponse.json(
-        { error: "code and name are required" },
+        { error: "name is required" },
         { status: 400 }
       );
     }
 
-    const consumable = await prisma.consumable.create({
-      data: {
-        code,
-        name,
-        category: category || "OTHER",
-        brand: brand || null,
-        specification: specification || null,
-        unit: unit || "PCS",
-        stockQty: stockQty ?? 0,
-        minStockQty: minStockQty ?? 0,
-        tenantId: session!.user.tenantId,
-      },
+    const tenantId = session!.user.tenantId;
+    const consumable = await createWithGeneratedCode({
+      generate: () => generateConsumableCode(tenantId),
+      create: (code) =>
+        prisma.consumable.create({
+          data: {
+            code,
+            name,
+            category: category || "OTHER",
+            brand: brand || null,
+            specification: specification || null,
+            unit: unit || "PCS",
+            stockQty: stockQty ?? 0,
+            minStockQty: minStockQty ?? 0,
+            tenantId,
+          },
+        }),
     });
 
     return NextResponse.json(JSON.parse(JSON.stringify(consumable)), {

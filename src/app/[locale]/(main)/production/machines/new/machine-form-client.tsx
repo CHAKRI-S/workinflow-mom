@@ -14,6 +14,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  getMachineStatusLabelTh,
+  getMachineTypeLabelTh,
+} from "@/lib/select-labels";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
@@ -33,16 +37,7 @@ const MACHINE_STATUSES = [
   "OFFLINE",
 ] as const;
 
-const machineTypeLabel: Record<string, string> = {
-  CNC_MILLING: "Milling",
-  CNC_LATHE: "Lathe",
-  CNC_ROUTER: "Router",
-  CNC_ENGRAVING: "Engraving",
-  OTHER: "Other",
-};
-
 interface MachineFormData {
-  code: string;
   name: string;
   type: string;
   description: string;
@@ -62,7 +57,6 @@ export function MachineFormClient() {
     formState: { errors },
   } = useForm<MachineFormData>({
     defaultValues: {
-      code: "",
       name: "",
       type: "CNC_MILLING",
       description: "",
@@ -119,18 +113,12 @@ export function MachineFormClient() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
               <Label>{t("machine.code")}</Label>
-              <Input
-                {...register("code")}
-                placeholder="เว้นว่าง = ระบบสร้างให้ (M-0001)"
-              />
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                ระบบจะสร้างรหัสเครื่องจักรให้อัตโนมัติ
+              </div>
               <p className="text-xs text-muted-foreground">
-                เว้นว่างได้ — ระบบจะสร้างรหัสให้อัตโนมัติ เช่น M-0001, M-0002 ...
+                รูปแบบตามรหัสบริษัท เช่น WF01-MCN-0001
               </p>
-              {errors.code && (
-                <p className="text-xs text-destructive">
-                  {errors.code.message}
-                </p>
-              )}
             </div>
 
             <div className="space-y-1.5">
@@ -153,12 +141,14 @@ export function MachineFormClient() {
                 onValueChange={(v) => setValue("type", v ?? "CNC_MILLING")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("machine.selectType")} />
+                  <SelectValue placeholder={t("machine.selectType")}>
+                    {(value) => getMachineTypeLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MACHINE_TYPES.map((type) => (
                     <SelectItem key={type} value={type}>
-                      {machineTypeLabel[type] || type}
+                      {getMachineTypeLabelTh(type)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -172,12 +162,14 @@ export function MachineFormClient() {
                 onValueChange={(v) => setValue("status", v ?? "AVAILABLE")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("machine.selectStatus")} />
+                  <SelectValue placeholder={t("machine.selectStatus")}>
+                    {(value) => getMachineStatusLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MACHINE_STATUSES.map((status) => (
                     <SelectItem key={status} value={status}>
-                      {t(`machine.status.${status}`)}
+                      {getMachineStatusLabelTh(status)}
                     </SelectItem>
                   ))}
                 </SelectContent>

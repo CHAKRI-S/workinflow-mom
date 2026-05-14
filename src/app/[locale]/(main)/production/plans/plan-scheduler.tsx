@@ -28,6 +28,7 @@ import {
   CalendarIcon,
   Loader2,
 } from "lucide-react";
+import { getMaterialReadinessLabelTh } from "@/lib/select-labels";
 
 // ─── Types ──────────────────────────────────────────
 
@@ -83,6 +84,28 @@ interface SalesOrder {
   status: string;
   customer: { id: string; name: string; code: string };
   lines: SOLine[];
+}
+
+function getSalesOrderOptionLabel(salesOrders: SalesOrder[], value?: string | null): string {
+  if (!value) return "";
+  const salesOrder = salesOrders.find((so) => so.id === value);
+  return salesOrder
+    ? `${salesOrder.orderNumber} - ${salesOrder.customer.name}`
+    : "ไม่พบใบสั่งขายที่เลือก";
+}
+
+function getSalesOrderLineOptionLabel(lines: SOLine[], value?: string | null): string {
+  if (!value) return "";
+  const line = lines.find((soLine) => soLine.id === value);
+  if (!line) return "ไม่พบรายการขายที่เลือก";
+  const remaining = Number(line.quantity) - Number(line.deliveredQty);
+  return `${line.product.code} - ${line.product.name} (${remaining} ชิ้น)`;
+}
+
+function getMachineOptionLabel(machines: Machine[], value?: string | null): string {
+  if (!value) return "";
+  const machine = machines.find((m) => m.id === value);
+  return machine ? `${machine.code} - ${machine.name}` : "ไม่พบเครื่องจักรที่เลือก";
 }
 
 type ViewMode = "week" | "month";
@@ -803,7 +826,9 @@ export function PlanScheduler() {
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("plan.selectSO")} />
+                    <SelectValue placeholder={t("plan.selectSO")}>
+                      {(value) => getSalesOrderOptionLabel(availableSOs, value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {availableSOs.map((so) => (
@@ -841,7 +866,9 @@ export function PlanScheduler() {
                   }}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("plan.selectSOLine")} />
+                    <SelectValue placeholder={t("plan.selectSOLine")}>
+                      {(value) => getSalesOrderLineOptionLabel(selectedSO.lines, value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {selectedSO.lines.map((line) => {
@@ -872,7 +899,9 @@ export function PlanScheduler() {
                     }
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue placeholder={t("plan.selectMachine")} />
+                      <SelectValue placeholder={t("plan.selectMachine")}>
+                        {(value) => getMachineOptionLabel(machines, value)}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {machines.map((m) => (
@@ -924,13 +953,15 @@ export function PlanScheduler() {
                     onValueChange={(v) => setFormMaterialStatus(v ?? "NOT_ORDERED")}
                   >
                     <SelectTrigger className="w-full">
-                      <SelectValue />
+                      <SelectValue>
+                        {(value) => getMaterialReadinessLabelTh(value)}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="READY">{t("workOrder.materialReadiness.READY")}</SelectItem>
-                      <SelectItem value="ORDERED">{t("workOrder.materialReadiness.ORDERED")}</SelectItem>
-                      <SelectItem value="NOT_ORDERED">{t("workOrder.materialReadiness.NOT_ORDERED")}</SelectItem>
-                      <SelectItem value="PARTIAL">{t("workOrder.materialReadiness.PARTIAL")}</SelectItem>
+                      <SelectItem value="READY">{getMaterialReadinessLabelTh("READY")}</SelectItem>
+                      <SelectItem value="ORDERED">{getMaterialReadinessLabelTh("ORDERED")}</SelectItem>
+                      <SelectItem value="NOT_ORDERED">{getMaterialReadinessLabelTh("NOT_ORDERED")}</SelectItem>
+                      <SelectItem value="PARTIAL">{getMaterialReadinessLabelTh("PARTIAL")}</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>

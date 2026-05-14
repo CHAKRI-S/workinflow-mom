@@ -50,6 +50,24 @@ interface Props {
 const ALLOWED_MIME = ["application/pdf", "image/jpeg", "image/png"];
 const MAX_BYTES = 5 * 1024 * 1024;
 
+function formatOptionAmount(amount: number): string {
+  return amount.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function getInvoiceOptionLabel(
+  invoices: InvoiceOption[],
+  value: string | null | undefined
+): string {
+  if (!value) return "";
+  const invoice = invoices.find((inv) => inv.id === value);
+  if (!invoice) return "ไม่พบใบแจ้งหนี้ที่เลือก";
+  const outstanding = Number(invoice.totalAmount) - Number(invoice.paidAmount);
+  return `${invoice.invoiceNumber} — ${invoice.customer.name} · ${formatOptionAmount(outstanding)} คงเหลือ`;
+}
+
 export function ReceiptFormClient({
   invoices,
   preselectedInvoiceId,
@@ -317,7 +335,9 @@ export function ReceiptFormClient({
             onValueChange={(v) => onPickInvoice(String(v ?? ""))}
           >
             <SelectTrigger>
-              <SelectValue placeholder="เลือก invoice..." />
+              <SelectValue placeholder="เลือก invoice...">
+                {(value) => getInvoiceOptionLabel(invoices, value) || "เลือก invoice..."}
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {invoices.map((inv) => {

@@ -13,6 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { getMaterialUnitLabelTh } from "@/lib/select-labels";
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
@@ -32,7 +33,6 @@ const MATERIAL_UNITS = [
 ] as const;
 
 interface MaterialFormData {
-  code: string;
   name: string;
   type: string;
   specification: string;
@@ -56,7 +56,6 @@ export function MaterialFormClient() {
     formState: { errors },
   } = useForm<MaterialFormData>({
     defaultValues: {
-      code: "",
       name: "",
       type: "",
       specification: "",
@@ -77,7 +76,6 @@ export function MaterialFormClient() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          code: data.code,
           name: data.name,
           type: data.type || null,
           specification: data.specification || null,
@@ -126,16 +124,13 @@ export function MaterialFormClient() {
         <Card className="p-4 space-y-4">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-1.5">
-              <Label>{t("material.code")} *</Label>
-              <Input
-                {...register("code", { required: "Code is required" })}
-                placeholder={t("material.code")}
-              />
-              {errors.code && (
-                <p className="text-xs text-destructive">
-                  {errors.code.message}
-                </p>
-              )}
+              <Label>{t("material.code")}</Label>
+              <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                ระบบจะสร้างรหัสวัตถุดิบให้อัตโนมัติ
+              </div>
+              <p className="text-xs text-muted-foreground">
+                รูปแบบตามรหัสบริษัท เช่น WF01-MAT-0001
+              </p>
             </div>
 
             <div className="space-y-1.5">
@@ -174,12 +169,14 @@ export function MaterialFormClient() {
                 onValueChange={(v) => setValue("unit", v ?? "PCS")}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue placeholder={t("material.selectUnit")} />
+                  <SelectValue placeholder={t("material.selectUnit")}>
+                    {(value) => getMaterialUnitLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {MATERIAL_UNITS.map((unit) => (
                     <SelectItem key={unit} value={unit}>
-                      {unit}
+                      {getMaterialUnitLabelTh(unit)}
                     </SelectItem>
                   ))}
                 </SelectContent>

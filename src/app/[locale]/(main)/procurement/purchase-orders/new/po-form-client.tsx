@@ -25,6 +25,7 @@ import {
 import { useState, useCallback } from "react";
 import { ArrowLeft, Save, Loader2, Plus, Trash2 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
+import { getPurchaseOrderLineTypeLabelTh } from "@/lib/select-labels";
 
 interface Material {
   id: string;
@@ -40,6 +41,24 @@ interface Consumable {
   name: string;
   unit: string;
   lastPrice: string | null;
+}
+
+function getMaterialOptionLabel(
+  materials: Material[],
+  value: string | null | undefined
+): string {
+  if (!value) return "";
+  const material = materials.find((item) => item.id === value);
+  return material ? `${material.code} — ${material.name}` : "ไม่พบวัตถุดิบที่เลือก";
+}
+
+function getConsumableOptionLabel(
+  consumables: Consumable[],
+  value: string | null | undefined
+): string {
+  if (!value) return "";
+  const consumable = consumables.find((item) => item.id === value);
+  return consumable ? `${consumable.code} — ${consumable.name}` : "ไม่พบวัสดุสิ้นเปลืองที่เลือก";
 }
 
 type LineType = "MATERIAL" | "CONSUMABLE" | "OTHER";
@@ -348,7 +367,9 @@ export function POFormClient({
                             }
                           >
                             <SelectTrigger className="w-full">
-                              <SelectValue />
+                              <SelectValue>
+                                {(value) => getPurchaseOrderLineTypeLabelTh(value)}
+                              </SelectValue>
                             </SelectTrigger>
                             <SelectContent>
                               <SelectItem value="MATERIAL">
@@ -376,12 +397,16 @@ export function POFormClient({
                               <SelectTrigger className="w-full">
                                 <SelectValue
                                   placeholder={t("purchaseOrder.selectMaterial")}
-                                />
+                                >
+                                  {(value) =>
+                                    getMaterialOptionLabel(materials, value) ||
+                                    t("purchaseOrder.selectMaterial")}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {materials.map((m) => (
                                   <SelectItem key={m.id} value={m.id}>
-                                    {m.code} - {m.name}
+                                    {getMaterialOptionLabel(materials, m.id)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>
@@ -397,12 +422,16 @@ export function POFormClient({
                               <SelectTrigger className="w-full">
                                 <SelectValue
                                   placeholder={t("purchaseOrder.selectConsumable")}
-                                />
+                                >
+                                  {(value) =>
+                                    getConsumableOptionLabel(consumables, value) ||
+                                    t("purchaseOrder.selectConsumable")}
+                                </SelectValue>
                               </SelectTrigger>
                               <SelectContent>
                                 {consumables.map((c) => (
                                   <SelectItem key={c.id} value={c.id}>
-                                    {c.code} - {c.name}
+                                    {getConsumableOptionLabel(consumables, c.id)}
                                   </SelectItem>
                                 ))}
                               </SelectContent>

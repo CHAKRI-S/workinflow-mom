@@ -37,7 +37,6 @@ export async function POST(req: NextRequest) {
     // Plan limit check
     await requireCustomerAvailable(tenantId);
 
-    const providedCode = data.code?.trim();
     const {
       code: _ignored,
       juristicType,
@@ -75,17 +74,13 @@ export async function POST(req: NextRequest) {
       ...(brandingForDb !== undefined ? { brandingAssets: brandingForDb } : {}),
     };
 
-    const customer = providedCode
-      ? await prisma.customer.create({
-          data: { ...cleaned, code: providedCode, tenantId },
-        })
-      : await createWithGeneratedCode({
-          generate: () => generateCustomerCode(tenantId),
-          create: (code) =>
-            prisma.customer.create({
-              data: { ...cleaned, code, tenantId },
-            }),
-        });
+    const customer = await createWithGeneratedCode({
+      generate: () => generateCustomerCode(tenantId),
+      create: (code) =>
+        prisma.customer.create({
+          data: { ...cleaned, code, tenantId },
+        }),
+    });
 
     return NextResponse.json(customer, { status: 201 });
   } catch (err) {

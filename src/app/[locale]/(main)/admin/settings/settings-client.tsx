@@ -38,6 +38,7 @@ import {
   RefreshCw,
 } from "lucide-react";
 import { isValidFactoryBoardToken } from "@/lib/factory-board";
+import { getBillingNatureLabelTh, getVatRegistrationLabelTh } from "@/lib/select-labels";
 
 interface Tenant {
   id: string;
@@ -495,7 +496,9 @@ export function SettingsClient({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {(value) => getVatRegistrationLabelTh(value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="true">
@@ -530,7 +533,9 @@ export function SettingsClient({
                   }
                 >
                   <SelectTrigger>
-                    <SelectValue />
+                    <SelectValue>
+                      {(value) => getBillingNatureLabelTh(value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="GOODS">

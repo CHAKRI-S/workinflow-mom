@@ -15,6 +15,7 @@ import {
 import { Card } from "@/components/ui/card";
 import { useState } from "react";
 import { ArrowLeft, Save, Loader2 } from "lucide-react";
+import { getConsumableCategoryLabelTh } from "@/lib/select-labels";
 
 const CATEGORIES = [
   "CUTTING_TOOL",
@@ -165,12 +166,14 @@ export function ConsumableDetailClient({
                 onValueChange={(v) => setCategory(v ?? consumable.category)}
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getConsumableCategoryLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {CATEGORIES.map((cat) => (
                     <SelectItem key={cat} value={cat}>
-                      {t(`categoryLabel.${cat}`)}
+                      {getConsumableCategoryLabelTh(cat)}
                     </SelectItem>
                   ))}
                 </SelectContent>

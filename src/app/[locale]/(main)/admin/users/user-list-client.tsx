@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Plus, Search, Send, AlertTriangle, ShieldCheck, Users as UsersIcon } from "lucide-react";
 import { useState, useMemo } from "react";
+import { getAllOptionLabelTh, getUserRoleLabelTh } from "@/lib/select-labels";
 
 const ROLES_LIST = [
   "ADMIN",
@@ -243,13 +244,15 @@ export function UserListClient({
           onValueChange={(v) => setRoleFilter(v ?? "ALL")}
         >
           <SelectTrigger className="w-[180px]">
-            <SelectValue />
+            <SelectValue>
+              {(value) => (value === "ALL" ? getAllOptionLabelTh(value) : getUserRoleLabelTh(value))}
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">{t("user.role")} - All</SelectItem>
+            <SelectItem value="ALL">{getAllOptionLabelTh("ALL")}</SelectItem>
             {ROLES_LIST.map((role) => (
               <SelectItem key={role} value={role}>
-                {t(`user.roleLabel.${role}`)}
+                {getUserRoleLabelTh(role)}
               </SelectItem>
             ))}
           </SelectContent>

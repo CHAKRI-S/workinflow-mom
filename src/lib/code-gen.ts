@@ -1,11 +1,13 @@
 /**
- * Sequential code generator for master data (customers, machines, materials, ...).
+ * Sequential code generator for master data (customers, products, machines, ...).
  *
  * Unlike `doc-numbering.ts` (which uses a dedicated DocumentSequence table keyed
  * by year), master data codes don't reset yearly and are created infrequently
  * enough that we can scan existing rows + retry on unique-constraint collision.
  *
- * Format: `<prefix><N>` zero-padded, e.g. "C-0001", "M-0042".
+ * Format: `{TENANT_CODE}-{ENTITY_PREFIX}-{SEQ:4}` (e.g. "WF01-PRD-0001").
+ * If a legacy tenant has no configured code, the fallback is
+ * `{ENTITY_PREFIX}-{SEQ:4}` (e.g. "PRD-0001").
  *
  * Race safety: the caller wraps `create` in a retry loop via
  * `createWithGeneratedCode` — if two concurrent inserts get the same next code,
@@ -20,6 +22,21 @@ export interface CodeGenOptions {
   /** Width of the numeric suffix (zero-padded). Default 4 → 0001..9999. */
   padding?: number;
 }
+
+export type MasterCodeKind =
+  | "customer"
+  | "product"
+  | "material"
+  | "consumable"
+  | "machine";
+
+const MASTER_PREFIX: Record<MasterCodeKind, string> = {
+  customer: "CUS",
+  product: "PRD",
+  material: "MAT",
+  consumable: "CON",
+  machine: "MCN",
+};
 
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -46,30 +63,66 @@ export function nextCodeFromExisting(
   return opts.prefix + String(max + 1).padStart(padding, "0");
 }
 
-/**
- * Generate the next customer code for a tenant (e.g. "C-0001").
- * Only scans codes that match the default prefix — manually-entered codes
- * with other formats are ignored.
- */
-export async function generateCustomerCode(tenantId: string): Promise<string> {
-  const prefix = "C-";
-  const rows = await prisma.customer.findMany({
-    where: { tenantId, code: { startsWith: prefix } },
+export async function getTenantCodePrefix(tenantId: string): Promise<string> {
+  const tenant = await prisma.tenant.findUnique({
+    where: { id: tenantId },
     select: { code: true },
   });
-  return nextCodeFromExisting(rows.map((r) => r.code), { prefix });
+  const tenantCode = tenant?.code?.trim();
+  return tenantCode ? `${tenantCode}-` : "";
 }
 
-/**
- * Generate the next CNC machine code for a tenant (e.g. "M-0001").
- */
-export async function generateMachineCode(tenantId: string): Promise<string> {
-  const prefix = "M-";
-  const rows = await prisma.cncMachine.findMany({
+async function findExistingMasterCodes(
+  tenantId: string,
+  kind: MasterCodeKind,
+  prefix: string,
+): Promise<string[]> {
+  const query = {
     where: { tenantId, code: { startsWith: prefix } },
     select: { code: true },
-  });
-  return nextCodeFromExisting(rows.map((r) => r.code), { prefix });
+  };
+
+  switch (kind) {
+    case "customer":
+      return (await prisma.customer.findMany(query)).map((row) => row.code);
+    case "product":
+      return (await prisma.product.findMany(query)).map((row) => row.code);
+    case "material":
+      return (await prisma.material.findMany(query)).map((row) => row.code);
+    case "consumable":
+      return (await prisma.consumable.findMany(query)).map((row) => row.code);
+    case "machine":
+      return (await prisma.cncMachine.findMany(query)).map((row) => row.code);
+  }
+}
+
+export async function generateMasterCode(
+  tenantId: string,
+  kind: MasterCodeKind,
+): Promise<string> {
+  const prefix = `${await getTenantCodePrefix(tenantId)}${MASTER_PREFIX[kind]}-`;
+  const existingCodes = await findExistingMasterCodes(tenantId, kind, prefix);
+  return nextCodeFromExisting(existingCodes, { prefix });
+}
+
+export async function generateCustomerCode(tenantId: string): Promise<string> {
+  return generateMasterCode(tenantId, "customer");
+}
+
+export async function generateProductCode(tenantId: string): Promise<string> {
+  return generateMasterCode(tenantId, "product");
+}
+
+export async function generateMaterialCode(tenantId: string): Promise<string> {
+  return generateMasterCode(tenantId, "material");
+}
+
+export async function generateConsumableCode(tenantId: string): Promise<string> {
+  return generateMasterCode(tenantId, "consumable");
+}
+
+export async function generateMachineCode(tenantId: string): Promise<string> {
+  return generateMasterCode(tenantId, "machine");
 }
 
 /**

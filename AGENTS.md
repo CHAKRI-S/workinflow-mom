@@ -72,6 +72,18 @@ provider.
   metadata. Normal Quotation/Sales Order/Invoice forms must not ask users to
   select drawing source or auto-classify billing nature from drawing source;
   sales documents should snapshot product-derived classification server-side.
+- Product BOM supports creating a new Material inline from the Product form.
+  Inline materials must be created through the BOM API transaction, start with
+  `stockQty = 0`, and receive auto-generated Material codes from `Tenant.code`;
+  normal create/edit UI must not require users to type master-data codes.
+- Master-data codes for Customer/Product/Material/Consumable/Machine are
+  generated from `Tenant.code` through the shared code helper. Keep normal
+  create flows server-generated; reserve manual codes only for explicit
+  admin/import flows if such a flow is intentionally added later.
+- Thai UI dropdown selected values must render Thai/readable labels, not raw enum
+  codes or entity ids. For Base UI selects, do not leave self-closing
+  `<SelectValue />` on enum/id selects unless that select has been explicitly
+  audited; use `src/lib/select-labels.ts` or a local code/name lookup helper.
 - Only one active Tax Invoice may exist per source Invoice. Creating another is
   allowed only after the prior Tax Invoice is cancelled.
 

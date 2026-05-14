@@ -26,6 +26,7 @@ import {
   type IndividualTitleValue,
   type JuristicTypeValue,
 } from "@/components/forms/business-info-section";
+import { getCustomerTypeLabelTh } from "@/lib/select-labels";
 
 interface CustomerFormProps {
   defaultValues?: Partial<CustomerCreateInput> & { id?: string };
@@ -238,22 +239,25 @@ export function CustomerForm({
           <h2 className="font-semibold">{t("customer.basicInfo")}</h2>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-1.5">
-              <Label>{t("customer.code")}</Label>
-              <Input
-                {...register("code")}
-                disabled={isEdit}
-                placeholder={isEdit ? "" : "เว้นว่าง = ระบบสร้างให้ (C-0001)"}
-              />
-              {!isEdit && (
+            {isEdit ? (
+              <div className="space-y-1.5">
+                <Label>{t("customer.code")}</Label>
+                <Input {...register("code")} disabled />
+                {errors.code && (
+                  <p className="text-xs text-destructive">{errors.code.message}</p>
+                )}
+              </div>
+            ) : (
+              <div className="space-y-1.5">
+                <Label>{t("customer.code")}</Label>
+                <div className="rounded-md border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+                  ระบบจะสร้างรหัสลูกค้าให้อัตโนมัติ
+                </div>
                 <p className="text-xs text-muted-foreground">
-                  เว้นว่างได้ — ระบบจะสร้างรหัสให้อัตโนมัติ เช่น C-0001, C-0002 ...
+                  รูปแบบตามรหัสบริษัท เช่น WF01-CUS-0001
                 </p>
-              )}
-              {errors.code && (
-                <p className="text-xs text-destructive">{errors.code.message}</p>
-              )}
-            </div>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label>{t("customer.type")}</Label>
@@ -264,13 +268,15 @@ export function CustomerForm({
                 }
               >
                 <SelectTrigger className="w-full">
-                  <SelectValue />
+                  <SelectValue>
+                    {(value) => getCustomerTypeLabelTh(value)}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="OEM">OEM</SelectItem>
-                  <SelectItem value="DEALER">Dealer</SelectItem>
-                  <SelectItem value="END_USER">End User</SelectItem>
-                  <SelectItem value="OTHER">{t("common.other") || "Other"}</SelectItem>
+                  <SelectItem value="OEM">{getCustomerTypeLabelTh("OEM")}</SelectItem>
+                  <SelectItem value="DEALER">{getCustomerTypeLabelTh("DEALER")}</SelectItem>
+                  <SelectItem value="END_USER">{getCustomerTypeLabelTh("END_USER")}</SelectItem>
+                  <SelectItem value="OTHER">{getCustomerTypeLabelTh("OTHER")}</SelectItem>
                 </SelectContent>
               </Select>
               {errors.customerType && (

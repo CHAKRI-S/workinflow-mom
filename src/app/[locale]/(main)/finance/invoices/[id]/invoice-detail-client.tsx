@@ -38,6 +38,7 @@ import type {
   BillingNature,
   DrawingSource,
 } from "@/lib/validators/billing-nature";
+import { getFinanceStatusLabelTh } from "@/lib/select-labels";
 
 interface InvoiceLine {
   id: string;
@@ -267,14 +268,18 @@ export function InvoiceDetailClient({
                 onValueChange={(v) => handleStatusChange(String(v ?? ""))}
               >
                 <SelectTrigger className="w-[200px]">
-                  <SelectValue placeholder={t("salesOrder.statusTransition")} />
+                  <SelectValue placeholder={t("salesOrder.statusTransition")}>
+                    {(value) =>
+                      getFinanceStatusLabelTh(value) ||
+                      t("salesOrder.statusTransition")}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {nextStatuses.map((s) => (
                     <SelectItem key={s} value={s}>
                       <div className="flex items-center gap-1">
                         <ChevronRight className="h-3 w-3" />
-                        {t(`invoice.status.${s}`)}
+                        {getFinanceStatusLabelTh(s)}
                       </div>
                     </SelectItem>
                   ))}

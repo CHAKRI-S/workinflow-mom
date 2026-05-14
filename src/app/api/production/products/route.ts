@@ -3,6 +3,10 @@ import { auth } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { productCreateSchema } from "@/lib/validators/product";
+import {
+  createWithGeneratedCode,
+  generateProductCode,
+} from "@/lib/code-gen";
 
 // GET /api/production/products
 export async function GET() {
@@ -27,12 +31,20 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json();
   const data = productCreateSchema.parse(body);
+  const { code: _ignoredCode, ...createData } = data;
+  void _ignoredCode;
+  const tenantId = session!.user.tenantId;
 
-  const product = await prisma.product.create({
-    data: {
-      ...data,
-      tenantId: session!.user.tenantId,
-    },
+  const product = await createWithGeneratedCode({
+    generate: () => generateProductCode(tenantId),
+    create: (code) =>
+      prisma.product.create({
+        data: {
+          ...createData,
+          code,
+          tenantId,
+        },
+      }),
   });
 
   return NextResponse.json(product, { status: 201 });

@@ -23,6 +23,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { getWorkOrderPriorityLabelTh } from "@/lib/select-labels";
 import { ArrowLeft, Loader2 } from "lucide-react";
 
 const formSchema = z.object({
@@ -49,6 +50,19 @@ interface SelectOption {
 interface WorkOrderFormClientProps {
   products: SelectOption[];
   machines: SelectOption[];
+}
+
+function getProductOptionLabel(products: SelectOption[], value?: string | null): string {
+  if (!value) return "";
+  const product = products.find((p) => p.id === value);
+  return product ? `${product.code} - ${product.name}` : "ไม่พบสินค้าที่เลือก";
+}
+
+function getMachineOptionLabel(machines: SelectOption[], value?: string | null): string {
+  if (!value) return "";
+  if (value === "__none__") return "-";
+  const machine = machines.find((m) => m.id === value);
+  return machine ? `${machine.code} - ${machine.name}` : "ไม่พบเครื่องจักรที่เลือก";
 }
 
 export function WorkOrderFormClient({
@@ -144,7 +158,9 @@ export function WorkOrderFormClient({
                   onValueChange={(val) => setValue("productId", val ?? "")}
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("selectProduct")} />
+                    <SelectValue placeholder={t("selectProduct")}>
+                      {(value) => getProductOptionLabel(products, value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {products.map((p) => (
@@ -171,7 +187,9 @@ export function WorkOrderFormClient({
                   }
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue placeholder={t("selectMachine")} />
+                    <SelectValue placeholder={t("selectMachine")}>
+                      {(value) => getMachineOptionLabel(machines, value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">-</SelectItem>
@@ -194,13 +212,15 @@ export function WorkOrderFormClient({
                   }
                 >
                   <SelectTrigger className="w-full">
-                    <SelectValue />
+                    <SelectValue>
+                      {(value) => getWorkOrderPriorityLabelTh(value)}
+                    </SelectValue>
                   </SelectTrigger>
                   <SelectContent>
                     {(["LOW", "NORMAL", "HIGH", "URGENT"] as const).map(
                       (p) => (
                         <SelectItem key={p} value={p}>
-                          {t(`priority_label.${p}` as any)}
+                          {getWorkOrderPriorityLabelTh(p)}
                         </SelectItem>
                       )
                     )}

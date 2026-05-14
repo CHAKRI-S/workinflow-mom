@@ -15,6 +15,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  getAllOptionLabelTh,
+  getWorkOrderPriorityLabelTh,
+  getWorkOrderStatusLabelTh,
+} from "@/lib/select-labels";
 import { Plus, Search } from "lucide-react";
 
 interface WorkOrder {
@@ -123,7 +128,7 @@ export function WorkOrderListClient({ workOrders }: WorkOrderListClientProps) {
         cell: ({ row }) => (
           <StatusBadge
             status={row.original.status}
-            label={t(`status.${row.original.status}` as any)}
+            label={getWorkOrderStatusLabelTh(row.original.status)}
           />
         ),
       },
@@ -135,7 +140,7 @@ export function WorkOrderListClient({ workOrders }: WorkOrderListClientProps) {
         cell: ({ row }) => (
           <StatusBadge
             status={row.original.priority}
-            label={t(`priority_label.${row.original.priority}` as any)}
+            label={getWorkOrderPriorityLabelTh(row.original.priority)}
           />
         ),
       },
@@ -214,13 +219,19 @@ export function WorkOrderListClient({ workOrders }: WorkOrderListClientProps) {
 
         <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "ALL")}>
           <SelectTrigger className="w-[180px]">
-            <SelectValue />
+            <SelectValue>
+              {(value) =>
+                value === "ALL"
+                  ? `${tc("status")}: ${getAllOptionLabelTh(value)}`
+                  : getWorkOrderStatusLabelTh(value)
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">{tc("status")}: {tc("filter")}</SelectItem>
+            <SelectItem value="ALL">{tc("status")}: {getAllOptionLabelTh("ALL")}</SelectItem>
             {ALL_STATUSES.map((s) => (
               <SelectItem key={s} value={s}>
-                {t(`status.${s}` as any)}
+                {getWorkOrderStatusLabelTh(s)}
               </SelectItem>
             ))}
           </SelectContent>
@@ -228,13 +239,19 @@ export function WorkOrderListClient({ workOrders }: WorkOrderListClientProps) {
 
         <Select value={priorityFilter} onValueChange={(val) => setPriorityFilter(val ?? "ALL")}>
           <SelectTrigger className="w-[160px]">
-            <SelectValue />
+            <SelectValue>
+              {(value) =>
+                value === "ALL"
+                  ? `${t("priority")}: ${getAllOptionLabelTh(value)}`
+                  : getWorkOrderPriorityLabelTh(value)
+              }
+            </SelectValue>
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">{t("priority")}: {tc("filter")}</SelectItem>
+            <SelectItem value="ALL">{t("priority")}: {getAllOptionLabelTh("ALL")}</SelectItem>
             {ALL_PRIORITIES.map((p) => (
               <SelectItem key={p} value={p}>
-                {t(`priority_label.${p}` as any)}
+                {getWorkOrderPriorityLabelTh(p)}
               </SelectItem>
             ))}
           </SelectContent>
