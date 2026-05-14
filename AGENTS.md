@@ -21,6 +21,8 @@ project patterns.
 
 - Product: WorkinFlow MOM, a Manufacturing Operations Management SaaS for a CNC
   automotive-parts machining factory.
+- Local path: `/Users/tik/Projects/WorkinFlow/MOM`. Keep this short folder name;
+  the previous long folder name caused Serena project activation failures.
 - Stack: Next.js 16 App Router, React 19, TypeScript, Tailwind CSS 4,
   shadcn/ui v4, next-intl, Auth.js v5, Prisma 7, PostgreSQL 16.
 - Payments and billing: Omise, PromptPay slip verification via SlipOK, Resend
