@@ -68,6 +68,10 @@ provider.
   `billingDistrict`, `billingProvince`, `billingPostalCode`) are optional
   metadata for lookup/reporting and must not overwrite PDF address composition
   without a separate QA pass.
+- Product master owns product/service classification and product-level drawing
+  metadata. Normal Quotation/Sales Order/Invoice forms must not ask users to
+  select drawing source or auto-classify billing nature from drawing source;
+  sales documents should snapshot product-derived classification server-side.
 - Only one active Tax Invoice may exist per source Invoice. Creating another is
   allowed only after the prior Tax Invoice is cancelled.
 

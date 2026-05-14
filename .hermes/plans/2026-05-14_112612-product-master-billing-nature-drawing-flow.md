@@ -12,9 +12,9 @@
 
 ## Context / Current State
 
-**Repo:** `CHAKRI-S/workinflow-mom`  
-**Workdir:** `/Users/tik/Projects/WorkinFlow/MOM (Manufacturing Operations Management)`  
-**Branch:** `main`  
+**Repo:** `CHAKRI-S/workinflow-mom`
+**Workdir:** `/Users/tik/Projects/WorkinFlow/MOM`
+**Branch:** `feature/product-master-billing-flow` during implementation; `main` remains protected/approval-gated for push/deploy.
 **Discord room:** `#workinflow-mom`
 
 Current implementation has these issues against the desired business flow:
@@ -647,7 +647,7 @@ Report Style: compact Thai summary
 
 ### Sprint 1: Foundation — ProductKind, product billing helper, validator, migration
 
-Status: completed  
+Status: completed
 Completed: 2026-05-14 13:18 +07
 
 Done:
@@ -666,3 +666,29 @@ Verification:
 
 Next Action:
 - Sprint 2: Product master UI/API — expose `สินค้า/บริการ` and drawing metadata on product create/edit/list/detail.
+
+### Sprint 2: Product master UI/API — ProductKind + drawing metadata on Product screens
+
+Status: completed
+Completed: 2026-05-14 14:03 +07
+
+Done:
+- Added Product form controls for `productKind` (`สินค้า`/`บริการ`) and product-level drawing metadata (`drawingSource`, `drawingRevision`, `customerDrawingUrl`) while keeping Fusion file fields and drawing notes.
+- Added Product list badge/column and Product detail display for product kind + drawing metadata; copy says drawing source is metadata, not tax auto-classification.
+- Added edit-page defaults for productKind/drawing metadata so existing values are preserved when editing.
+- Added `tests/ui/product-master-billing-ui.test.ts` to prevent Product UI regressions, and updated `AGENTS.md` with the durable Product-master ownership rule.
+- Confirmed existing Product API create/update/read paths save/read the new fields through Zod + Prisma scalar spreads; no API route changes were required.
+
+Verification:
+- RED: `npm test -- tests/ui/product-master-billing-ui.test.ts` failed before UI implementation (5 failing assertions reported by implementer subagent).
+- GREEN: `npm test -- tests/ui/product-master-billing-ui.test.ts tests/lib/product-validator.test.ts tests/lib/product-billing.test.ts` → 17 passed.
+- `node node_modules/prisma/build/index.js validate` → passed.
+- `node node_modules/prisma/build/index.js generate` → passed; generated client already aligned/no tracked diff after regeneration.
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` → passed.
+- `node node_modules/eslint/bin/eslint.js <Sprint 2 touched files>` → 0 errors, 4 pre-existing `no-img-element` warnings in product image surfaces.
+- Scoped `git diff --check` → passed.
+- Subagent spec review → PASS.
+- Subagent quality review → APPROVED; only minor non-blocking notes.
+
+Next Action:
+- Sprint 3: Quotation UI cleanup + server-side Product snapshot derivation. Remove normal Quotation drawing-source/billing-nature controls, then derive line snapshots from Product on Quotation create/update.

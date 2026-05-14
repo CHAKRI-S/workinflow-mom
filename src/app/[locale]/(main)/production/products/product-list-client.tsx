@@ -16,12 +16,17 @@ interface Product {
   code: string;
   name: string;
   category: string | null;
+  productKind: "GOODS" | "SERVICE";
   requiresPainting: boolean;
   requiresLogoEngraving: boolean;
   unitPrice: string | number | null;
   defaultVatPriceMode?: "EXCLUSIVE" | "INCLUSIVE" | null;
   leadTimeDays: number;
   _count: { bomLines: number; workOrders: number };
+}
+
+function getProductKindLabel(productKind: Product["productKind"]) {
+  return productKind === "SERVICE" ? "บริการ" : "สินค้า";
 }
 
 export function ProductListClient({ products }: { products: Product[] }) {
@@ -65,6 +70,13 @@ export function ProductListClient({ products }: { products: Product[] }) {
         ) : (
           "—"
         ),
+    },
+    {
+      accessorKey: "productKind",
+      header: "ประเภท",
+      cell: ({ row }) => (
+        <Badge variant="outline">{getProductKindLabel(row.original.productKind)}</Badge>
+      ),
     },
     {
       id: "features",

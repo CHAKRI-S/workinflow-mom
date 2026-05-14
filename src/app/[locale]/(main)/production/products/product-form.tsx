@@ -160,6 +160,8 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
   } = useForm<ProductCreateInput>({
     resolver: zodResolver(productCreateSchema),
     defaultValues: {
+      productKind: "GOODS",
+      drawingSource: "TENANT_OWNED",
       requiresPainting: false,
       requiresLogoEngraving: false,
       defaultVatPriceMode: "EXCLUSIVE",
@@ -301,6 +303,27 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
             </div>
 
             <div className="space-y-1.5">
+              <Label>ประเภท *</Label>
+              <Select
+                value={watch("productKind") ?? "GOODS"}
+                onValueChange={(v) =>
+                  setValue("productKind", v as ProductCreateInput["productKind"])
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GOODS">สินค้า</SelectItem>
+                  <SelectItem value="SERVICE">บริการ</SelectItem>
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                เลือกว่าเป็นสินค้า/บริการจาก Product master เพื่อใช้เป็นข้อมูลอ้างอิงเอกสาร
+              </p>
+            </div>
+
+            <div className="space-y-1.5">
               <Label>{t("product.unitPrice")}</Label>
               <Input
                 {...register("unitPrice", { valueAsNumber: true })}
@@ -349,9 +372,43 @@ export function ProductForm({ defaultValues, isEdit, materials = [], existingBom
 
         {/* Fusion 360 / Drawing */}
         <Card className="p-5 space-y-4">
-          <h2 className="font-semibold">{t("product.fusionFile")}</h2>
+          <div className="space-y-1">
+            <h2 className="font-semibold">ข้อมูลแบบงานของสินค้า/บริการ</h2>
+            <p className="text-xs text-muted-foreground">
+              ข้อมูลที่มาของแบบเป็น metadata สำหรับอ้างอิงงานผลิต ไม่ใช่การจัดประเภทภาษีอัตโนมัติ
+            </p>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>ที่มาของแบบ</Label>
+              <Select
+                value={watch("drawingSource") ?? "TENANT_OWNED"}
+                onValueChange={(v) =>
+                  setValue("drawingSource", v as ProductCreateInput["drawingSource"])
+                }
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="TENANT_OWNED">แบบเรา</SelectItem>
+                  <SelectItem value="CUSTOMER_PROVIDED">แบบลูกค้า</SelectItem>
+                  <SelectItem value="JOINT_DEVELOPMENT">ร่วมพัฒนา</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>Drawing Rev</Label>
+              <Input {...register("drawingRevision")} placeholder="REV-A" />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>ไฟล์แบบจากลูกค้า (URL)</Label>
+              <Input {...register("customerDrawingUrl")} placeholder="https://..." />
+            </div>
+
             <div className="space-y-1.5">
               <Label>{t("product.fusionFileName")}</Label>
               <Input {...register("fusionFileName")} placeholder="Part_A100_v3.f3d" />

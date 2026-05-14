@@ -63,8 +63,13 @@ interface Product {
   name: string;
   description: string | null;
   category: string | null;
+  productKind: "GOODS" | "SERVICE";
+  drawingSource: "TENANT_OWNED" | "CUSTOMER_PROVIDED" | "JOINT_DEVELOPMENT";
+  drawingRevision: string | null;
+  customerDrawingUrl: string | null;
   fusionFileName: string | null;
   fusionFileUrl: string | null;
+  drawingNotes: string | null;
   requiresPainting: boolean;
   requiresLogoEngraving: boolean;
   defaultColor: string | null;
@@ -92,6 +97,16 @@ interface BomFormLine {
   piecesPerStock: number | null;
   notes: string;
   sortOrder: number;
+}
+
+function getProductKindLabel(productKind: Product["productKind"]) {
+  return productKind === "SERVICE" ? "บริการ" : "สินค้า";
+}
+
+function getDrawingSourceLabel(drawingSource: Product["drawingSource"]) {
+  if (drawingSource === "CUSTOMER_PROVIDED") return "แบบลูกค้า";
+  if (drawingSource === "JOINT_DEVELOPMENT") return "ร่วมพัฒนา";
+  return "แบบเรา";
 }
 
 export function ProductDetailClient({
@@ -244,6 +259,10 @@ export function ProductDetailClient({
             <p className="font-medium">{product.category || "—"}</p>
           </div>
           <div>
+            <p className="text-muted-foreground">ประเภท</p>
+            <p className="font-medium">{getProductKindLabel(product.productKind)}</p>
+          </div>
+          <div>
             <p className="text-muted-foreground">{t("product.unitPrice")}</p>
             <p className="font-medium">
               {product.unitPrice
@@ -290,6 +309,64 @@ export function ProductDetailClient({
             {product.defaultSurfaceFinish && (
               <Badge variant="outline">{product.defaultSurfaceFinish}</Badge>
             )}
+          </div>
+        </div>
+      </Card>
+
+      {/* Drawing Metadata */}
+      <Card className="p-4 space-y-4">
+        <div className="space-y-1">
+          <h2 className="font-semibold text-lg">ข้อมูลแบบงานของสินค้า/บริการ</h2>
+          <p className="text-xs text-muted-foreground">
+            ข้อมูลที่มาของแบบเป็น metadata สำหรับอ้างอิงงานผลิต ไม่ใช่การจัดประเภทภาษีอัตโนมัติ
+          </p>
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+          <div>
+            <p className="text-muted-foreground">ที่มาของแบบ</p>
+            <p className="font-medium">{getDrawingSourceLabel(product.drawingSource)}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">Drawing Rev</p>
+            <p className="font-medium">{product.drawingRevision || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">ไฟล์แบบจากลูกค้า (URL)</p>
+            {product.customerDrawingUrl ? (
+              <a
+                href={product.customerDrawingUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-primary underline-offset-4 hover:underline break-all"
+              >
+                {product.customerDrawingUrl}
+              </a>
+            ) : (
+              <p className="font-medium">—</p>
+            )}
+          </div>
+          <div>
+            <p className="text-muted-foreground">{t("product.fusionFileName")}</p>
+            <p className="font-medium">{product.fusionFileName || "—"}</p>
+          </div>
+          <div>
+            <p className="text-muted-foreground">{t("product.fusionFileUrl")}</p>
+            {product.fusionFileUrl ? (
+              <a
+                href={product.fusionFileUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-primary underline-offset-4 hover:underline break-all"
+              >
+                {product.fusionFileUrl}
+              </a>
+            ) : (
+              <p className="font-medium">—</p>
+            )}
+          </div>
+          <div>
+            <p className="text-muted-foreground">{t("product.drawingNotes")}</p>
+            <p className="font-medium whitespace-pre-wrap">{product.drawingNotes || "—"}</p>
           </div>
         </div>
       </Card>
