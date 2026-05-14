@@ -190,6 +190,11 @@ enum VatPriceMode {
   INCLUSIVE
 }
 
+enum ProductKind {
+  GOODS
+  SERVICE
+}
+
 enum VatModePolicy {
   PER_LINE
   FORCE_EXCLUSIVE
@@ -473,6 +478,10 @@ model Product {
   name                  String
   description           String?
   category              String? // e.g. "Bracket", "Mount", "Cover"
+  productKind           ProductKind  @default(GOODS)
+  drawingSource         DrawingSource @default(TENANT_OWNED)
+  drawingRevision       String?
+  customerDrawingUrl    String?
   fusionFileName        String? // ชื่อไฟล์แบบ Fusion 360
   fusionFileUrl         String? // link ไปยังไฟล์แบบ
   drawingNotes          String? // หมายเหตุจากแบบ
