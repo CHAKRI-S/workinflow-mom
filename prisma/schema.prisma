@@ -414,6 +414,10 @@ model Customer {
   branchNo             String? // เลขสาขา (HQ = "00000" หรือว่าง, สาขา = "00001" ...)
   // ที่อยู่ออกบิล
   billingAddress       String?
+  billingSubdistrict   String? // ตำบล/แขวง สำหรับที่อยู่ออกบิล
+  billingDistrict      String? // อำเภอ/เขต สำหรับที่อยู่ออกบิล
+  billingProvince      String? // จังหวัด สำหรับที่อยู่ออกบิล
+  billingPostalCode    String? // รหัสไปรษณีย์ 5 หลัก สำหรับที่อยู่ออกบิล
   // ที่อยู่จัดส่ง (ถ้าต่างจากที่อยู่ออกบิล)
   shippingAddress      String?
   // VAT

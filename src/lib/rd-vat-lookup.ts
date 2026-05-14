@@ -20,6 +20,8 @@ export interface RdVatResult {
   surname: string | null;
   juristicType: JuristicType | null;
   address: string;
+  subdistrict: string | null;
+  district: string | null;
   postCode: string | null;
   province: string | null;
   status: "ACTIVE" | "INACTIVE" | "UNKNOWN";
@@ -261,6 +263,8 @@ export async function lookupByTaxId(
   const businessFirstDate = extractFirst(xml, "vBusinessFirstDate");
   const postCode = extractFirst(xml, "vPostCode");
   const province = extractFirst(xml, "vProvince");
+  const subdistrict = extractFirst(xml, "vThambol");
+  const district = extractFirst(xml, "vAmphur");
 
   // RD response doesn't include a status field; default UNKNOWN
   const status: RdVatResult["status"] = "UNKNOWN";
@@ -285,6 +289,8 @@ export async function lookupByTaxId(
     surname: surname && surname !== "-" ? surname : null,
     juristicType: inferJuristicType(titleName, displayName || name),
     address: buildAddress(xml),
+    subdistrict: subdistrict && subdistrict !== "-" ? subdistrict : null,
+    district: district && district !== "-" ? district : null,
     postCode: postCode && postCode !== "-" ? postCode : null,
     province: province && province !== "-" ? province : null,
     status,

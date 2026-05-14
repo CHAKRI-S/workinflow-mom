@@ -12,6 +12,22 @@ const optionalIndividualTitle = z
   .optional()
   .transform((v) => (v === "" || v === undefined ? undefined : v));
 
+const optionalTrimmedString = z
+  .union([z.string(), z.undefined()])
+  .optional()
+  .transform((v) => {
+    const trimmed = v?.trim();
+    return trimmed ? trimmed : undefined;
+  });
+
+const optionalThaiPostalCode = z
+  .union([z.string(), z.undefined()])
+  .optional()
+  .transform((v) => {
+    const trimmed = v?.trim();
+    return trimmed ? trimmed : undefined;
+  });
+
 const customerBaseSchema = z.object({
   // Optional — auto-generated server-side when blank/omitted
   code: z.string().optional(),
@@ -23,6 +39,10 @@ const customerBaseSchema = z.object({
   lineId: z.string().optional(),
   taxId: z.string().optional(),
   billingAddress: z.string().optional(),
+  billingSubdistrict: optionalTrimmedString,
+  billingDistrict: optionalTrimmedString,
+  billingProvince: optionalTrimmedString,
+  billingPostalCode: optionalThaiPostalCode,
   shippingAddress: z.string().optional(),
   isVatRegistered: z.boolean(),
   paymentTermDays: z.number().int().min(0),
@@ -77,6 +97,46 @@ function validateIndividualTitleOther(
   }
 }
 
+function validateStructuredBillingAddress(
+  data: {
+    country?: string;
+    billingSubdistrict?: string;
+    billingDistrict?: string;
+    billingProvince?: string;
+    billingPostalCode?: string;
+  },
+  ctx: z.RefinementCtx,
+) {
+  if (data.country && data.country !== "TH") return;
+
+  const structuredFields = {
+    billingSubdistrict: data.billingSubdistrict,
+    billingDistrict: data.billingDistrict,
+    billingProvince: data.billingProvince,
+    billingPostalCode: data.billingPostalCode,
+  };
+  const hasAny = Object.values(structuredFields).some((value) => !!value?.trim());
+  if (!hasAny) return;
+
+  if (data.billingPostalCode && !/^\d{5}$/.test(data.billingPostalCode)) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["billingPostalCode"],
+      message: "รหัสไปรษณีย์ต้องมี 5 หลัก",
+    });
+  }
+
+  for (const [field, value] of Object.entries(structuredFields)) {
+    if (!value?.trim()) {
+      ctx.addIssue({
+        code: "custom",
+        path: [field],
+        message: "Required when Thai structured billing address is provided",
+      });
+    }
+  }
+}
+
 function normalizeIndividualTitleFields<T extends {
   juristicType?: string;
   individualTitle?: string;
@@ -97,12 +157,14 @@ function normalizeIndividualTitleFields<T extends {
 }
 
 export const customerCreateSchema = customerBaseSchema
+  .superRefine(validateStructuredBillingAddress)
   .superRefine(validateIndividualTitleOther)
   .transform(normalizeIndividualTitleFields);
 
 export const customerUpdateSchema = customerBaseSchema
   .partial()
   .omit({ code: true })
+  .superRefine(validateStructuredBillingAddress)
   .superRefine(validateIndividualTitleOther)
   .transform(normalizeIndividualTitleFields);
 

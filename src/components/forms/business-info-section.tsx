@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -25,6 +25,36 @@ import {
 export type JuristicTypeValue = JuristicType;
 export type IndividualTitleValue = IndividualTitle;
 
+type ThaiAddressOption = {
+  subdistrict: string;
+  district: string;
+  province: string;
+  postalCode: string;
+};
+
+type ThaiAddressField = keyof ThaiAddressOption;
+
+function uniqueAddressOptions(
+  rows: ThaiAddressOption[],
+  field: ThaiAddressField,
+): string[] {
+  return Array.from(new Set(rows.map((row) => row[field]).filter(Boolean))).slice(
+    0,
+    100,
+  );
+}
+
+function buildStructuredAddressSuffix(value: BusinessInfoValue): string {
+  return [
+    value.billingSubdistrict ? `ตำบล/แขวง${value.billingSubdistrict}` : "",
+    value.billingDistrict ? `อำเภอ/เขต${value.billingDistrict}` : "",
+    value.billingProvince ? `จังหวัด${value.billingProvince}` : "",
+    value.billingPostalCode || "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+}
+
 function getCountryLabel(country?: string | null): string {
   if (!country || country === "TH") return "ไทย (TH)";
   if (country === "OTHER") return "ต่างประเทศ (Other)";
@@ -40,6 +70,10 @@ export interface BusinessInfoValue {
   name: string;
   address: string; // billing address
   country: string; // ISO, default "TH"
+  billingSubdistrict?: string;
+  billingDistrict?: string;
+  billingProvince?: string;
+  billingPostalCode?: string;
 }
 
 interface Props {
@@ -70,10 +104,55 @@ export function BusinessInfoSection({
     type: "ok" | "err";
     text: string;
   } | null>(null);
+  const [addressOptions, setAddressOptions] = useState<ThaiAddressOption[]>([]);
 
   const isHQ = !value.branchNo || value.branchNo === "00000";
   const isIndividual = value.juristicType === "INDIVIDUAL";
   const showOtherTitle = isIndividual && value.individualTitle === "OTHER";
+  const isThaiAddress = !value.country || value.country === "TH";
+
+  useEffect(() => {
+    if (!isThaiAddress || disabled) {
+      setAddressOptions([]);
+      return;
+    }
+
+    const controller = new AbortController();
+    const params = new URLSearchParams({ limit: "100" });
+    if (value.billingProvince) params.set("province", value.billingProvince);
+    if (value.billingDistrict) params.set("district", value.billingDistrict);
+    if (value.billingSubdistrict) params.set("subdistrict", value.billingSubdistrict);
+    if (value.billingPostalCode) params.set("postalCode", value.billingPostalCode);
+
+    fetch(`/api/locations/thai-addresses?${params.toString()}`, {
+      signal: controller.signal,
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("Address lookup failed");
+        return (await res.json()) as { items?: ThaiAddressOption[] };
+      })
+      .then((data) => setAddressOptions(data.items ?? []))
+      .catch((err) => {
+        if (err instanceof DOMException && err.name === "AbortError") return;
+        setAddressOptions([]);
+      });
+
+    return () => controller.abort();
+  }, [
+    disabled,
+    isThaiAddress,
+    value.billingDistrict,
+    value.billingPostalCode,
+    value.billingProvince,
+    value.billingSubdistrict,
+  ]);
+
+  const handleAppendStructuredAddress = () => {
+    const suffix = buildStructuredAddressSuffix(value);
+    if (!suffix) return;
+    if (value.address.includes(suffix)) return;
+    onChange({ address: [value.address.trim(), suffix].filter(Boolean).join(" ") });
+  };
 
   // Normalize displayed taxId so legacy-stored formatting (dashes, spaces,
   // NBSP) doesn't break the length check or the lookup button.
@@ -106,6 +185,10 @@ export function BusinessInfoSection({
       const patch: Partial<BusinessInfoValue> = {
         name: data.name || value.name,
         address: data.address || value.address,
+        billingSubdistrict: data.subdistrict || value.billingSubdistrict,
+        billingDistrict: data.district || value.billingDistrict,
+        billingProvince: data.province || value.billingProvince,
+        billingPostalCode: data.postCode || value.billingPostalCode,
         branchNo: data.branchNo || value.branchNo || "00000",
         juristicType: data.juristicType || value.juristicType,
         country: "TH",
@@ -354,6 +437,133 @@ export function BusinessInfoSection({
           placeholder="เลขที่ ถนน ตำบล/แขวง อำเภอ/เขต จังหวัด รหัสไปรษณีย์"
         />
       </div>
+
+      {isThaiAddress && (
+        <div className="space-y-3 rounded-md border border-dashed p-3">
+          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <Label>ข้อมูลที่อยู่แบบแยกส่วน</Label>
+              <p className="text-xs text-muted-foreground">
+                เก็บแยกสำหรับรายงาน/จัดกลุ่มในอนาคต โดยไม่แทนที่ที่อยู่เต็มด้านบนอัตโนมัติ
+              </p>
+            </div>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleAppendStructuredAddress}
+              disabled={
+                disabled ||
+                !(
+                  value.billingSubdistrict &&
+                  value.billingDistrict &&
+                  value.billingProvince &&
+                  value.billingPostalCode
+                )
+              }
+            >
+              เติมท้ายที่อยู่
+            </Button>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-1.5">
+              <Label>จังหวัด</Label>
+              <Input
+                value={value.billingProvince || ""}
+                onChange={(e) =>
+                  onChange({
+                    billingProvince: e.target.value,
+                    billingDistrict: "",
+                    billingSubdistrict: "",
+                    billingPostalCode: "",
+                  })
+                }
+                list="thai-address-province-options"
+                disabled={disabled}
+                placeholder="เช่น ชลบุรี"
+              />
+              <datalist id="thai-address-province-options">
+                {uniqueAddressOptions(addressOptions, "province").map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>อำเภอ/เขต</Label>
+              <Input
+                value={value.billingDistrict || ""}
+                onChange={(e) =>
+                  onChange({
+                    billingDistrict: e.target.value,
+                    billingSubdistrict: "",
+                    billingPostalCode: "",
+                  })
+                }
+                list="thai-address-district-options"
+                disabled={disabled || !value.billingProvince}
+                placeholder="เช่น บ้านบึง"
+              />
+              <datalist id="thai-address-district-options">
+                {uniqueAddressOptions(addressOptions, "district").map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>ตำบล/แขวง</Label>
+              <Input
+                value={value.billingSubdistrict || ""}
+                onChange={(e) => {
+                  const subdistrict = e.target.value;
+                  const match = addressOptions.find(
+                    (row) =>
+                      row.subdistrict === subdistrict &&
+                      (!value.billingDistrict || row.district === value.billingDistrict) &&
+                      (!value.billingProvince || row.province === value.billingProvince),
+                  );
+                  onChange({
+                    billingSubdistrict: subdistrict,
+                    billingPostalCode: match?.postalCode || value.billingPostalCode || "",
+                  });
+                }}
+                list="thai-address-subdistrict-options"
+                disabled={disabled || !value.billingDistrict}
+                placeholder="เช่น บ้านบึง"
+              />
+              <datalist id="thai-address-subdistrict-options">
+                {uniqueAddressOptions(addressOptions, "subdistrict").map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label>รหัสไปรษณีย์</Label>
+              <Input
+                value={value.billingPostalCode || ""}
+                onChange={(e) =>
+                  onChange({
+                    billingPostalCode: e.target.value.replace(/[^\d]/g, "").slice(0, 5),
+                  })
+                }
+                list="thai-address-postal-code-options"
+                disabled={disabled}
+                placeholder="เช่น 20170"
+                inputMode="numeric"
+                maxLength={5}
+              />
+              <datalist id="thai-address-postal-code-options">
+                {uniqueAddressOptions(addressOptions, "postalCode").map((option) => (
+                  <option key={option} value={option} />
+                ))}
+              </datalist>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

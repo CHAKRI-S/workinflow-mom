@@ -97,6 +97,10 @@ export function CustomerForm({
     name: watched.name || "",
     address: watched.billingAddress || "",
     country: watched.country || "TH",
+    billingSubdistrict: watched.billingSubdistrict || "",
+    billingDistrict: watched.billingDistrict || "",
+    billingProvince: watched.billingProvince || "",
+    billingPostalCode: watched.billingPostalCode || "",
   };
 
   const patchBusinessInfo = (patch: Partial<BusinessInfoValue>) => {
@@ -124,6 +128,14 @@ export function CustomerForm({
     if (patch.name !== undefined) setValue("name", patch.name);
     if (patch.address !== undefined)
       setValue("billingAddress", patch.address);
+    if (patch.billingSubdistrict !== undefined)
+      setValue("billingSubdistrict", patch.billingSubdistrict || undefined);
+    if (patch.billingDistrict !== undefined)
+      setValue("billingDistrict", patch.billingDistrict || undefined);
+    if (patch.billingProvince !== undefined)
+      setValue("billingProvince", patch.billingProvince || undefined);
+    if (patch.billingPostalCode !== undefined)
+      setValue("billingPostalCode", patch.billingPostalCode || undefined);
     if (patch.country !== undefined) setValue("country", patch.country);
   };
 
@@ -141,6 +153,10 @@ export function CustomerForm({
         lineId: data.lineId || undefined,
         taxId: data.taxId || undefined,
         billingAddress: data.billingAddress || undefined,
+        billingSubdistrict: data.billingSubdistrict || undefined,
+        billingDistrict: data.billingDistrict || undefined,
+        billingProvince: data.billingProvince || undefined,
+        billingPostalCode: data.billingPostalCode || undefined,
         shippingAddress: data.shippingAddress || undefined,
         juristicType: data.juristicType || undefined,
         individualTitle:

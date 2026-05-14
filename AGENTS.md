@@ -61,6 +61,11 @@ provider.
 - New legal/accounting document snapshots must store the formatted legal
   customer display name; downstream Tax Invoices should prefer source Invoice
   snapshot fields before current Customer fields.
+- Customer billing/tax address keeps `billingAddress` as the legal free-text
+  source for PDFs. Structured Thai fields (`billingSubdistrict`,
+  `billingDistrict`, `billingProvince`, `billingPostalCode`) are optional
+  metadata for lookup/reporting and must not overwrite PDF address composition
+  without a separate QA pass.
 - Only one active Tax Invoice may exist per source Invoice. Creating another is
   allowed only after the prior Tax Invoice is cancelled.
 
