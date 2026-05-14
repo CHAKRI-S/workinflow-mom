@@ -5,6 +5,10 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { quotationCreateSchema } from "@/lib/validators/quotation";
 import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
+import {
+  applyProductSnapshotsToQuotationLines,
+  ProductSnapshotLookupError,
+} from "@/lib/quotation-product-snapshots";
 // GET /api/sales/quotations — list all quotations for tenant
 export async function GET() {
   try {
@@ -57,13 +61,43 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    const productIds = [...new Set(data.lines.map((line) => line.productId))];
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, tenantId, isActive: true },
+      select: {
+        id: true,
+        code: true,
+        productKind: true,
+        drawingSource: true,
+        drawingRevision: true,
+        customerDrawingUrl: true,
+        fusionFileUrl: true,
+      },
+    });
+
+    let productSnapshots;
+    try {
+      productSnapshots = applyProductSnapshotsToQuotationLines({
+        lines: data.lines,
+        products,
+      });
+    } catch (error) {
+      if (error instanceof ProductSnapshotLookupError) {
+        return NextResponse.json(
+          { error: error.message },
+          { status: 400 },
+        );
+      }
+      throw error;
+    }
+
     const totals = calculateDocumentTotals({
       taxType: data.taxType,
       currencyCode: data.currencyCode,
-      lines: data.lines,
+      lines: productSnapshots.lines,
       discountPercent: data.discountPercent,
     });
-    const linesWithTotals = data.lines.map((line, idx) => ({
+    const linesWithTotals = productSnapshots.lines.map((line, idx) => ({
       ...line,
       ...totals.lines[idx],
     }));
@@ -92,7 +126,7 @@ export async function POST(req: NextRequest) {
           vatModePolicy: totals.vatModePolicy,
           taxType: totals.taxType,
           currencyCode: totals.currencyCode,
-          billingNature: data.billingNature ?? "GOODS",
+          billingNature: productSnapshots.billingNature,
           notes: data.notes,
           internalNotes: data.internalNotes,
           createdById: session!.user.id,

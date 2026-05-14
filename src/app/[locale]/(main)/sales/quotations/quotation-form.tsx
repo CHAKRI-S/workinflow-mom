@@ -33,9 +33,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Plus, Trash2, Loader2 } from "lucide-react";
-import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
-import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
-import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { calculateVatTotals } from "@/lib/vat";
 import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
 import {
@@ -43,10 +40,6 @@ import {
   resolveTaxCalculation,
   type DocumentTaxType,
 } from "@/lib/tax-type";
-import type {
-  BillingNature,
-  DrawingSource,
-} from "@/lib/validators/billing-nature";
 import type { VatModePolicy, VatPriceMode } from "@/lib/vat";
 
 interface Customer {
@@ -55,12 +48,6 @@ interface Customer {
   name: string;
   isVatRegistered: boolean;
   paymentTermDays?: number;
-  defaultBillingNature?: BillingNature;
-  brandingAssets?: {
-    defaultMark?: string;
-    logoUrl?: string;
-    notes?: string;
-  } | null;
 }
 
 interface Product {
@@ -88,9 +75,6 @@ export function QuotationForm({
   const router = useRouter();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
-  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(
-    null
-  );
   const [submitting, setSubmitting] = useState(false);
 
   const {
@@ -112,7 +96,6 @@ export function QuotationForm({
       taxType: "VAT_EXCLUSIVE",
       currencyCode: "THB",
       vatModePolicy: "FORCE_EXCLUSIVE",
-      billingNature: "GOODS",
       notes: "",
       internalNotes: "",
       lines: [
@@ -128,7 +111,6 @@ export function QuotationForm({
           discountPercent: 0,
           notes: "",
           sortOrder: 0,
-          drawingSource: "TENANT_OWNED",
         },
       ],
       ...defaultValues,
@@ -144,7 +126,6 @@ export function QuotationForm({
   const watchDiscountPercent = watch("discountPercent");
   const watchTaxType = (watch("taxType") ?? "VAT_EXCLUSIVE") as DocumentTaxType;
   const watchCurrencyCode = watch("currencyCode") ?? "THB";
-  const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
   const taxCalculation = resolveTaxCalculation(watchTaxType);
   const vatRate = taxCalculation.vatRate;
   const watchVatModePolicy = taxCalculation.vatModePolicy as VatModePolicy;
@@ -153,13 +134,6 @@ export function QuotationForm({
     vatModePolicy: watchVatModePolicy,
     discountPercent: watchDiscountPercent || 0,
   });
-
-  // Auto-suggest billing nature from line drawing sources
-  const suggestedBillingNature = suggestBillingNature(
-    (watchLines ?? []).map((l) => ({
-      drawingSource: (l.drawingSource as DrawingSource) ?? "TENANT_OWNED",
-    }))
-  );
 
   // Fetch customers and products
   useEffect(() => {
@@ -173,20 +147,6 @@ export function QuotationForm({
       .catch(() => {});
   }, []);
 
-  const watchedCustomerId = watch("customerId");
-
-  // Track selected customer for display + pre-fill billing nature from customer default.
-  // VAT is selected per quotation, not derived from customer VAT registration.
-  useEffect(() => {
-    if (watchedCustomerId && customers.length > 0) {
-      const found = customers.find((c) => c.id === watchedCustomerId);
-      setSelectedCustomer(found ?? null);
-      // Only pre-fill billingNature on create (not edit) and only if user hasn't manually picked yet
-      if (mode === "create" && found?.defaultBillingNature) {
-        setValue("billingNature", found.defaultBillingNature);
-      }
-    }
-  }, [watchedCustomerId, customers, mode, setValue]);
 
   // Calculate summary
   const subtotal = totals.subtotal;
@@ -402,13 +362,6 @@ export function QuotationForm({
         </CardContent>
       </Card>
 
-      {/* Billing Nature */}
-      <BillingNaturePicker
-        value={watchBillingNature}
-        suggestion={suggestedBillingNature}
-        onChange={(v) => setValue("billingNature", v)}
-      />
-
       <Card>
         <CardContent className="grid grid-cols-1 gap-4 pt-6 md:grid-cols-2">
           <div className="space-y-2">
@@ -453,8 +406,7 @@ export function QuotationForm({
                 discountPercent: 0,
                 notes: "",
                 sortOrder: fields.length,
-                drawingSource: "TENANT_OWNED",
-              })
+                    })
             }
           >
             <Plus className="mr-2 h-4 w-4" />
@@ -621,71 +573,6 @@ export function QuotationForm({
             </p>
           )}
 
-          {/* Drawing source per line (collapsible) */}
-          {fields.length > 0 && (
-            <details className="mt-3">
-              <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
-                แบบงาน / Drawing source (ใช้ auto-classify billing nature)
-              </summary>
-              <div className="mt-3 space-y-3">
-                {fields.map((field, index) => {
-                  const line = watchLines?.[index];
-                  return (
-                    <div
-                      key={field.id}
-                      className="border rounded-lg p-3 space-y-2"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        #{index + 1}
-                      </p>
-                      <DrawingSourceRow
-                        value={
-                          (line?.drawingSource as DrawingSource) ??
-                          "TENANT_OWNED"
-                        }
-                        onChange={(v) =>
-                          setValue(`lines.${index}.drawingSource`, v)
-                        }
-                        productCode={line?.productCode}
-                        drawingRevision={line?.drawingRevision}
-                        customerDrawingUrl={line?.customerDrawingUrl}
-                        onProductCodeChange={(v) =>
-                          setValue(`lines.${index}.productCode`, v)
-                        }
-                        onDrawingRevisionChange={(v) =>
-                          setValue(`lines.${index}.drawingRevision`, v)
-                        }
-                        onCustomerDrawingUrlChange={(v) =>
-                          setValue(`lines.${index}.customerDrawingUrl`, v)
-                        }
-                      />
-                      {/* Phase 8.9 — Customer Mark (OEM branding) */}
-                      <div className="space-y-1">
-                        <Label className="text-xs">Customer Mark</Label>
-                        <Input
-                          value={line?.customerBranding?.mark ?? ""}
-                          onChange={(e) =>
-                            setValue(
-                              `lines.${index}.customerBranding`,
-                              e.target.value
-                                ? { mark: e.target.value }
-                                : undefined,
-                            )
-                          }
-                          placeholder={
-                            selectedCustomer?.brandingAssets?.defaultMark
-                              ? `เช่น ${selectedCustomer.brandingAssets.defaultMark}`
-                              : "เช่น ACME logo"
-                          }
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-          )}
         </CardContent>
       </Card>
 

@@ -5,6 +5,10 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { quotationUpdateSchema } from "@/lib/validators/quotation";
 import { calculateDocumentTotals, inheritDocumentTaxAndCurrency } from "@/lib/document-tax-propagation";
 import { Prisma, type VatModePolicy } from "@/generated/prisma/client";
+import {
+  applyProductSnapshotsToQuotationLines,
+  ProductSnapshotLookupError,
+} from "@/lib/quotation-product-snapshots";
 
 type Params = { params: Promise<{ id: string }> };
 
@@ -100,11 +104,46 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
+    const productSnapshots = data.lines?.length
+      ? await (async () => {
+          const productIds = [...new Set(data.lines!.map((line) => line.productId))];
+          const products = await prisma.product.findMany({
+            where: { id: { in: productIds }, tenantId, isActive: true },
+            select: {
+              id: true,
+              code: true,
+              productKind: true,
+              drawingSource: true,
+              drawingRevision: true,
+              customerDrawingUrl: true,
+              fusionFileUrl: true,
+            },
+          });
+
+          return applyProductSnapshotsToQuotationLines({
+            lines: data.lines!,
+            products,
+          });
+        })().catch((error) => {
+          if (error instanceof ProductSnapshotLookupError) {
+            return error;
+          }
+          throw error;
+        })
+      : null;
+
+    if (productSnapshots instanceof ProductSnapshotLookupError) {
+      return NextResponse.json(
+        { error: productSnapshots.message },
+        { status: 400 },
+      );
+    }
+
     const inherited = inheritDocumentTaxAndCurrency({
       source: existing,
       override: data,
     });
-    const recalculationLines = data.lines ?? existing.lines.map((line) => ({
+    const recalculationLines = productSnapshots?.lines ?? data.lines ?? existing.lines.map((line) => ({
       productId: line.productId,
       description: line.description ?? undefined,
       quantity: Number(line.quantity),
@@ -173,7 +212,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             vatModePolicy: calculatedFields.vatModePolicy as VatModePolicy | undefined,
             taxType: inherited.taxType,
             currencyCode: inherited.currencyCode,
-            billingNature: data.billingNature,
+            billingNature: productSnapshots?.billingNature,
             notes: data.notes,
             internalNotes: data.internalNotes,
             ...calculatedFields,
@@ -228,7 +267,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         vatModePolicy: calculatedFields.vatModePolicy as VatModePolicy | undefined,
         taxType: inherited.taxType,
         currencyCode: inherited.currencyCode,
-        billingNature: data.billingNature,
+        billingNature: undefined,
         notes: data.notes,
         internalNotes: data.internalNotes,
         ...calculatedFields,

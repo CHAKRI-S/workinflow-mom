@@ -21,6 +21,16 @@ const editPageSource = readFileSync(
 );
 
 describe("quotation tax type and currency UI contracts", () => {
+  it("does not expose drawing-source or billing-nature controls in the normal quotation form", () => {
+    expect(formSource).not.toContain("BillingNaturePicker");
+    expect(formSource).not.toContain("DrawingSourceRow");
+    expect(formSource).not.toContain("suggestBillingNature");
+    expect(formSource).not.toContain("แบบงาน / Drawing source");
+    expect(formSource).not.toContain("auto-classify billing nature");
+    expect(formSource).toContain("handleProductChange");
+    expect(formSource).toContain("defaultVatPriceMode");
+  });
+
   it("uses document tax type as the form tax source of truth instead of customer VAT registration", () => {
     expect(formSource).toContain("TAX_TYPE_OPTIONS");
     expect(formSource).toContain('taxType: "VAT_EXCLUSIVE"');

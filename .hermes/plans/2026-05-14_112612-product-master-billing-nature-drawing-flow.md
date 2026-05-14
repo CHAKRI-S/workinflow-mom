@@ -692,3 +692,28 @@ Verification:
 
 Next Action:
 - Sprint 3: Quotation UI cleanup + server-side Product snapshot derivation. Remove normal Quotation drawing-source/billing-nature controls, then derive line snapshots from Product on Quotation create/update.
+
+### Sprint 3: Quotation UI cleanup + server-side Product snapshot derivation
+
+Status: completed
+Completed: 2026-05-14 14:21 +07
+
+Done:
+- Removed normal Quotation form `BillingNaturePicker`, `DrawingSourceRow`, drawing-source collapsible section, and line-level drawing metadata/customer branding entry from the quotation UI.
+- Preserved product selection, unit price defaulting, VAT mode defaulting, and manufacturing detail fields (`color`, `surfaceFinish`, `materialSpec`).
+- Added `src/lib/quotation-product-snapshots.ts` to derive quotation line snapshots from active tenant Product master records and fail closed for missing/inactive/foreign products.
+- Updated Quotation create/update APIs to override client-sent drawing/tax snapshot fields with Product-derived `drawingSource`, `lineBillingNature`, `productCode`, `drawingRevision`, and `customerDrawingUrl`; header `billingNature` now derives from ProductKind lines.
+- Added/updated tests so Quotation UI cannot reintroduce drawing-source/billing-nature controls and helper behavior covers fake client override, URL fallback, mixed goods/service, and missing product fail-closed.
+
+Verification:
+- RED: `npm test -- tests/ui/quotation-tax-currency-ui.test.ts tests/lib/quotation-product-snapshots.test.ts` failed before implementation because Quotation UI still contained `BillingNaturePicker` and helper file was missing.
+- GREEN: `npm test -- tests/ui/quotation-tax-currency-ui.test.ts tests/lib/quotation-product-snapshots.test.ts tests/lib/product-billing.test.ts tests/lib/document-tax-propagation.test.ts` → 29 passed.
+- `node node_modules/prisma/build/index.js validate` → passed.
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` → passed.
+- `node node_modules/eslint/bin/eslint.js <Sprint 3 touched files>` → passed.
+- Scoped `git diff --check` on Sprint 3 touched files → passed.
+- Subagent spec review → PASS.
+- Subagent quality review → APPROVED.
+
+Next Action:
+- Sprint 4: Sales Order UI/API cleanup. Remove normal SO drawing-source controls, derive direct SO snapshots from Product, and preserve approved Quotation snapshots during Quotation → SO conversion.
