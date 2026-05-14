@@ -10,6 +10,9 @@ const mocks = vi.hoisted(() => ({
     customer: {
       findFirst: vi.fn(),
     },
+    product: {
+      findMany: vi.fn(),
+    },
     $transaction: vi.fn(),
   },
 }));
@@ -102,6 +105,17 @@ describe("SalesOrder PATCH document tax source", () => {
       tenantId: "tenant_1",
       isVatRegistered: false,
     });
+    mocks.prisma.product.findMany.mockResolvedValue([
+      {
+        id: "prod_1",
+        code: "PROD-1",
+        productKind: "GOODS",
+        drawingSource: "TENANT_OWNED",
+        drawingRevision: null,
+        customerDrawingUrl: null,
+        fusionFileUrl: null,
+      },
+    ]);
   });
 
   it("recalculates changed lines from the preserved document taxType, not customer VAT registration", async () => {

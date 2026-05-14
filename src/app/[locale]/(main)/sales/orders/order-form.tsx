@@ -37,9 +37,6 @@ import {
   Trash2,
 } from "lucide-react";
 import { Link } from "@/i18n/navigation";
-import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
-import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
-import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import { detectServiceWording } from "@/lib/po-wording-check";
 import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
 import { CURRENCY_OPTIONS, formatMoney } from "@/lib/currency";
@@ -48,10 +45,6 @@ import {
   resolveTaxCalculation,
   type DocumentTaxType,
 } from "@/lib/tax-type";
-import type {
-  BillingNature,
-  DrawingSource,
-} from "@/lib/validators/billing-nature";
 import type { VatPriceMode } from "@/lib/vat";
 
 interface Customer {
@@ -61,12 +54,6 @@ interface Customer {
   isVatRegistered: boolean;
   shippingAddress?: string | null;
   paymentTermDays?: number;
-  defaultBillingNature?: BillingNature;
-  brandingAssets?: {
-    defaultMark?: string;
-    logoUrl?: string;
-    notes?: string;
-  } | null;
 }
 
 interface Product {
@@ -108,7 +95,6 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
       taxType: "VAT_EXCLUSIVE",
       currencyCode: "THB",
       vatModePolicy: "FORCE_EXCLUSIVE",
-      billingNature: "GOODS",
       lines: [
         {
           productId: "",
@@ -117,7 +103,6 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
           vatPriceMode: "EXCLUSIVE",
           discountPercent: 0,
           sortOrder: 0,
-          drawingSource: "TENANT_OWNED",
         },
       ],
       ...defaultValues,
@@ -136,15 +121,9 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
   const watchCurrencyCode = watch("currencyCode") ?? "THB";
   const taxCalculation = resolveTaxCalculation(watchTaxType);
   const vatRate = taxCalculation.vatRate;
-  const watchBillingNature = (watch("billingNature") ?? "GOODS") as BillingNature;
   const watchCustomerPoNumber = watch("customerPoNumber");
   const poWordingCheck = detectServiceWording(watchCustomerPoNumber);
 
-  const suggestedBillingNature = suggestBillingNature(
-    (watchLines ?? []).map((l) => ({
-      drawingSource: (l.drawingSource as DrawingSource) ?? "TENANT_OWNED",
-    }))
-  );
 
   // Fetch customers and products
   useEffect(() => {
@@ -176,14 +155,11 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
 
   const formatCurrency = (amount: number) => formatMoney(amount, watchCurrencyCode);
 
-  // Auto-fill shipping address + billing nature default when customer changes
+  // Auto-fill shipping address when customer changes
   useEffect(() => {
     if (!isEdit) {
       if (selectedCustomer?.shippingAddress) {
         setValue("shippingAddress", selectedCustomer.shippingAddress);
-      }
-      if (selectedCustomer?.defaultBillingNature) {
-        setValue("billingNature", selectedCustomer.defaultBillingNature);
       }
     }
   }, [selectedCustomer, setValue, isEdit]);
@@ -349,12 +325,6 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
           </div>
         </Card>
 
-        {/* Billing Nature */}
-        <BillingNaturePicker
-          value={watchBillingNature}
-          suggestion={suggestedBillingNature}
-          onChange={(v) => setValue("billingNature", v)}
-        />
 
         <Card className="p-4">
           <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
@@ -463,8 +433,7 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
                   vatPriceMode: "EXCLUSIVE",
                   discountPercent: 0,
                   sortOrder: fields.length,
-                  drawingSource: "TENANT_OWNED",
-                })
+                        })
               }
             >
               <Plus className="h-4 w-4 mr-1" />
@@ -681,71 +650,6 @@ export function OrderForm({ defaultValues, isEdit }: OrderFormProps) {
             </details>
           )}
 
-          {/* Drawing source per line (collapsible) */}
-          {fields.length > 0 && (
-            <details className="mt-3">
-              <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
-                แบบงาน / Drawing source (ใช้ auto-classify billing nature)
-              </summary>
-              <div className="mt-3 space-y-3">
-                {fields.map((field, index) => {
-                  const line = watchLines?.[index];
-                  return (
-                    <div
-                      key={field.id}
-                      className="border rounded-lg p-3 space-y-2"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        #{index + 1}
-                      </p>
-                      <DrawingSourceRow
-                        value={
-                          (line?.drawingSource as DrawingSource) ??
-                          "TENANT_OWNED"
-                        }
-                        onChange={(v) =>
-                          setValue(`lines.${index}.drawingSource`, v)
-                        }
-                        productCode={line?.productCode}
-                        drawingRevision={line?.drawingRevision}
-                        customerDrawingUrl={line?.customerDrawingUrl}
-                        onProductCodeChange={(v) =>
-                          setValue(`lines.${index}.productCode`, v)
-                        }
-                        onDrawingRevisionChange={(v) =>
-                          setValue(`lines.${index}.drawingRevision`, v)
-                        }
-                        onCustomerDrawingUrlChange={(v) =>
-                          setValue(`lines.${index}.customerDrawingUrl`, v)
-                        }
-                      />
-                      {/* Phase 8.9 — Customer Mark (OEM branding) */}
-                      <div className="space-y-1">
-                        <Label className="text-xs">Customer Mark</Label>
-                        <Input
-                          value={line?.customerBranding?.mark ?? ""}
-                          onChange={(e) =>
-                            setValue(
-                              `lines.${index}.customerBranding`,
-                              e.target.value
-                                ? { mark: e.target.value }
-                                : undefined,
-                            )
-                          }
-                          placeholder={
-                            selectedCustomer?.brandingAssets?.defaultMark
-                              ? `เช่น ${selectedCustomer.brandingAssets.defaultMark}`
-                              : "เช่น ACME logo"
-                          }
-                          className="h-8 text-sm"
-                        />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-          )}
         </Card>
 
         {/* Financial Summary */}

@@ -717,3 +717,28 @@ Verification:
 
 Next Action:
 - Sprint 4: Sales Order UI/API cleanup. Remove normal SO drawing-source controls, derive direct SO snapshots from Product, and preserve approved Quotation snapshots during Quotation → SO conversion.
+
+### Sprint 4: Sales Order UI/API cleanup + conversion snapshot preservation
+
+Status: completed
+Completed: 2026-05-14 14:54 +07
+
+Done:
+- Removed normal Sales Order form `BillingNaturePicker`, `DrawingSourceRow`, drawing-source/customer-branding controls, and drawing-source auto-classification copy while preserving product selection, unit price defaulting, VAT mode defaulting, and manufacturing detail fields.
+- Reused `src/lib/quotation-product-snapshots.ts` as a document-line snapshot helper for direct Sales Order create/update, deriving `drawingSource`, `lineBillingNature`, `productCode`, `drawingRevision`, and `customerDrawingUrl` from active tenant Product master records and ignoring client-sent snapshot/classification fields.
+- Added tenant ownership validation for client-sent `quotationId` on direct SO create/update before persisting links.
+- Preserved approved Quotation snapshots during Quotation → SO conversion and later converted-SO line edits; converted SO PATCH keeps existing approved line snapshots by `sortOrder:productId` and avoids Product lookup when all patched lines have approved snapshots.
+- Added tests for SO UI removal, direct SO Product-derived snapshots, foreign quotation-link rejection, converted snapshot preservation, and existing PATCH tax/currency regressions.
+
+Verification:
+- RED: `npm test -- tests/ui/sales-order-form-tax-currency-ui.test.ts tests/api/sales-order-product-snapshots.test.ts tests/api/sales-order-convert-snapshots.test.ts` failed before implementation because SO UI still contained `BillingNaturePicker` and direct SO APIs did not derive Product snapshots.
+- GREEN: `npm test -- tests/ui/sales-order-form-tax-currency-ui.test.ts tests/api/sales-order-product-snapshots.test.ts tests/api/sales-order-convert-snapshots.test.ts tests/api/sales-order-patch-tax.test.ts tests/lib/quotation-product-snapshots.test.ts` → 15 passed.
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` → passed.
+- `node node_modules/eslint/bin/eslint.js <Sprint 4 touched files>` → passed.
+- Scoped `git diff --check` on Sprint 4 touched files → passed.
+- Subagent spec review → PASS.
+- Subagent quality review initially REQUEST_CHANGES for quotationId validation, converted-SO PATCH snapshot preservation, and invalid enum fixture; fixes applied with regression tests.
+- Focused final re-review → APPROVED.
+
+Next Action:
+- Sprint 5: Invoice create UI/API cleanup. Remove normal Invoice drawing-source controls, inherit SO line snapshots into invoices, and fallback to Product master only when no SO snapshot exists.

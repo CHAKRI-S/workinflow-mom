@@ -6,6 +6,10 @@ import { salesOrderCreateSchema } from "@/lib/validators/sales-order";
 import { generateDocNumber, DOC_PREFIX } from "@/lib/doc-numbering";
 import { Prisma } from "@/generated/prisma/client";
 import { calculateDocumentTotals } from "@/lib/document-tax-propagation";
+import {
+  applyProductSnapshotsToDocumentLines,
+  ProductSnapshotLookupError,
+} from "@/lib/quotation-product-snapshots";
 
 // GET /api/sales/orders — list all sales orders for tenant
 export async function GET(req: NextRequest) {
@@ -62,14 +66,52 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: "Customer not found" }, { status: 404 });
     }
 
+    if (data.quotationId) {
+      const quotation = await prisma.quotation.findFirst({
+        where: { id: data.quotationId, tenantId },
+        select: { id: true },
+      });
+
+      if (!quotation) {
+        return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
+      }
+    }
+
+    const productIds = [...new Set(data.lines.map((line) => line.productId))];
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds }, tenantId, isActive: true },
+      select: {
+        id: true,
+        code: true,
+        productKind: true,
+        drawingSource: true,
+        drawingRevision: true,
+        customerDrawingUrl: true,
+        fusionFileUrl: true,
+      },
+    });
+
+    let productSnapshots;
+    try {
+      productSnapshots = applyProductSnapshotsToDocumentLines({
+        lines: data.lines,
+        products,
+      });
+    } catch (error) {
+      if (error instanceof ProductSnapshotLookupError) {
+        return NextResponse.json({ error: error.message }, { status: 400 });
+      }
+      throw error;
+    }
+
     const totals = calculateDocumentTotals({
       taxType: data.taxType,
       currencyCode: data.currencyCode,
-      lines: data.lines,
+      lines: productSnapshots.lines,
     });
 
     // Calculate line totals
-    const linesWithTotals = data.lines.map((line, idx) => {
+    const linesWithTotals = productSnapshots.lines.map((line, idx) => {
       const calculated = totals.lines[idx];
       const qty = Number(line.quantity);
       const discPct = Number(line.discountPercent);
@@ -126,7 +168,7 @@ export async function POST(req: NextRequest) {
           taxType: totals.taxType,
           currencyCode: totals.currencyCode,
           paymentTerms: data.paymentTerms || null,
-          billingNature: data.billingNature ?? "GOODS",
+          billingNature: productSnapshots.billingNature,
           notes: data.notes || null,
           internalNotes: data.internalNotes || null,
           createdById: session!.user.id,

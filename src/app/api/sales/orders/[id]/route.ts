@@ -5,6 +5,11 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 import { salesOrderUpdateSchema } from "@/lib/validators/sales-order";
 import { Prisma } from "@/generated/prisma/client";
 import {
+  applyProductSnapshotsToDocumentLines,
+  ProductSnapshotLookupError,
+  type LineProductSnapshot,
+} from "@/lib/quotation-product-snapshots";
+import {
   calculateDocumentTotals,
   inheritDocumentTaxAndCurrency,
 } from "@/lib/document-tax-propagation";
@@ -103,11 +108,116 @@ export async function PATCH(req: NextRequest, { params }: Params) {
       }
     }
 
+    if (data.quotationId && data.quotationId !== existing.quotationId) {
+      const quotation = await prisma.quotation.findFirst({
+        where: { id: data.quotationId, tenantId },
+        select: { id: true },
+      });
+
+      if (!quotation) {
+        return NextResponse.json({ error: "Quotation not found" }, { status: 404 });
+      }
+    }
+
+    const existingLineSnapshotByKey = new Map(
+      existing.lines.map((line) => [`${line.sortOrder}:${line.productId}`, line]),
+    );
+
+    const productSnapshots = data.lines?.length
+      ? await (async () => {
+          const linesMissingApprovedSnapshots = existing.quotationId
+            ? data.lines!.filter(
+                (line) =>
+                  !existingLineSnapshotByKey.has(
+                    `${line.sortOrder ?? 0}:${line.productId}`,
+                  ),
+              )
+            : data.lines!;
+
+          let productSnapshotLines: Array<
+            NonNullable<typeof data.lines>[number] & LineProductSnapshot
+          > = [];
+          let productSnapshotBillingNature = existing.billingNature;
+
+          if (linesMissingApprovedSnapshots.length > 0) {
+            const productIds = [
+              ...new Set(linesMissingApprovedSnapshots.map((line) => line.productId)),
+            ];
+            const products = await prisma.product.findMany({
+              where: { id: { in: productIds }, tenantId, isActive: true },
+              select: {
+                id: true,
+                code: true,
+                productKind: true,
+                drawingSource: true,
+                drawingRevision: true,
+                customerDrawingUrl: true,
+                fusionFileUrl: true,
+              },
+            });
+
+            try {
+              const derived = applyProductSnapshotsToDocumentLines({
+                lines: linesMissingApprovedSnapshots,
+                products,
+              });
+              productSnapshotLines = derived.lines;
+              productSnapshotBillingNature = derived.billingNature;
+            } catch (error) {
+              if (error instanceof ProductSnapshotLookupError) {
+                return error;
+              }
+              throw error;
+            }
+          }
+
+          const productSnapshotByKey = new Map(
+            productSnapshotLines.map((line) => [
+              `${line.sortOrder ?? 0}:${line.productId}`,
+              line,
+            ]),
+          );
+
+          return {
+            lines: data.lines!.map((line) => {
+              const key = `${line.sortOrder ?? 0}:${line.productId}`;
+              const approvedLine = existing.quotationId
+                ? existingLineSnapshotByKey.get(key)
+                : null;
+
+              if (approvedLine) {
+                return {
+                  ...line,
+                  drawingSource: approvedLine.drawingSource ?? "TENANT_OWNED",
+                  lineBillingNature: approvedLine.lineBillingNature ?? null,
+                  productCode: approvedLine.productCode ?? null,
+                  drawingRevision: approvedLine.drawingRevision ?? null,
+                  customerDrawingUrl: approvedLine.customerDrawingUrl ?? null,
+                  customerBranding: approvedLine.customerBranding as
+                    | Record<string, unknown>
+                    | null
+                    | undefined,
+                };
+              }
+
+              return productSnapshotByKey.get(key)!;
+            }),
+            billingNature: existing.quotationId
+              ? existing.billingNature
+              : productSnapshotBillingNature,
+          };
+        })()
+      : null;
+
+    if (productSnapshots instanceof ProductSnapshotLookupError) {
+      return NextResponse.json({ error: productSnapshots.message }, { status: 400 });
+    }
+
     const inherited = inheritDocumentTaxAndCurrency({
       source: existing,
       override: data,
     });
-    const recalculationLines = data.lines ?? existing.lines.map((line) => ({
+    const recalculationLines = productSnapshots?.lines ?? existing.lines.map((line) => ({
       productId: line.productId,
       description: line.description ?? undefined,
       quantity: Number(line.quantity),
@@ -203,7 +313,7 @@ export async function PATCH(req: NextRequest, { params }: Params) {
             taxType: totals.taxType,
             currencyCode: totals.currencyCode,
             paymentTerms: data.paymentTerms ?? existing.paymentTerms,
-            billingNature: data.billingNature ?? existing.billingNature,
+            billingNature: productSnapshots?.billingNature ?? existing.billingNature,
             notes: data.notes ?? existing.notes,
             internalNotes: data.internalNotes ?? existing.internalNotes,
           },
@@ -236,10 +346,6 @@ export async function PATCH(req: NextRequest, { params }: Params) {
         const dp = Number(data.depositPercent);
         updateData.depositPercent = dp;
         updateData.depositAmount = Math.round((Number(existing.totalAmount) * dp) / 100);
-      }
-
-      if (data.billingNature !== undefined) {
-        updateData.billingNature = data.billingNature;
       }
 
       if (data.vatModePolicy !== undefined) {

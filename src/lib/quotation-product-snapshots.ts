@@ -8,12 +8,12 @@ import type { DrawingSource } from "@/lib/validators/billing-nature";
 
 export class ProductSnapshotLookupError extends Error {
   constructor(productId: string) {
-    super(`Product not found or inactive for quotation line: ${productId}`);
+    super(`Product not found or inactive for document line: ${productId}`);
     this.name = "ProductSnapshotLookupError";
   }
 }
 
-export type QuotationProductSnapshotSource = {
+export type ProductSnapshotSource = {
   id: string;
   code: string;
   productKind?: ProductKind | null;
@@ -23,11 +23,11 @@ export type QuotationProductSnapshotSource = {
   fusionFileUrl?: string | null;
 };
 
-type QuotationLineWithProductId = {
+type DocumentLineWithProductId = {
   productId: string;
 };
 
-export type QuotationLineProductSnapshot = {
+export type LineProductSnapshot = {
   drawingSource: DrawingSource;
   lineBillingNature: Exclude<BillingNature, "MIXED">;
   productCode: string;
@@ -35,16 +35,16 @@ export type QuotationLineProductSnapshot = {
   customerDrawingUrl: string | null;
 };
 
-export function applyProductSnapshotsToQuotationLines<
-  TLine extends QuotationLineWithProductId,
+export function applyProductSnapshotsToDocumentLines<
+  TLine extends DocumentLineWithProductId,
 >({
   lines,
   products,
 }: {
   lines: TLine[];
-  products: QuotationProductSnapshotSource[];
+  products: ProductSnapshotSource[];
 }): {
-  lines: Array<TLine & QuotationLineProductSnapshot>;
+  lines: Array<TLine & LineProductSnapshot>;
   billingNature: BillingNature;
 } {
   const productById = new Map(products.map((product) => [product.id, product]));
@@ -74,3 +74,8 @@ export function applyProductSnapshotsToQuotationLines<
     ),
   };
 }
+
+export type QuotationProductSnapshotSource = ProductSnapshotSource;
+export type QuotationLineProductSnapshot = LineProductSnapshot;
+export const applyProductSnapshotsToQuotationLines =
+  applyProductSnapshotsToDocumentLines;
