@@ -16,12 +16,20 @@ import { Loader2, Search } from "lucide-react";
 import {
   JURISTIC_TYPE_OPTIONS,
   INDIVIDUAL_TITLE_OPTIONS,
+  getIndividualTitleLabelTh,
+  getJuristicTypeLabelTh,
   type IndividualTitle,
   type JuristicType,
 } from "@/lib/customer-name";
 
 export type JuristicTypeValue = JuristicType;
 export type IndividualTitleValue = IndividualTitle;
+
+function getCountryLabel(country?: string | null): string {
+  if (!country || country === "TH") return "ไทย (TH)";
+  if (country === "OTHER") return "ต่างประเทศ (Other)";
+  return country;
+}
 
 export interface BusinessInfoValue {
   juristicType: JuristicTypeValue | "";
@@ -133,7 +141,9 @@ export function BusinessInfoSection({
               disabled={disabled}
             >
               <SelectTrigger className="w-full">
-                <SelectValue />
+                <SelectValue>
+                  {(selectedCountry) => getCountryLabel(selectedCountry)}
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="TH">ไทย (TH)</SelectItem>
@@ -160,7 +170,11 @@ export function BusinessInfoSection({
             disabled={disabled}
           >
             <SelectTrigger className="w-full">
-              <SelectValue placeholder="-- เลือกประเภท --" />
+              <SelectValue placeholder="-- เลือกประเภท --">
+                {(selectedJuristicType) =>
+                  getJuristicTypeLabelTh(selectedJuristicType) || "-- เลือกประเภท --"
+                }
+              </SelectValue>
             </SelectTrigger>
             <SelectContent>
               {JURISTIC_TYPE_OPTIONS.map((o) => (
@@ -191,7 +205,12 @@ export function BusinessInfoSection({
               disabled={disabled}
             >
               <SelectTrigger className="w-full">
-                <SelectValue placeholder="-- เลือกคำนำหน้า --" />
+                <SelectValue placeholder="-- เลือกคำนำหน้า --">
+                  {(selectedIndividualTitle) =>
+                    getIndividualTitleLabelTh(selectedIndividualTitle) ||
+                    "-- เลือกคำนำหน้า --"
+                  }
+                </SelectValue>
               </SelectTrigger>
               <SelectContent>
                 {INDIVIDUAL_TITLE_OPTIONS.map((o) => (
