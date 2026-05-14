@@ -797,4 +797,32 @@ Verification:
 - Focused final re-review → APPROVED.
 
 Next Action:
-- Final checkpoint: decide whether to run full `npm test` / `next build`, then push/deploy only after explicit approval.
+- Final verification completed. Branch is ready for Tik approval to push/deploy; deploy approval must also approve applying Prisma migration `20260514125500_product_kind_drawing_metadata` because app startup runs `prisma migrate deploy`.
+
+### Final Verification Checkpoint
+
+Status: completed
+Completed: 2026-05-14 16:00 +07
+
+Branch:
+- `feature/product-master-billing-flow`
+- `git rev-list --left-right --count origin/main...HEAD` → `0 7` (local branch is 7 commits ahead of `origin/main`)
+- Working tree clean before plan-log update.
+
+Verification:
+- `node node_modules/prisma/build/index.js validate` → passed.
+- `node node_modules/prisma/build/index.js generate` → passed; working tree stayed clean after generation.
+- `npm test` → 28 files passed / 170 tests passed.
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` → passed.
+- Full `node node_modules/eslint/bin/eslint.js` → repo has pre-existing unrelated lint errors in maintenance/work-order/superadmin files; not introduced by this branch.
+- Scoped branch lint: `node node_modules/eslint/bin/eslint.js $(git diff --name-only origin/main...HEAD -- '*.ts' '*.tsx')` → 0 errors, 4 existing `<img>` warnings in Product image surfaces.
+- `node node_modules/next/dist/bin/next build` → compiled successfully and exited 0; local build logged known `ECONNREFUSED` while prerendering `/api/public/plans` because local DB was unavailable for that public API prerender.
+- `git diff --check` → passed.
+- Independent final integration review → APPROVED, no critical logic/security blockers.
+
+Deployment Gate:
+- No push, deploy, production migration, destructive command, DNS/Coolify change, or gateway restart was executed.
+- Branch contains Prisma migration `prisma/migrations/20260514125500_product_kind_drawing_metadata/migration.sql`; deployment must be explicitly approved because `entrypoint.sh` applies migrations with `npx prisma migrate deploy`.
+
+Next Action:
+- Ask Tik for approval before push/deploy/migration. If approved, push branch and proceed through the existing GitHub Actions/Coolify deployment flow with post-deploy smoke checks.
