@@ -23,7 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
 import {
   ArrowLeft,
   Loader2,
@@ -32,12 +32,8 @@ import {
   FileText,
   Receipt,
   CreditCard,
-  Save,
   Download,
 } from "lucide-react";
-import { BillingNaturePicker } from "@/components/tax/billing-nature-picker";
-import { DrawingSourceRow } from "@/components/tax/drawing-source-row";
-import { suggestBillingNature } from "@/lib/validators/billing-nature";
 import type {
   BillingNature,
   DrawingSource,
@@ -133,85 +129,6 @@ export function InvoiceDetailClient({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [statusLoading, setStatusLoading] = useState(false);
-  const [taxSaving, setTaxSaving] = useState(false);
-
-  const canEditTax = invoice.status === "DRAFT";
-  const [billingNature, setBillingNature] = useState<BillingNature>(
-    (invoice.billingNature as BillingNature) ?? "GOODS"
-  );
-  const [lineEdits, setLineEdits] = useState(() =>
-    invoice.lines.map((l) => ({
-      id: l.id,
-      drawingSource: (l.drawingSource as DrawingSource) ?? "TENANT_OWNED",
-      productCode: l.productCode ?? "",
-      drawingRevision: l.drawingRevision ?? "",
-      customerDrawingUrl: l.customerDrawingUrl ?? "",
-    }))
-  );
-
-  // Re-sync state if the invoice prop changes (e.g. after router.refresh())
-  useEffect(() => {
-    setBillingNature((invoice.billingNature as BillingNature) ?? "GOODS");
-    setLineEdits(
-      invoice.lines.map((l) => ({
-        id: l.id,
-        drawingSource: (l.drawingSource as DrawingSource) ?? "TENANT_OWNED",
-        productCode: l.productCode ?? "",
-        drawingRevision: l.drawingRevision ?? "",
-        customerDrawingUrl: l.customerDrawingUrl ?? "",
-      }))
-    );
-  }, [invoice]);
-
-  const suggestedBillingNature = useMemo(
-    () =>
-      suggestBillingNature(
-        lineEdits.map((l) => ({ drawingSource: l.drawingSource }))
-      ),
-    [lineEdits]
-  );
-
-  const updateLineEdit = (
-    index: number,
-    patch: Partial<(typeof lineEdits)[number]>
-  ) => {
-    setLineEdits((prev) => {
-      const next = [...prev];
-      next[index] = { ...next[index], ...patch };
-      return next;
-    });
-  };
-
-  const handleSaveTaxPolicy = async () => {
-    setTaxSaving(true);
-    try {
-      const res = await fetch(`/api/finance/invoices/${invoice.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          billingNature,
-          lines: lineEdits.map((l) => ({
-            id: l.id,
-            drawingSource: l.drawingSource,
-            productCode: l.productCode || null,
-            drawingRevision: l.drawingRevision || null,
-            customerDrawingUrl: l.customerDrawingUrl || null,
-          })),
-        }),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        alert(err.error || "Failed to save tax policy");
-        return;
-      }
-      router.refresh();
-    } catch {
-      alert("Failed to save tax policy");
-    } finally {
-      setTaxSaving(false);
-    }
-  };
-
   const formatDate = (dateStr: string | null) => {
     if (!dateStr) return "-";
     return new Date(dateStr).toLocaleDateString("th-TH", {
@@ -276,6 +193,20 @@ export function InvoiceDetailClient({
     } finally {
       setLoading(false);
     }
+  };
+
+  const getBillingNatureLabel = (value?: BillingNature | null) => {
+    if (value === "GOODS") return "ขายสินค้า";
+    if (value === "MANUFACTURING_SERVICE") return "รับจ้างทำของ";
+    if (value === "MIXED") return "ผสม";
+    return "-";
+  };
+
+  const getDrawingSourceLabel = (value?: DrawingSource | null) => {
+    if (value === "TENANT_OWNED") return "แบบเรา";
+    if (value === "CUSTOMER_PROVIDED") return "แบบลูกค้า";
+    if (value === "JOINT_DEVELOPMENT") return "ร่วมพัฒนา";
+    return "-";
   };
 
   const isTerminal =
@@ -492,98 +423,59 @@ export function InvoiceDetailClient({
       </div>
 
       {/* Tax Policy (Billing Nature + Drawing Source) */}
-      {canEditTax ? (
-        <div className="space-y-3">
-          <BillingNaturePicker
-            value={billingNature}
-            suggestion={suggestedBillingNature}
-            onChange={setBillingNature}
-          />
-          <Card className="p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold text-sm">
-                แบบงาน / Drawing source per line
-              </h2>
-              <Button
-                size="sm"
-                onClick={handleSaveTaxPolicy}
-                disabled={taxSaving}
-              >
-                {taxSaving ? (
-                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-                ) : (
-                  <Save className="h-4 w-4 mr-1" />
-                )}
-                {t("common.save")}
-              </Button>
-            </div>
-            <details>
-              <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
-                แสดง/ซ่อน drawing source ของแต่ละบรรทัด
-              </summary>
-              <div className="mt-3 space-y-3">
-                {invoice.lines.map((line, index) => {
-                  const edit = lineEdits[index];
-                  if (!edit) return null;
-                  return (
-                    <div
-                      key={line.id}
-                      className="border rounded-lg p-3 space-y-2"
-                    >
-                      <p className="text-xs text-muted-foreground">
-                        #{index + 1} {line.description}
-                      </p>
-                      <DrawingSourceRow
-                        value={edit.drawingSource}
-                        onChange={(v) =>
-                          updateLineEdit(index, { drawingSource: v })
-                        }
-                        productCode={edit.productCode}
-                        drawingRevision={edit.drawingRevision}
-                        customerDrawingUrl={edit.customerDrawingUrl}
-                        onProductCodeChange={(v) =>
-                          updateLineEdit(index, { productCode: v })
-                        }
-                        onDrawingRevisionChange={(v) =>
-                          updateLineEdit(index, { drawingRevision: v })
-                        }
-                        onCustomerDrawingUrlChange={(v) =>
-                          updateLineEdit(index, { customerDrawingUrl: v })
-                        }
-                      />
-                    </div>
-                  );
-                })}
-              </div>
-            </details>
-          </Card>
-        </div>
-      ) : (
-        invoice.billingNature && (
-          <Card className="p-4 space-y-2">
-            <h2 className="font-semibold text-sm">นโยบายภาษีเอกสาร</h2>
-            <div className="flex items-center gap-2 text-sm">
-              <Badge variant="outline">
-                {invoice.billingNature === "GOODS"
-                  ? "ขายสินค้า"
-                  : invoice.billingNature === "MANUFACTURING_SERVICE"
-                    ? "รับจ้างทำของ"
-                    : "ผสม"}
-              </Badge>
-              {Number(invoice.whtRate ?? 0) > 0 && (
-                <Badge
-                  variant="outline"
-                  className="border-amber-500/50 text-amber-700"
-                >
-                  WHT {invoice.whtRate}% · {invoice.whtCertStatus ?? "PENDING"}
-                </Badge>
-              )}
-            </div>
+      {invoice.billingNature && (
+        <Card className="p-4 space-y-4">
+          <div className="space-y-1">
+            <h2 className="font-semibold text-sm">
+              นโยบายภาษีจาก Invoice snapshot
+            </h2>
             <p className="text-xs text-muted-foreground">
-              แก้ไขได้เฉพาะตอน status = DRAFT เท่านั้น
+              Product/SO/Invoice snapshot แบบอ่านอย่างเดียว — หากข้อมูลผิดให้ยกเลิก/ออกเอกสารใหม่
+              หรือใช้ flow แก้ไขขั้นสูงที่มี audit trail เท่านั้น
             </p>
-          </Card>
-        )
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-sm">
+            <Badge variant="outline">
+              {getBillingNatureLabel(invoice.billingNature)}
+            </Badge>
+            {Number(invoice.whtRate ?? 0) > 0 && (
+              <Badge
+                variant="outline"
+                className="border-amber-500/50 text-amber-700"
+              >
+                WHT {invoice.whtRate}% · {invoice.whtCertStatus ?? "PENDING"}
+              </Badge>
+            )}
+          </div>
+          <details>
+            <summary className="text-sm text-muted-foreground cursor-pointer hover:text-foreground">
+              Line snapshots จาก Product/SO/Invoice snapshot
+            </summary>
+            <div className="mt-3 space-y-2">
+              {invoice.lines.map((line, index) => (
+                <div
+                  key={line.id}
+                  className="rounded-lg border border-border p-3 text-xs text-muted-foreground"
+                >
+                  <div className="font-medium text-foreground">
+                    #{index + 1} {line.description}
+                  </div>
+                  <div className="mt-2 grid gap-1 sm:grid-cols-2">
+                    <span>ประเภท: {getBillingNatureLabel(line.lineBillingNature)}</span>
+                    <span>ที่มาของแบบ: {getDrawingSourceLabel(line.drawingSource)}</span>
+                    <span>รหัสสินค้า: {line.productCode || "-"}</span>
+                    <span>Drawing Rev: {line.drawingRevision || "-"}</span>
+                    {line.customerDrawingUrl && (
+                      <span className="sm:col-span-2 break-all">
+                        Customer drawing URL: {line.customerDrawingUrl}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </details>
+        </Card>
       )}
 
       {/* Line Items */}

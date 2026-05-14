@@ -769,4 +769,32 @@ Verification:
 - Focused re-review → APPROVED.
 
 Next Action:
-- Sprint 6: Invoice detail/report cleanup. Review Invoice detail UI so line snapshot metadata is read-only/no hidden override path, then update report/PDF wording to say drawing source comes from Product/SO/Invoice snapshots.
+- Sprint 6: completed. Ready for final cross-flow/full verification and deployment planning checkpoint.
+
+### Sprint 6: Invoice detail/report cleanup + snapshot wording alignment
+
+Status: completed
+Completed: 2026-05-14 15:48 +07
+
+Done:
+- Removed the Invoice detail tax-policy edit surface: no `BillingNaturePicker`, `DrawingSourceRow`, local line edit state, or hidden PATCH path for invoice billing/drawing metadata remains in the detail client.
+- Replaced it with read-only Invoice snapshot UI showing header `billingNature` and line snapshot metadata (`lineBillingNature`, `drawingSource`, `productCode`, `drawingRevision`, `customerDrawingUrl`) with copy that changes require cancel/reissue or a separate audited advanced flow.
+- Updated Drawing Source report API comments and user-facing report copy to describe drawing source as Product/SO/Invoice snapshot metadata, explicitly separate from Billing Nature/WHT classification.
+- Updated Revenue by Nature report API comments and user-facing copy to state it groups by `Invoice.billingNature` snapshot derived from Product/SO.
+- Updated invoice PDF mapper/template comments so mixed/service splitting is documented as based on invoice line snapshots, not live Product or quote-level auto-classification.
+- Added source-contract tests for Invoice detail read-only behavior and report/PDF wording; tests also reject old drift/WHT-risk wording.
+
+Verification:
+- RED: `npm test -- tests/ui/invoice-detail-snapshot-readonly-ui.test.ts tests/api/invoice-report-pdf-snapshot-wording.test.ts` failed before implementation because Invoice detail still had editable tax/drawing controls and report/PDF wording still used the old drawing-source/WHT framing.
+- GREEN: `npm test -- tests/ui/invoice-detail-snapshot-readonly-ui.test.ts tests/api/invoice-report-pdf-snapshot-wording.test.ts` → 4 passed.
+- Regression: `npm test -- tests/ui/invoice-from-so-tax-currency-ui.test.ts tests/ui/invoice-detail-snapshot-readonly-ui.test.ts tests/api/invoice-product-snapshots.test.ts tests/api/invoice-patch-snapshots.test.ts tests/api/invoice-report-pdf-snapshot-wording.test.ts` → 14 passed.
+- `node node_modules/prisma/build/index.js validate` → passed.
+- `node node_modules/typescript/bin/tsc --noEmit --pretty false --incremental false` → passed.
+- `node node_modules/eslint/bin/eslint.js <Sprint 6 touched files>` → passed.
+- `git diff --check` → passed.
+- Subagent quality review → APPROVED.
+- Subagent spec review initially REQUEST_CHANGES for report page/user-facing copy that still mentioned drift/WHT risk; fixes applied with regression assertions.
+- Focused final re-review → APPROVED.
+
+Next Action:
+- Final checkpoint: decide whether to run full `npm test` / `next build`, then push/deploy only after explicit approval.

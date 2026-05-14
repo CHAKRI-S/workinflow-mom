@@ -38,7 +38,7 @@ export default async function FinanceReportsIndexPage({
       href: "/finance/reports/drawing-source-mix",
       title: "รายงานแหล่งที่มาของแบบงาน",
       description:
-        "สัดส่วนงานที่ tenant ออกแบบเอง vs ลูกค้าส่งแบบ — ใช้ detect business model drift และ WHT risk",
+        "สัดส่วนงานจาก Drawing Source snapshot ใน Product/SO/Invoice — ใช้ดูหลักฐานงานและ IP/operation แยกจาก Billing Nature/WHT",
       icon: <BarChart3 className="h-5 w-5 text-amber-600" />,
     },
   ];

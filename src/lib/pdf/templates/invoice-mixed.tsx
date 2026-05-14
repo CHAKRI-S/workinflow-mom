@@ -22,7 +22,7 @@ import type { InvoicePdfData } from "../types";
 export function InvoiceMixedPdf({ data }: { data: InvoicePdfData }) {
   registerPdfFonts();
 
-  // Partition lines by lineBillingNature (fallback: default all to GOODS)
+  // Partition lines by lineBillingNature invoice snapshot (fallback: default all to GOODS)
   const goodsItems = data.items.filter((it) => {
     const nature = data.linesBillingNature?.[it.no];
     return nature === "GOODS" || nature == null;

@@ -12,7 +12,8 @@ import type { InvoicePdfData } from "../types";
 /**
  * SERVICE invoice — "ใบแจ้งหนี้ค่าบริการ / รับจ้างทำของ"
  *
- * Used when tenant provides manufacturing service on customer-owned drawings.
+ * Used when Product/SO-derived invoice snapshot classifies the invoice as a
+ * manufacturing service.
  * Key characteristics:
  * - Wording "รายการบริการ" instead of "รายการสินค้า"
  * - No SKU column (service doesn't have a catalog)

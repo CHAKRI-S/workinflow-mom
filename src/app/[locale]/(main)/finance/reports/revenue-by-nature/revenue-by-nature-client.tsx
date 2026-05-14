@@ -119,7 +119,7 @@ export function RevenueByNatureClient() {
           รายงานรายได้ตามประเภทการขาย
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          แยกรายได้ตาม Billing Nature — ไม่รวมเอกสาร Draft / Cancelled
+          แยกรายได้ตาม Invoice.billingNature snapshot ที่ derive จาก Product/SO — ไม่รวมเอกสาร Draft / Cancelled
         </p>
       </div>
 

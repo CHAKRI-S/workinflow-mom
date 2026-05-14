@@ -6,13 +6,13 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 /**
  * GET /api/finance/reports/drawing-source-mix?from=YYYY-MM-DD&to=YYYY-MM-DD
  *
- * Classifies revenue by the ORIGIN OF THE DRAWING (TENANT_OWNED vs
- * CUSTOMER_PROVIDED vs JOINT_DEVELOPMENT). Strategic report: a rising
- * share of CUSTOMER_PROVIDED lines is a signal that the business is
- * drifting from OEM-goods manufacturer toward contract-service provider
- * — which has tax implications (WHT exposure) and IP/strategy implications.
+ * Classifies revenue by Product master drawing metadata snapshotted onto InvoiceLine
+ * (TENANT_OWNED vs CUSTOMER_PROVIDED vs JOINT_DEVELOPMENT).
  *
- * Source: InvoiceLine joined to Invoice within range, excluding DRAFT + CANCELLED.
+ * This report is operational/IP evidence only. Drawing source does not auto-classify billing nature;
+ * tax/reporting classification comes from Product/SO-derived invoice billing snapshots.
+ *
+ * Source: InvoiceLine snapshot joined to Invoice within range, excluding DRAFT + CANCELLED.
  *
  * Response:
  *   {

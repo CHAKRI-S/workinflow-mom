@@ -122,6 +122,8 @@ export function mapInvoiceToPdfData(
     number,
     "GOODS" | "MANUFACTURING_SERVICE" | null
   > = {};
+  // Per-line billing nature snapshot copied from InvoiceLine snapshot from Product/SO at invoice creation time.
+  // MIXED PDFs use this evidence to split goods vs manufacturing-service sections.
   sortedLines.forEach((l, idx) => {
     const v = l.lineBillingNature;
     if (v === "GOODS" || v === "MANUFACTURING_SERVICE") {

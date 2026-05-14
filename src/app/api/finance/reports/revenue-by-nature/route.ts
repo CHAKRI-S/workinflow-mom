@@ -6,8 +6,11 @@ import { requirePermission, ROLES } from "@/lib/permissions";
 /**
  * GET /api/finance/reports/revenue-by-nature?from=YYYY-MM-DD&to=YYYY-MM-DD
  *
- * Revenue breakdown grouped by `billingNature` (GOODS / MANUFACTURING_SERVICE / MIXED).
+ * Revenue breakdown grouped by Invoice.billingNature snapshot
+ * (GOODS / MANUFACTURING_SERVICE / MIXED).
  * Source: Invoices with status in (ISSUED, SENT, PARTIALLY_PAID, PAID, OVERDUE).
+ * Billing nature is a Product/SO-derived snapshot captured on the invoice,
+ * not recalculated from drawing-source metadata at report time.
  * Cancelled + Draft are excluded.
  *
  * Response:

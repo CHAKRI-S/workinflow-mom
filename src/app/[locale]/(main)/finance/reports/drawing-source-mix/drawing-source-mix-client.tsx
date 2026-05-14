@@ -9,7 +9,7 @@ import {
   firstOfMonthStr,
 } from "@/components/shared/date-range-picker";
 import { CsvExportButton } from "@/components/shared/csv-export-button";
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import {
   PieChart,
   Pie,
@@ -51,10 +51,11 @@ const SOURCE_COLOR: Record<Source, string> = {
 };
 
 const SOURCE_DESC: Record<Source, string> = {
-  TENANT_OWNED: "→ โดยปกติตีเป็น GOODS (ขายสินค้า) ความเสี่ยง WHT ต่ำ",
+  TENANT_OWNED: "Snapshot metadata: แบบจาก Product master/เอกสารก่อนหน้า",
   CUSTOMER_PROVIDED:
-    "→ โดยปกติตีเป็น MANUFACTURING_SERVICE (รับจ้างทำของ) ความเสี่ยง WHT สูง",
-  JOINT_DEVELOPMENT: "→ grey area — ต้องดู contract term ว่าใครเป็นเจ้าของ IP",
+    "Snapshot metadata: ลูกค้าเป็นผู้ให้แบบ ใช้เป็นหลักฐานงาน/เอกสาร ไม่ auto-classify ภาษี",
+  JOINT_DEVELOPMENT:
+    "Snapshot metadata: แบบร่วมพัฒนา ใช้ดูมิติ IP/operation แยกจาก Billing Nature",
 };
 
 function formatAmount(n: number) {
@@ -90,8 +91,8 @@ export function DrawingSourceMixClient() {
   }, [from, to]);
 
   const customerProvidedShare =
-    data?.byDrawing.find((d) => d.drawingSource === "CUSTOMER_PROVIDED")?.share ?? 0;
-  const showDriftWarning = customerProvidedShare >= 30;
+    data?.byDrawing.find((d) => d.drawingSource === "CUSTOMER_PROVIDED")
+      ?.share ?? 0;
 
   const pieData = data?.byDrawing
     .filter((d) => d.revenue > 0)
@@ -108,7 +109,7 @@ export function DrawingSourceMixClient() {
           รายงานแหล่งที่มาของแบบงาน
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
-          สัดส่วนรายได้แยกตาม Drawing Source — ตรวจสอบการ drift จาก OEM Goods ไปทาง Contract Manufacturing
+          สัดส่วนรายได้แยกตาม Drawing Source snapshot จาก Product/SO/Invoice — ใช้ดูหลักฐานงานและมิติ IP/operation โดยไม่ auto-classify Billing Nature
         </p>
       </div>
 
@@ -139,25 +140,17 @@ export function DrawingSourceMixClient() {
         </Card>
       ) : (
         <>
-          {showDriftWarning && (
-            <Card className="p-4 border-amber-500/40 bg-amber-50/60 dark:bg-amber-900/10">
-              <div className="flex items-start gap-3">
-                <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
-                <div>
-                  <div className="font-semibold text-amber-900 dark:text-amber-300">
-                    เตือน: งาน &quot;ลูกค้าส่งแบบ&quot; มีสัดส่วน{" "}
-                    {customerProvidedShare}% ของรายได้
-                  </div>
-                  <div className="text-xs text-amber-800 dark:text-amber-300/80 mt-1 leading-relaxed">
-                    สูงกว่า 30% แปลว่าธุรกิจกำลัง drift ไปทาง Contract
-                    Manufacturing — ควรพิจารณาว่าจะปรับ billing nature ใน
-                    invoice เหล่านี้เป็น MANUFACTURING_SERVICE หรือไม่ และ
-                    เตรียมรับ WHT 3% ตาม ม.3 เตรส
-                  </div>
-                </div>
+          <Card className="p-4 border-blue-500/30 bg-blue-50/60 dark:bg-blue-900/10">
+            <div className="space-y-1">
+              <div className="font-semibold text-blue-900 dark:text-blue-300">
+                งาน &quot;ลูกค้าส่งแบบ&quot; มีสัดส่วน {customerProvidedShare}% ของรายได้
               </div>
-            </Card>
-          )}
+              <div className="text-xs text-blue-800 dark:text-blue-300/80 leading-relaxed">
+                ตัวเลขนี้มาจาก InvoiceLine snapshot เพื่อดูหลักฐานงาน/มิติ IP/operation เท่านั้น
+                การจัดกลุ่มภาษีและ WHT ให้ดูจากรายงาน Billing Nature snapshot แยกต่างหาก
+              </div>
+            </div>
+          </Card>
 
           {/* KPI cards per source */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
