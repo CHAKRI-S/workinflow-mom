@@ -27,6 +27,18 @@ interface Plan {
   maxMachines: number;
   maxCustomers: number;
   maxProducts: number;
+  maxWorkOrdersPerMonth: number;
+  featureProduction: boolean;
+  featureFinance: boolean;
+  featureMaintenance: boolean;
+  featureFactoryDashboard: boolean;
+  featureAuditLog: boolean;
+  featurePurchaseOrders: boolean;
+  featureAdvancedReports: boolean;
+  featureExcelExport: boolean;
+  featureCustomBranding: boolean;
+  featureApiAccess: boolean;
+  featureMultiLocation: boolean;
 }
 
 interface Usage {
@@ -44,6 +56,24 @@ interface LimitIssue {
   label: string;
   current: number;
   limit: number;
+}
+
+const PLAN_FEATURE_DETAILS: Array<[keyof Plan, string]> = [
+  ["featureProduction", "Production (WO, BOM)"],
+  ["featureFinance", "เอกสารภาษีไทย (VAT/Non-VAT)"],
+  ["featurePurchaseOrders", "Purchase Orders"],
+  ["featureMaintenance", "บันทึกซ่อมบำรุง"],
+  ["featureFactoryDashboard", "Dashboard TV หน้าโรงงาน"],
+  ["featureAuditLog", "Audit Log (ISO 9001)"],
+  ["featureAdvancedReports", "รายงานขั้นสูง"],
+  ["featureExcelExport", "Excel Export"],
+  ["featureCustomBranding", "Custom Branding"],
+  ["featureApiAccess", "API Access"],
+  ["featureMultiLocation", "Multi-Location"],
+];
+
+function limitText(n: number, unit: string) {
+  return n === 0 ? `ไม่จำกัด${unit}` : `${n.toLocaleString("th-TH")} ${unit}`;
 }
 
 function computeDowngradeIssues(target: Plan, usage: Usage): LimitIssue[] {
@@ -457,6 +487,37 @@ export function UpgradeClient({
                 <div className="text-xs text-muted-foreground">
                   /เดือน{cycle === "YEARLY" ? " (จ่ายรายปี)" : ""}
                 </div>
+
+                <ul className="mt-4 space-y-1.5 text-sm">
+                  <li className="flex items-start gap-2">
+                    <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                    <span>{limitText(p.maxUsers, "ผู้ใช้งาน")}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                    <span>{limitText(p.maxMachines, "เครื่อง CNC")}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                    <span>{limitText(p.maxCustomers, "ลูกค้า")}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                    <span>{limitText(p.maxProducts, "สินค้า")}</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                    <span>Work Orders / เดือน: {limitText(p.maxWorkOrdersPerMonth, "")}</span>
+                  </li>
+                  {PLAN_FEATURE_DETAILS.map(([key, label]) =>
+                    p[key] ? (
+                      <li key={key} className="flex items-start gap-2">
+                        <Check className="h-4 w-4 text-green-500 shrink-0 mt-0.5" />
+                        <span>{label}</span>
+                      </li>
+                    ) : null,
+                  )}
+                </ul>
 
                 {isCurrent && (
                   <div className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-primary">

@@ -86,6 +86,10 @@ provider.
   audited; use `src/lib/select-labels.ts` or a local code/name lookup helper.
 - Only one active Tax Invoice may exist per source Invoice. Creating another is
   allowed only after the prior Tax Invoice is cancelled.
+- Subscription plan prices are stored in satang in Prisma/API payloads, but
+  superadmin plan price inputs must display/edit baht amounts and convert back
+  to satang before saving. Tenant upgrade cards should fetch and show the same
+  limits/features as the public pricing page so plan details stay consistent.
 
 Manufacturing workflow to preserve in product design:
 

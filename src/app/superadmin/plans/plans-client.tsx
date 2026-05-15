@@ -49,6 +49,17 @@ const FEATURE_KEYS: Array<[keyof Plan, string]> = [
   ["featureMultiLocation", "Multi-Location"],
 ];
 
+export function satangToBahtInputValue(satang: number): string {
+  const baht = satang / 100;
+  return Number.isInteger(baht) ? String(baht) : String(baht.toFixed(2));
+}
+
+export function bahtInputValueToSatang(value: string): number {
+  const baht = Number(value);
+  if (!Number.isFinite(baht) || baht < 0) return 0;
+  return Math.round(baht * 100);
+}
+
 export function PlansClient({ initialPlans }: { initialPlans: Plan[] }) {
   const router = useRouter();
   // BUG FIX: previously `const [plans] = useState(initialPlans)` froze the
@@ -173,14 +184,14 @@ export function PlansClient({ initialPlans }: { initialPlans: Plan[] }) {
                   editing={isEditing}
                   value={d.priceMonthly}
                   display={fmt(d.priceMonthly)}
-                  onChange={(v) => draft && setDraft({ ...draft, priceMonthly: Number(v) })}
+                  onChange={(v) => draft && setDraft({ ...draft, priceMonthly: v })}
                 />
                 <PriceField
                   label="Yearly (฿)"
                   editing={isEditing}
                   value={d.priceYearly}
                   display={fmt(d.priceYearly)}
-                  onChange={(v) => draft && setDraft({ ...draft, priceYearly: Number(v) })}
+                  onChange={(v) => draft && setDraft({ ...draft, priceYearly: v })}
                 />
                 <NumField
                   label="Yearly Discount %"
@@ -282,7 +293,7 @@ function PriceField({
   editing: boolean;
   value: number;
   display: string;
-  onChange: (v: string) => void;
+  onChange: (v: number) => void;
 }) {
   return (
     <div>
@@ -291,8 +302,8 @@ function PriceField({
         <input
           type="number"
           min={0}
-          value={value}
-          onChange={(e) => onChange(e.target.value)}
+          value={satangToBahtInputValue(value)}
+          onChange={(e) => onChange(bahtInputValueToSatang(e.target.value))}
           className="h-9 w-full rounded-lg border bg-background px-2 text-sm"
         />
       ) : (
