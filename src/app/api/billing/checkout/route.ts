@@ -5,13 +5,15 @@ import { prisma } from "@/lib/prisma";
 import { requirePermission, ROLES } from "@/lib/permissions";
 import { activateSubscription, calculateAmounts, computePeriod } from "@/lib/subscription";
 import { OMISE_CONFIGURED, createCharge, createCustomerWithCard } from "@/lib/omise";
+import { getPlatformBankInfo, isBankTransferConfigured } from "@/lib/platform-settings";
 
 const checkoutSchema = z.object({
   planId: z.string().min(1),
   billingCycle: z.enum(["MONTHLY", "YEARLY"]),
-  // MANUAL is intentionally removed — we only support SLIPOK (PromptPay QR + slip)
-  // and OMISE (credit card via 3DS).
-  paymentGateway: z.enum(["OMISE", "SLIPOK"]).default("SLIPOK"),
+  // OMISE  = credit card via 3DS
+  // SLIPOK = PromptPay QR + slip (auto-verified)
+  // MANUAL = bank transfer, confirmed by super admin in the back office
+  paymentGateway: z.enum(["OMISE", "SLIPOK", "MANUAL"]).default("SLIPOK"),
   // Raw card token from Omise.js browser-side tokenization.
   // REQUIRED when paymentGateway === "OMISE".
   omiseToken: z.string().optional(),
@@ -364,6 +366,21 @@ export async function POST(req: NextRequest) {
         subscriptionId: sub.id,
         status: "PENDING",
         paymentGateway: "OMISE",
+        amountSatang: amounts.totalSatang,
+      });
+    }
+
+    // MANUAL — bank transfer, confirmed by super admin
+    if (paymentGateway === "MANUAL") {
+      const bank = await getPlatformBankInfo();
+      return NextResponse.json({
+        subscriptionId: sub.id,
+        status: "PENDING",
+        paymentGateway: "MANUAL",
+        instructions:
+          "โอนเงินไปยังบัญชีธนาคารด้านล่าง แล้วอัพโหลดสลิปเพื่อรอผู้ดูแลระบบยืนยัน",
+        bank,
+        bankConfigured: isBankTransferConfigured(bank),
         amountSatang: amounts.totalSatang,
       });
     }

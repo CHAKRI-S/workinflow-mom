@@ -8,11 +8,14 @@
  * Used by SubscriptionInvoice PDF to render ผู้ให้บริการ info. Blank values
  * render as "[SETUP REQUIRED]" in the PDF so it's obvious when the row
  * hasn't been filled in production yet.
+ *
+ * Also holds the bank-account details shown to tenants who pay via manual
+ * bank transfer (PaymentGateway.MANUAL).
  */
 
 import { prisma } from "@/lib/prisma";
 
-/** Public shape returned to callers — always the 5 issuer fields. */
+/** Issuer (legal entity) fields — used on SaaS tax-invoice PDFs. */
 export interface PlatformIssuerInfo {
   issuerName: string;
   issuerTaxId: string;
@@ -21,27 +24,66 @@ export interface PlatformIssuerInfo {
   issuerEmail: string;
 }
 
+/** Bank-account fields — shown to tenants for manual bank transfer. */
+export interface PlatformBankInfo {
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankBranch: string;
+  promptPayId: string;
+}
+
+/** Full platform settings shape returned to callers. */
+export type PlatformSettingsInfo = PlatformIssuerInfo & PlatformBankInfo;
+
 const SINGLETON_ID = "SINGLETON";
+
+const SELECT = {
+  issuerName: true,
+  issuerTaxId: true,
+  issuerAddress: true,
+  issuerPhone: true,
+  issuerEmail: true,
+  bankName: true,
+  bankAccountName: true,
+  bankAccountNumber: true,
+  bankBranch: true,
+  promptPayId: true,
+} as const;
 
 /**
  * Fetch the platform settings singleton. Upserts an empty row on first call
  * so every caller gets back a valid record (migration seeds this row too,
  * but upsert is a defensive backstop).
  */
-export async function getPlatformSettings(): Promise<PlatformIssuerInfo> {
+export async function getPlatformSettings(): Promise<PlatformSettingsInfo> {
   const row = await prisma.platformSettings.upsert({
     where: { id: SINGLETON_ID },
     create: { id: SINGLETON_ID },
     update: {},
-    select: {
-      issuerName: true,
-      issuerTaxId: true,
-      issuerAddress: true,
-      issuerPhone: true,
-      issuerEmail: true,
-    },
+    select: SELECT,
   });
   return row;
+}
+
+/**
+ * Returns just the bank-account block. Tenants read this to see where to
+ * transfer money for manual bank-transfer checkout.
+ */
+export async function getPlatformBankInfo(): Promise<PlatformBankInfo> {
+  const row = await getPlatformSettings();
+  return {
+    bankName: row.bankName,
+    bankAccountName: row.bankAccountName,
+    bankAccountNumber: row.bankAccountNumber,
+    bankBranch: row.bankBranch,
+    promptPayId: row.promptPayId,
+  };
+}
+
+/** True when at least a bank name + account number are configured. */
+export function isBankTransferConfigured(bank: PlatformBankInfo): boolean {
+  return Boolean(bank.bankName.trim() && bank.bankAccountNumber.trim());
 }
 
 /**
@@ -52,9 +94,16 @@ export async function getPlatformSettings(): Promise<PlatformIssuerInfo> {
  * @param updatedBy — SuperAdmin.id making the change (for audit)
  */
 export async function upsertPlatformSettings(
-  data: Partial<PlatformIssuerInfo>,
+  data: Partial<PlatformSettingsInfo>,
   updatedBy: string | null = null
-): Promise<PlatformIssuerInfo> {
+): Promise<PlatformSettingsInfo> {
+  // Only set fields that were explicitly provided (!== undefined).
+  const setDefined: Record<string, string> = {};
+  for (const key of Object.keys(SELECT) as (keyof PlatformSettingsInfo)[]) {
+    const value = data[key];
+    if (value !== undefined) setDefined[key] = value;
+  }
+
   const row = await prisma.platformSettings.upsert({
     where: { id: SINGLETON_ID },
     create: {
@@ -64,25 +113,18 @@ export async function upsertPlatformSettings(
       issuerAddress: data.issuerAddress ?? "",
       issuerPhone: data.issuerPhone ?? "",
       issuerEmail: data.issuerEmail ?? "",
+      bankName: data.bankName ?? "",
+      bankAccountName: data.bankAccountName ?? "",
+      bankAccountNumber: data.bankAccountNumber ?? "",
+      bankBranch: data.bankBranch ?? "",
+      promptPayId: data.promptPayId ?? "",
       updatedBy,
     },
     update: {
-      ...(data.issuerName !== undefined ? { issuerName: data.issuerName } : {}),
-      ...(data.issuerTaxId !== undefined ? { issuerTaxId: data.issuerTaxId } : {}),
-      ...(data.issuerAddress !== undefined
-        ? { issuerAddress: data.issuerAddress }
-        : {}),
-      ...(data.issuerPhone !== undefined ? { issuerPhone: data.issuerPhone } : {}),
-      ...(data.issuerEmail !== undefined ? { issuerEmail: data.issuerEmail } : {}),
+      ...setDefined,
       updatedBy,
     },
-    select: {
-      issuerName: true,
-      issuerTaxId: true,
-      issuerAddress: true,
-      issuerPhone: true,
-      issuerEmail: true,
-    },
+    select: SELECT,
   });
   return row;
 }

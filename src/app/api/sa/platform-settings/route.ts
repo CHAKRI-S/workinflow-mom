@@ -37,6 +37,12 @@ const putSchema = z.object({
       (v) => v === undefined || v === "" || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v),
       { message: "Invalid email format" }
     ),
+  // Bank account (manual bank-transfer target shown to tenants)
+  bankName: z.string().trim().max(100).optional(),
+  bankAccountName: z.string().trim().max(200).optional(),
+  bankAccountNumber: z.string().trim().max(50).optional(),
+  bankBranch: z.string().trim().max(100).optional(),
+  promptPayId: z.string().trim().max(50).optional(),
 });
 
 // PUT /api/sa/platform-settings — upsert fields

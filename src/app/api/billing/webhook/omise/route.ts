@@ -7,6 +7,7 @@ import {
   sendPaymentFailedEmail,
   sendSubscriptionActivatedEmail,
 } from "@/lib/billing-emails";
+import { notifyPaymentFailed } from "@/lib/notify";
 
 /**
  * POST /api/billing/webhook/omise
@@ -158,6 +159,13 @@ export async function POST(req: NextRequest) {
             { tenantId: sub.tenantId },
           );
         }
+
+        // Fire-and-forget Telegram alert
+        notifyPaymentFailed({
+          tenantName: sub.tenant.name,
+          planName: sub.plan.name,
+          reason,
+        });
 
         return NextResponse.json({ ok: true, failed: sub.id });
       }

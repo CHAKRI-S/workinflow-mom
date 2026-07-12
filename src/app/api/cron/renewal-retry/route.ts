@@ -8,6 +8,7 @@ import {
 import { OMISE_CONFIGURED, chargeCustomer } from "@/lib/omise";
 import { createSubscriptionInvoice } from "@/lib/subscription-invoice";
 import { calculateAmounts, computePeriod } from "@/lib/subscription";
+import { notifyRenewalCron } from "@/lib/notify";
 
 /**
  * GET /api/cron/renewal-retry
@@ -114,6 +115,10 @@ export async function GET(req: NextRequest) {
     to: string;
     params: Parameters<typeof sendRenewalFailedEmail>[1];
   }> = [];
+
+  // Names for the Telegram summary (independent of whether an email was sent).
+  const nameByTenant = new Map(expired.map((s) => [s.tenantId, s.tenant.name]));
+  const failedNames: string[] = [];
 
   for (const sub of expired) {
     try {
@@ -222,6 +227,7 @@ export async function GET(req: NextRequest) {
 
         // Charge failed → queue a "please update your card" email, then
         // fall through to the standard EXPIRED flow below.
+        failedNames.push(sub.tenant.name);
         if (admin?.email) {
           renewalFailedEmails.push({
             to: admin.email,
@@ -292,6 +298,17 @@ export async function GET(req: NextRequest) {
   const renewedCount = results.filter((r) => r.status === "renewed").length;
   const expiredCount = results.filter((r) => r.status === "expired").length;
   const errorCount = results.filter((r) => r.status === "error").length;
+
+  // Fire-and-forget Telegram summary (only sends if anything happened)
+  notifyRenewalCron({
+    renewed: results
+      .filter((r) => r.status === "renewed")
+      .map((r) => nameByTenant.get(r.tenantId) ?? r.tenantId),
+    failed: failedNames,
+    expired: results
+      .filter((r) => r.status === "expired")
+      .map((r) => nameByTenant.get(r.tenantId) ?? r.tenantId),
+  });
 
   return NextResponse.json({
     success: true,

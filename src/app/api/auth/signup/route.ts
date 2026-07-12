@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { provisionTenant } from "@/lib/tenant-provisioning";
 import { sendEmailVerificationEmail } from "@/lib/email";
+import { notifySignup } from "@/lib/notify";
 import {
   buildEmailVerificationUrl,
   EMAIL_VERIFICATION_EXPIRES_HOURS,
@@ -97,6 +98,13 @@ export async function POST(req: NextRequest) {
       verifyUrl,
       expiresInHours: EMAIL_VERIFICATION_EXPIRES_HOURS,
     }).catch((e) => console.error("verification email error:", e));
+
+    // Fire-and-forget Telegram alert to platform admins
+    notifySignup({
+      tenantName: companyName,
+      email: adminEmail,
+      planName: "ทดลองใช้ฟรี (Free trial)",
+    });
 
     // Determine login URL based on environment
     const isProd = process.env.NODE_ENV === "production";

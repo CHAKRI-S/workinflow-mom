@@ -12,7 +12,17 @@ import {
   AlertTriangle,
   ArrowRight,
   ArrowDownCircle,
+  Landmark,
+  Clock,
 } from "lucide-react";
+
+interface BankInfo {
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankBranch: string;
+  promptPayId: string;
+}
 
 interface Plan {
   id: string;
@@ -49,7 +59,7 @@ interface Usage {
 }
 
 type Step = "select-plan" | "confirm-downgrade" | "select-method" | "pay" | "success";
-type Gateway = "OMISE" | "SLIPOK";
+type Gateway = "OMISE" | "SLIPOK" | "MANUAL";
 
 interface LimitIssue {
   resource: string;
@@ -178,8 +188,12 @@ export function UpgradeClient({
     configMissing?: boolean;
     instructions?: string;
     downgraded?: boolean;
+    paymentGateway?: Gateway;
+    bank?: BankInfo;
+    bankConfigured?: boolean;
   } | null>(null);
   const [slipFile, setSlipFile] = useState<File | null>(null);
+  const [manualPending, setManualPending] = useState(false);
 
   // ─── Card form state (OMISE) ────────────────────
   const [cardName, setCardName] = useState("");
@@ -403,6 +417,34 @@ export function UpgradeClient({
         setLoading(false);
         return;
       }
+      setStep("success");
+    } catch {
+      setError("Network error");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // MANUAL bank transfer — submit proof, awaits super-admin confirmation.
+  async function uploadTransfer() {
+    if (!slipFile || !checkout) return;
+    setLoading(true);
+    setError("");
+    try {
+      const fd = new FormData();
+      fd.append("subscriptionId", checkout.subscriptionId);
+      fd.append("file", slipFile);
+      const res = await fetch("/api/billing/submit-transfer", {
+        method: "POST",
+        body: fd,
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "ส่งหลักฐานไม่สำเร็จ");
+        setLoading(false);
+        return;
+      }
+      setManualPending(true);
       setStep("success");
     } catch {
       setError("Network error");
@@ -653,6 +695,13 @@ export function UpgradeClient({
             badge="แนะนำ"
           />
           <PaymentOption
+            icon={Landmark}
+            title="โอนผ่านบัญชีธนาคาร"
+            desc="โอนเข้าบัญชีบริษัท แล้วอัพโหลดสลิป — ผู้ดูแลระบบตรวจสอบและยืนยันให้"
+            selected={gateway === "MANUAL"}
+            onClick={() => setGateway("MANUAL")}
+          />
+          <PaymentOption
             icon={CreditCard}
             title="บัตรเครดิต / เดบิต"
             desc={
@@ -808,6 +857,75 @@ export function UpgradeClient({
       );
     }
 
+    if (gateway === "MANUAL") {
+      const bank = checkout.bank;
+      const hasBank = checkout.bankConfigured && bank;
+      return (
+        <div className="max-w-md">
+          <h1 className="text-2xl font-bold mb-2">โอนผ่านบัญชีธนาคาร</h1>
+          <p className="text-sm text-muted-foreground mb-6">
+            ยอด {formatSat(checkout.amountSatang)}
+          </p>
+
+          {hasBank ? (
+            <div className="rounded-xl border bg-card p-4 mb-4 text-sm">
+              <div className="text-xs text-muted-foreground mb-2">โอนเงินไปที่</div>
+              <dl className="space-y-1">
+                <Detail label="ธนาคาร" value={bank.bankName} />
+                <Detail label="ชื่อบัญชี" value={bank.bankAccountName} />
+                <Detail label="เลขที่บัญชี" value={bank.bankAccountNumber} mono />
+                {bank.bankBranch && <Detail label="สาขา" value={bank.bankBranch} />}
+                {bank.promptPayId && <Detail label="PromptPay" value={bank.promptPayId} mono />}
+              </dl>
+            </div>
+          ) : (
+            <div className="rounded-xl border bg-yellow-500/10 p-4 mb-4 text-sm flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 text-yellow-600 shrink-0 mt-0.5" />
+              <span>
+                ผู้ดูแลระบบยังไม่ได้ตั้งค่าบัญชีธนาคาร — กรุณาติดต่อ{" "}
+                <a href="mailto:hello@workinflow.cloud" className="text-primary underline">
+                  hello@workinflow.cloud
+                </a>
+              </span>
+            </div>
+          )}
+
+          <label className="block rounded-xl border-2 border-dashed bg-card p-6 text-center cursor-pointer hover:bg-muted transition">
+            <input
+              type="file"
+              accept="image/*,application/pdf"
+              className="hidden"
+              onChange={(e) => setSlipFile(e.target.files?.[0] ?? null)}
+            />
+            {slipFile ? (
+              <div className="text-sm font-medium">{slipFile.name}</div>
+            ) : (
+              <>
+                <FileText className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <div className="text-sm font-medium">คลิกเพื่อแนบสลิปการโอน</div>
+                <div className="text-xs text-muted-foreground mt-1">JPG, PNG, PDF (max 5MB)</div>
+              </>
+            )}
+          </label>
+
+          {error && (
+            <div className="mt-4 rounded-lg bg-destructive/10 p-3 text-sm text-destructive">
+              {error}
+            </div>
+          )}
+
+          <button
+            onClick={uploadTransfer}
+            disabled={loading || !slipFile}
+            className="mt-6 inline-flex h-11 w-full items-center justify-center rounded-lg bg-primary px-5 text-sm font-semibold text-primary-foreground hover:bg-blue-600 disabled:opacity-60 gap-2"
+          >
+            {loading && <Loader2 className="h-4 w-4 animate-spin" />}
+            ส่งหลักฐาน — รอผู้ดูแลยืนยัน
+          </button>
+        </div>
+      );
+    }
+
     if (gateway === "SLIPOK") {
       return (
         <div className="max-w-md">
@@ -874,18 +992,35 @@ export function UpgradeClient({
   // ─── Success ────────────────────────────────────
   if (step === "success") {
     const wasDowngrade = checkout?.downgraded;
+    const iconWrap = manualPending
+      ? "bg-amber-100 text-amber-600"
+      : wasDowngrade
+        ? "bg-amber-100 text-amber-600"
+        : "bg-green-100 text-green-600";
     return (
       <div className="max-w-md text-center py-8">
-        <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${wasDowngrade ? "bg-amber-100 text-amber-600" : "bg-green-100 text-green-600"}`}>
-          {wasDowngrade ? <ArrowDownCircle className="h-8 w-8" /> : <Check className="h-8 w-8" />}
+        <div className={`mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full ${iconWrap}`}>
+          {manualPending ? (
+            <Clock className="h-8 w-8" />
+          ) : wasDowngrade ? (
+            <ArrowDownCircle className="h-8 w-8" />
+          ) : (
+            <Check className="h-8 w-8" />
+          )}
         </div>
         <h1 className="text-2xl font-bold mb-2">
-          {wasDowngrade ? "ดาวน์เกรดสำเร็จ" : "ชำระเงินสำเร็จ"}
+          {manualPending
+            ? "ส่งหลักฐานการโอนแล้ว"
+            : wasDowngrade
+              ? "ดาวน์เกรดสำเร็จ"
+              : "ชำระเงินสำเร็จ"}
         </h1>
         <p className="text-muted-foreground text-sm mb-6">
-          {wasDowngrade
-            ? `เปลี่ยนมาใช้ ${selectedPlan?.name ?? "Plan ใหม่"} แล้ว`
-            : "Subscription ถูกเปิดใช้งานแล้ว ขอบคุณที่เชื่อใจ WorkinFlow"}
+          {manualPending
+            ? "รอผู้ดูแลระบบตรวจสอบและยืนยันการชำระเงิน — จะเปิดใช้งานให้ทันทีหลังยืนยัน"
+            : wasDowngrade
+              ? `เปลี่ยนมาใช้ ${selectedPlan?.name ?? "Plan ใหม่"} แล้ว`
+              : "Subscription ถูกเปิดใช้งานแล้ว ขอบคุณที่เชื่อใจ WorkinFlow"}
         </p>
         <Link
           href="/admin/billing"
@@ -898,6 +1033,15 @@ export function UpgradeClient({
   }
 
   return null;
+}
+
+function Detail({ label, value, mono }: { label: string; value: string; mono?: boolean }) {
+  return (
+    <div className="flex justify-between gap-4">
+      <dt className="text-muted-foreground">{label}</dt>
+      <dd className={`text-right font-medium ${mono ? "font-mono" : ""}`}>{value}</dd>
+    </div>
+  );
 }
 
 function PaymentOption({

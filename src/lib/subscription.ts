@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import type { BillingCycle } from "@/generated/prisma/client";
 import { createSubscriptionInvoice } from "@/lib/subscription-invoice";
+import { notifySubscriptionActivated } from "@/lib/notify";
 
 export const VAT_RATE = 0.07; // 7% Thai VAT
 
@@ -77,6 +78,14 @@ export async function activateSubscription(params: {
       err
     );
   }
+
+  // Fire-and-forget platform notification (never blocks activation).
+  notifySubscriptionActivated({
+    tenantName: sub.tenant.name,
+    planName: sub.plan.name,
+    totalSatang: sub.totalSatang,
+    gateway: sub.paymentGateway,
+  });
 
   return sub;
 }

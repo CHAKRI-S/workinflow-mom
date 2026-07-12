@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sendTrialEndingEmail } from "@/lib/email";
+import { notifyTrialCron } from "@/lib/notify";
 
 /**
  * GET /api/cron/trial-expiry
@@ -90,6 +91,12 @@ export async function GET(req: NextRequest) {
       }),
     ),
   );
+
+  // Fire-and-forget Telegram summary (only sends if anything happened)
+  notifyTrialCron({
+    suspended: expired.map((t) => t.name),
+    reminders: reminders.map((r) => ({ name: r.companyName, daysLeft: r.daysLeft })),
+  });
 
   return NextResponse.json({
     success: true,

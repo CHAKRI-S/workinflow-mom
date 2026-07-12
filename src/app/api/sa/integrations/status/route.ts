@@ -42,6 +42,9 @@ export async function GET() {
       cron: {
         configured: Boolean(process.env.CRON_SECRET),
       },
+      telegram: {
+        configured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
+      },
       urls: {
         appUrl: process.env.NEXT_PUBLIC_APP_URL || null,
         landingUrl: process.env.NEXT_PUBLIC_LANDING_URL || null,

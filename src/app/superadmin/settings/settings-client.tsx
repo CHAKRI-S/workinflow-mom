@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Plus, Trash2, Loader2, CheckCircle2, XCircle, Shield, Mail, CreditCard, Link2, Clock, AlertCircle, KeyRound, Power, Building2, Save } from "lucide-react";
+import { Plus, Trash2, Loader2, CheckCircle2, XCircle, Shield, Mail, CreditCard, Link2, Clock, AlertCircle, KeyRound, Power, Building2, Save, Send, MessageCircle, RefreshCw } from "lucide-react";
 
 interface SaUser {
   id: string;
@@ -22,6 +22,7 @@ interface IntegrationStatus {
   };
   auth: { saJwtSecret: { configured: boolean; fallback: boolean } };
   cron: { configured: boolean };
+  telegram: { configured: boolean };
   urls: { appUrl: string | null; landingUrl: string | null; saUrl: string | null };
 }
 
@@ -31,6 +32,11 @@ interface PlatformIssuer {
   issuerAddress: string;
   issuerPhone: string;
   issuerEmail: string;
+  bankName: string;
+  bankAccountName: string;
+  bankAccountNumber: string;
+  bankBranch: string;
+  promptPayId: string;
 }
 
 export function SettingsClient({
@@ -132,6 +138,9 @@ export function SettingsClient({
       {/* Platform Issuer (WorkinFlow legal entity info for SaaS tax invoices) */}
       <PlatformIssuerSection />
 
+      {/* Telegram notification destinations */}
+      <TelegramSection />
+
       {/* Integration status */}
       <div className="rounded-xl border bg-card p-5 mb-6">
         <h2 className="font-semibold mb-4 flex items-center gap-2">
@@ -190,6 +199,16 @@ export function SettingsClient({
                 integrations.cron.configured
                   ? "CRON_SECRET set"
                   : "CRON_SECRET not set (trial cron ไม่มี auth)"
+              }
+            />
+            <IntegrationItem
+              icon={Send}
+              label="Telegram (แจ้งเตือน)"
+              configured={integrations.telegram.configured}
+              detail={
+                integrations.telegram.configured
+                  ? "TELEGRAM_BOT_TOKEN set"
+                  : "TELEGRAM_BOT_TOKEN not set (แจ้งเตือนปิดอยู่)"
               }
             />
           </div>
@@ -481,6 +500,78 @@ function PlatformIssuerSection() {
             </div>
           </div>
 
+          {/* Bank account — shown to tenants who pay by manual bank transfer */}
+          <div className="pt-3 mt-1 border-t">
+            <h3 className="text-xs font-semibold mb-1 flex items-center gap-2">
+              <CreditCard className="h-3.5 w-3.5" /> บัญชีธนาคาร (สำหรับลูกค้าโอนเงิน)
+            </h3>
+            <p className="text-[11px] text-muted-foreground mb-3">
+              แสดงให้ลูกค้าที่เลือกชำระด้วยการโอนผ่านบัญชี แล้ว superadmin ยืนยันเอง
+            </p>
+            <div className="grid md:grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  ธนาคาร
+                </label>
+                <input
+                  value={data.bankName}
+                  onChange={(e) => update("bankName", e.target.value)}
+                  placeholder="ธนาคารกสิกรไทย"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                  maxLength={100}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  ชื่อบัญชี
+                </label>
+                <input
+                  value={data.bankAccountName}
+                  onChange={(e) => update("bankAccountName", e.target.value)}
+                  placeholder="บริษัท เวิร์คอินโฟลว์ จำกัด"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                  maxLength={200}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  เลขที่บัญชี
+                </label>
+                <input
+                  value={data.bankAccountNumber}
+                  onChange={(e) => update("bankAccountNumber", e.target.value)}
+                  placeholder="xxx-x-xxxxx-x"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono"
+                  maxLength={50}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  สาขา (ไม่บังคับ)
+                </label>
+                <input
+                  value={data.bankBranch}
+                  onChange={(e) => update("bankBranch", e.target.value)}
+                  placeholder="สาขาสีลม"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm"
+                  maxLength={100}
+                />
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1">
+                  PromptPay ID (ไม่บังคับ)
+                </label>
+                <input
+                  value={data.promptPayId}
+                  onChange={(e) => update("promptPayId", e.target.value)}
+                  placeholder="0-XXXX-XXXX-X"
+                  className="h-9 w-full rounded-lg border bg-background px-3 text-sm font-mono"
+                  maxLength={50}
+                />
+              </div>
+            </div>
+          </div>
+
           {message && (
             <div
               className={`flex items-start gap-2 rounded-lg p-2 text-xs ${
@@ -513,6 +604,277 @@ function PlatformIssuerSection() {
             </button>
           </div>
         </form>
+      )}
+    </div>
+  );
+}
+
+interface TelegramChat {
+  id: string;
+  chatId: string;
+  label: string;
+  active: boolean;
+  createdAt: string;
+}
+interface DetectedChat {
+  chatId: string;
+  title: string;
+  type: string;
+}
+
+function TelegramSection() {
+  const [chats, setChats] = useState<TelegramChat[] | null>(null);
+  const [botConfigured, setBotConfigured] = useState<boolean>(false);
+  const [chatId, setChatId] = useState("");
+  const [label, setLabel] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [detected, setDetected] = useState<DetectedChat[] | null>(null);
+  const [detecting, setDetecting] = useState(false);
+  const [msg, setMsg] = useState<{ type: "ok" | "err"; text: string } | null>(null);
+
+  async function load() {
+    try {
+      const res = await fetch("/api/sa/telegram/chats");
+      const data = await res.json();
+      setChats(data.chats ?? []);
+      setBotConfigured(Boolean(data.botConfigured));
+    } catch {
+      setChats([]);
+    }
+  }
+  useEffect(() => {
+    void load();
+  }, []);
+
+  async function addChat(e: React.FormEvent) {
+    e.preventDefault();
+    if (!chatId.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/sa/telegram/chats", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chatId: chatId.trim(), label: label.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg({ type: "err", text: data.error || "เพิ่มไม่สำเร็จ" });
+        return;
+      }
+      setChatId("");
+      setLabel("");
+      await load();
+      setMsg({ type: "ok", text: "เพิ่มปลายทางแล้ว" });
+    } catch {
+      setMsg({ type: "err", text: "Network error" });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function removeChat(id: string) {
+    if (!confirm("ลบปลายทางนี้?")) return;
+    await fetch(`/api/sa/telegram/chats/${id}`, { method: "DELETE" });
+    await load();
+  }
+
+  async function toggle(c: TelegramChat) {
+    await fetch(`/api/sa/telegram/chats/${c.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ active: !c.active }),
+    });
+    await load();
+  }
+
+  async function detect() {
+    setDetecting(true);
+    setMsg(null);
+    try {
+      const res = await fetch("/api/sa/telegram/detect");
+      const data = await res.json();
+      if (!res.ok) {
+        setMsg({ type: "err", text: data.error || "ดึงไม่สำเร็จ" });
+        setDetected([]);
+        return;
+      }
+      setDetected(data.chats ?? []);
+      if ((data.chats ?? []).length === 0) {
+        setMsg({
+          type: "err",
+          text: "ยังไม่พบแชต — กด /start ให้บอท (หรือเพิ่มบอทเข้ากลุ่มแล้วพิมพ์อะไรก็ได้) ก่อน",
+        });
+      }
+    } catch {
+      setMsg({ type: "err", text: "Network error" });
+    } finally {
+      setDetecting(false);
+    }
+  }
+
+  async function sendTest(id?: string) {
+    setMsg(null);
+    const res = await fetch("/api/sa/telegram/test", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(id ? { chatId: id } : {}),
+    });
+    const data = await res.json();
+    setMsg(
+      res.ok
+        ? { type: "ok", text: `ส่งข้อความทดสอบแล้ว (${data.sent} ปลายทาง)` }
+        : { type: "err", text: data.error || "ส่งไม่สำเร็จ" }
+    );
+  }
+
+  return (
+    <div className="rounded-xl border bg-card p-5 mb-6">
+      <h2 className="font-semibold mb-1 flex items-center gap-2">
+        <Send className="h-4 w-4" /> Telegram แจ้งเตือน
+        <span className="text-xs font-normal text-muted-foreground">
+          (แจ้งเมื่อมีลูกค้าสมัคร / โอนเงิน / ใกล้หมดอายุ ฯลฯ)
+        </span>
+      </h2>
+
+      {!botConfigured && (
+        <div className="flex items-start gap-2 rounded-lg bg-yellow-500/10 border border-yellow-500/20 p-3 text-xs text-yellow-700 dark:text-yellow-400 mb-3">
+          <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+          <div>
+            ยังไม่ได้ตั้งค่า <code className="font-mono">TELEGRAM_BOT_TOKEN</code> — เพิ่มใน env (Coolify) แล้ว redeploy ก่อนถึงจะส่งได้
+          </div>
+        </div>
+      )}
+
+      <p className="text-[11px] text-muted-foreground mb-3">
+        วิธีใช้: เปิดแชต/กลุ่มใน Telegram → เพิ่มบอท <code className="font-mono">@workinflow_bot</code> → กด /start (หรือพิมพ์ข้อความในกลุ่ม) → กด &quot;ดึง Chat ID&quot; แล้วเลือกปลายทาง
+      </p>
+
+      {/* Add form */}
+      <form onSubmit={addChat} className="flex flex-wrap gap-2 mb-3">
+        <input
+          value={chatId}
+          onChange={(e) => setChatId(e.target.value)}
+          placeholder="Chat ID (เช่น 123456789 หรือ -100xxxx)"
+          className="h-9 flex-1 min-w-[200px] rounded-lg border bg-background px-3 text-sm font-mono"
+        />
+        <input
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="ชื่อเรียก (ไม่บังคับ)"
+          className="h-9 flex-1 min-w-[160px] rounded-lg border bg-background px-3 text-sm"
+        />
+        <button
+          type="submit"
+          disabled={busy || !chatId.trim()}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-xs font-medium text-primary-foreground hover:bg-blue-600 disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5" />}
+          เพิ่ม
+        </button>
+        <button
+          type="button"
+          onClick={detect}
+          disabled={detecting || !botConfigured}
+          className="inline-flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-medium hover:bg-muted disabled:opacity-60"
+        >
+          {detecting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          ดึง Chat ID
+        </button>
+      </form>
+
+      {/* Detected chats */}
+      {detected && detected.length > 0 && (
+        <div className="mb-3 rounded-lg border bg-muted/30 p-2 text-xs">
+          <div className="mb-1 font-medium text-muted-foreground">แชตที่ตรวจพบ (กดเพื่อเลือก):</div>
+          <div className="flex flex-wrap gap-2">
+            {detected.map((d) => (
+              <button
+                key={d.chatId}
+                type="button"
+                onClick={() => {
+                  setChatId(d.chatId);
+                  setLabel(d.title);
+                }}
+                className="inline-flex items-center gap-1 rounded-md border bg-background px-2 py-1 hover:bg-muted"
+              >
+                <MessageCircle className="h-3 w-3" />
+                {d.title}
+                <span className="font-mono text-muted-foreground">({d.chatId})</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {msg && (
+        <div
+          className={`mb-3 flex items-start gap-2 rounded-lg p-2 text-xs ${
+            msg.type === "ok"
+              ? "bg-green-500/10 text-green-700 dark:text-green-400"
+              : "bg-destructive/10 text-destructive"
+          }`}
+        >
+          {msg.type === "ok" ? (
+            <CheckCircle2 className="h-3.5 w-3.5 mt-0.5" />
+          ) : (
+            <AlertCircle className="h-3.5 w-3.5 mt-0.5" />
+          )}
+          {msg.text}
+        </div>
+      )}
+
+      {/* Chat list */}
+      {chats === null ? (
+        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+      ) : chats.length === 0 ? (
+        <p className="text-xs text-muted-foreground">ยังไม่มีปลายทาง</p>
+      ) : (
+        <div className="space-y-2">
+          {chats.map((c) => (
+            <div
+              key={c.id}
+              className="flex items-center justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
+            >
+              <div className="min-w-0">
+                <div className="font-medium truncate">{c.label || "(ไม่มีชื่อ)"}</div>
+                <div className="font-mono text-xs text-muted-foreground">{c.chatId}</div>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                {!c.active && (
+                  <span className="rounded-full bg-muted px-2 py-0.5 text-[10px] text-muted-foreground">
+                    ปิด
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={() => sendTest(c.chatId)}
+                  disabled={!botConfigured}
+                  title="ส่งข้อความทดสอบ"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border hover:bg-muted disabled:opacity-40"
+                >
+                  <Send className="h-3.5 w-3.5" />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => toggle(c)}
+                  title={c.active ? "ปิดใช้งาน" : "เปิดใช้งาน"}
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border hover:bg-muted"
+                >
+                  <Power className={`h-3.5 w-3.5 ${c.active ? "text-green-600" : "text-muted-foreground"}`} />
+                </button>
+                <button
+                  type="button"
+                  onClick={() => removeChat(c.id)}
+                  title="ลบ"
+                  className="inline-flex h-7 w-7 items-center justify-center rounded-md border hover:bg-destructive/10 hover:text-destructive"
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
