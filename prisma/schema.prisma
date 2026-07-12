@@ -225,9 +225,14 @@ model Subscription {
   // Payment details
   paymentGateway PaymentGateway?
   omiseChargeId  String?            @unique
-  slipUrl        String? // PromptPay slip image
+  slipUrl        String? // PromptPay slip / bank-transfer proof image (R2 object key)
   slipVerifiedAt DateTime?
   gatewayRef     String? // external reference
+  // Manual bank-transfer confirmation (PaymentGateway.MANUAL)
+  slipSubmittedAt DateTime? // when tenant uploaded transfer proof, awaiting SA review
+  confirmedBySaId String? // SuperAdmin.id who manually confirmed the payment
+  confirmedAt     DateTime? // when SA confirmed
+  manualNote      String? // SA note / rejection reason for manual payments
   // Discount
   discountCodeId String?
   discountCode   DiscountCode?      @relation(fields: [discountCodeId], references: [id])
@@ -347,8 +352,26 @@ model PlatformSettings {
   issuerAddress String   @default("")
   issuerPhone   String   @default("")
   issuerEmail   String   @default("")
+  // Bank account shown to tenants for manual bank-transfer payments
+  bankName          String @default("") // e.g. "ธนาคารกสิกรไทย"
+  bankAccountName   String @default("") // ชื่อบัญชี
+  bankAccountNumber String @default("") // เลขที่บัญชี
+  bankBranch        String @default("") // สาขา (optional)
+  promptPayId       String @default("") // PromptPay id (optional)
   updatedAt     DateTime @updatedAt
   updatedBy     String? // SuperAdmin.id who last saved
+}
+
+/// Telegram notification destinations (chat/group ids) that receive platform
+/// alerts (new signup, trial expiry, payment events, ...). Managed by super
+/// admin at /superadmin/settings; the bot token itself lives in TELEGRAM_BOT_TOKEN.
+model TelegramChat {
+  id        String   @id @default(cuid())
+  chatId    String   @unique // Telegram chat/group id (may be negative for groups)
+  label     String   @default("") // human-friendly name, e.g. "Ops group"
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
 
 // ══════════════════════════════════════════════════
