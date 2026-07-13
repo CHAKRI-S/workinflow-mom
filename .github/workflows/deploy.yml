@@ -4,18 +4,58 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: deploy-${{ github.repository }}-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    env:
-      COOLIFY_URL: http://72.62.194.67:8000
-      COOLIFY_APP_UUID: ho00t3aywhh9o9u13fqyx6tn
+    timeout-minutes: 30
     steps:
-      - name: Trigger Coolify Deploy
+      - name: Deploy via SSH (trigger Coolify from the VPS localhost)
+        # GitHub runners intermittently can't reach Coolify :8000 directly
+        # (the Azure->Hostinger :8000 path drops), so we SSH to the VPS on :22
+        # and trigger the deploy from localhost where :8000 always works. The
+        # deploy key is locked to a forced command that only allows deploy/status
+        # of allowlisted app UUIDs (no shell) — /usr/local/bin/coolify-ci-deploy.sh.
+        env:
+          VPS_DEPLOY_SSH_KEY: ${{ secrets.VPS_DEPLOY_SSH_KEY }}
+          DEPLOY_UUID: ho00t3aywhh9o9u13fqyx6tn
         run: |
-          curl --fail-with-body --show-error --silent \
-            --max-time 60 --retry 2 --retry-delay 5 \
-            -X POST \
-            "$COOLIFY_URL/api/v1/deploy?uuid=$COOLIFY_APP_UUID&force=true" \
-            -H "Authorization: Bearer ${{ secrets.COOLIFY_TOKEN }}" \
-            -H "Content-Type: application/json"
+          set -euo pipefail
+          if [ -z "${VPS_DEPLOY_SSH_KEY:-}" ]; then echo "❌ Missing VPS_DEPLOY_SSH_KEY secret"; exit 1; fi
+
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_DEPLOY_SSH_KEY" > ~/.ssh/ci_deploy && chmod 600 ~/.ssh/ci_deploy
+          SSH="ssh -n -i ~/.ssh/ci_deploy -o IdentitiesOnly=yes -o BatchMode=yes -o ConnectTimeout=25 -o LogLevel=ERROR -o StrictHostKeyChecking=accept-new root@72.62.194.67"
+
+          # Trigger the deploy with connection retries — the GitHub->VPS path
+          # intermittently drops, so a single SSH connect can time out.
+          DEP_UUID=""
+          for attempt in $(seq 1 5); do
+            echo "🚀 deploy attempt $attempt/5 ($DEPLOY_UUID) via SSH → localhost:8000"
+            if RESP=$($SSH "deploy ${DEPLOY_UUID}"); then
+              echo "$RESP"
+              DEP_UUID=$(echo "$RESP" | jq -r '.deployments[0].deployment_uuid // empty' 2>/dev/null || true)
+              [ -n "$DEP_UUID" ] && break
+              echo "⚠️ no deployment_uuid in response; retrying in 15s"
+            else
+              echo "⚠️ ssh trigger attempt $attempt failed (connection issue); retrying in 15s"
+            fi
+            sleep 15
+          done
+          if [ -z "$DEP_UUID" ]; then echo "❌ Coolify did not return a deployment_uuid after 5 attempts"; exit 1; fi
+          echo "✅ queued deployment_uuid=$DEP_UUID"
+
+          echo "🔎 Polling deployment status…"
+          for poll in $(seq 1 90); do
+            ST=$($SSH "status ${DEP_UUID}" 2>/dev/null | tr -d '[:space:]' || true)
+            echo "poll $poll/90 status=${ST:-unknown}"
+            case "$ST" in
+              finished|success|succeeded) echo "✅ Coolify deployment finished"; exit 0;;
+              failed|cancelled|canceled|error) echo "❌ Coolify deployment status=$ST"; exit 1;;
+            esac
+            sleep 10
+          done
+          echo "❌ Timed out waiting for Coolify deployment to finish"; exit 1
